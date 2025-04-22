@@ -1,4 +1,3 @@
-
 import pyxel as px
 from const import APP_WIDTH, APP_HEIGHT, EntityType
 from sprite import Sprite
@@ -7,8 +6,9 @@ import input
 
 MOVE_SPEED = 2
 MOVE_SPEED_DIAGONAL = MOVE_SPEED * 0.707
-SHOT_DELAY = 10 # frames
+SHOT_DELAY = 10  # frames
 INVINCIBILITY_FRAMES = 120
+
 
 class Player(Sprite):
     def __init__(self, state) -> None:
@@ -19,26 +19,27 @@ class Player(Sprite):
         self.x = 0
         self.y = 92
         self.h = 8
-        self.colour = 15 # white
+        self.colour = 15  # white
         self.shot_delay = 0
 
         self.invincibility_frames = INVINCIBILITY_FRAMES
+        self.forced_invincible = False
 
     def explode(self):
         for i in range(12):
             self.game_state.add_explosion(
-                self.x + px.rndi(-12,12), 
-                self.y - 4 + px.rndi(-6,6), i*8)
-            
+                self.x + px.rndi(-12, 12), self.y - 4 + px.rndi(-6, 6), i * 8
+            )
+
     def is_invincible(self):
-        return self.invincibility_frames > 0
-    
+        return self.invincibility_frames > 0 or self.forced_invincible
+
     def collide_background(self, bg):
-        if bg.is_point_colliding(self.x + 8, self.y + 4): # centre pixel
+        if bg.is_point_colliding(self.x + 8, self.y + 4):  # centre pixel
             self.collided_with(bg)
             return True
         return False
-    
+
     def kill(self):
         self.remove = True
         self.explode()
@@ -47,9 +48,11 @@ class Player(Sprite):
         self.game_vars.change_weapon(0)
 
     def collided_with(self, other):
-        if other.type == EntityType.ENEMY or \
-            other.type == EntityType.ENEMY_SHOT or \
-            other.type == EntityType.BACKGROUND:
+        if (
+            other.type == EntityType.ENEMY
+            or other.type == EntityType.ENEMY_SHOT
+            or other.type == EntityType.BACKGROUND
+        ):
             if not self.is_invincible():
                 self.kill()
 
@@ -64,28 +67,28 @@ class Player(Sprite):
             move_y = -1
         elif self.input.is_pressing(input.DOWN):
             move_y = 1
-            
+
         if move_x != 0 and move_y != 0:
             move_x *= MOVE_SPEED_DIAGONAL
             move_y *= MOVE_SPEED_DIAGONAL
-            self.x = max(0, min(APP_WIDTH-self.w, self.x + move_x))
-            self.y = max(16, min(APP_HEIGHT-16-self.h, self.y + move_y))
+            self.x = max(0, min(APP_WIDTH - self.w, self.x + move_x))
+            self.y = max(16, min(APP_HEIGHT - 16 - self.h, self.y + move_y))
         elif move_x != 0:
             move_x *= MOVE_SPEED
-            self.x = max(0, min(APP_WIDTH-self.w, self.x + move_x))
+            self.x = max(0, min(APP_WIDTH - self.w, self.x + move_x))
         elif move_y != 0:
             move_y *= MOVE_SPEED
-            self.y = max(16, min(APP_HEIGHT-16-self.h, self.y + move_y))
+            self.y = max(16, min(APP_HEIGHT - 16 - self.h, self.y + move_y))
 
     def shoot(self):
         if player_shot.create(
-            self.game_state, 
-            self.x, 
+            self.game_state,
+            self.x,
             self.y,
             self.game_vars.current_weapon,
-            self.game_vars.weapon_levels[self.game_vars.current_weapon]):
+            self.game_vars.weapon_levels[self.game_vars.current_weapon],
+        ):
             self.shot_delay = SHOT_DELAY
-            
 
     def update_spawned(self):
         self.x += MOVE_SPEED
@@ -104,7 +107,7 @@ class Player(Sprite):
         elif self.input.is_pressing(input.BUTTON_1):
             self.shoot()
 
-        #Debug
+        # Debug
         # gv = self.game_state.game.game_vars
         # if px.btnp(px.KEY_Z):
         #     gv.current_weapon = 0
@@ -117,9 +120,14 @@ class Player(Sprite):
         #     gv.decrease_all_weapon_levels(1)
         # elif px.btnp(px.KEY_2):
         #     gv.increase_all_weapon_levels(1)
-    
+
     def draw(self):
         if self.is_invincible() and px.frame_count % 2 == 0:
             return
         px.blt(self.x, self.y, 0, 0, 4, self.w, self.h, 0)
-    
+
+    def toggle_invincibility(self):
+        self.forced_invincible = not self.forced_invincible
+        self.invincibility_frames = (
+            INVINCIBILITY_FRAMES if self.forced_invincible else 0
+        )
