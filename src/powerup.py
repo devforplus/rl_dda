@@ -1,4 +1,3 @@
-
 from enum import IntEnum, auto
 
 import pyxel as px
@@ -8,24 +7,26 @@ from audio import play_sound, SoundType
 
 SPEED = 1
 
+
 class PowerupType(IntEnum):
     NONE = 0
     LIFE = auto()
     WEAPON = auto()
     BOMB = auto()
 
+
 FRAME_UV = (
-    (0,0),
-    (16,0),
-    (32,0),
-    (80,0),
-    )
+    (0, 0),
+    (16, 0),
+    (32, 0),
+    (80, 0),
+)
 
 WEAPON_FRAME_UV = (
-    (32,0),
-    (48,0),
-    (64,0),
-    )
+    (32, 0),
+    (48, 0),
+    (64, 0),
+)
 
 TYPE_CYCLE = [
     PowerupType.WEAPON,
@@ -35,9 +36,10 @@ TYPE_CYCLE = [
     PowerupType.LIFE,
     PowerupType.WEAPON,
     PowerupType.BOMB,
-    ]
+]
 MAX_CYCLE_LEN = len(TYPE_CYCLE)
-MAX_CYCLE_GAP_LEN = 8 # every n enemies killed spawn next pup
+MAX_CYCLE_GAP_LEN = 999999  # every n enemies killed spawn next pup
+
 
 class Powerup(Sprite):
     type_cycle_index = 0
@@ -58,7 +60,6 @@ class Powerup(Sprite):
                 cls.type_cycle_index = 0
             return True
         return False
-
 
     def __init__(self, game_state, type, x, y) -> None:
         super().__init__(game_state)
@@ -94,7 +95,7 @@ class Powerup(Sprite):
         if self.x + self.w < 0:
             self.remove = True
             return
-        
+
         self.y += px.sin(px.frame_count * PI)
 
         if px.frame_count % 5 == 0:
@@ -109,14 +110,13 @@ class Powerup(Sprite):
                     self.weapon_type = 0
                 self.u = WEAPON_FRAME_UV[self.weapon_type][0]
                 self.v = WEAPON_FRAME_UV[self.weapon_type][1]
-    
+
     def draw(self):
         px.pal(15, self.colour)
         super().draw()
         px.pal()
 
+
 def check_create_next(state, x, y):
     if Powerup.is_cycle_ready():
-        state.add_powerup(
-        Powerup(state, TYPE_CYCLE[Powerup.type_cycle_index], x, y))
-    
+        state.add_powerup(Powerup(state, TYPE_CYCLE[Powerup.type_cycle_index], x, y))
