@@ -1,19 +1,28 @@
-
 from enum import Enum, auto
 
 import pyxel as px
 
-from const import FINAL_STAGE, STAGE_MUSIC_FILES, MUSIC_GAME_OVER, MUSIC_BOSS,\
-    MUSIC_STAGE_CLEAR
+from const import (
+    FINAL_STAGE,
+    STAGE_MUSIC_FILES,
+    MUSIC_GAME_OVER,
+    MUSIC_BOSS,
+    MUSIC_STAGE_CLEAR,
+)
 from player import Player
-from sprite import sprites_update, sprites_draw, sprite_lists_collide, \
-    sprite_collide_list
+from sprite import (
+    sprites_update,
+    sprites_draw,
+    sprite_lists_collide,
+    sprite_collide_list,
+)
 from hud import Hud
 from explosion import Explosion
 from powerup import Powerup
 from stage_background import StageBackground
 import input
 from audio import load_music, play_music, is_music_playing, stop_music
+
 
 class State(Enum):
     PLAYER_SPAWNED = 0
@@ -23,8 +32,10 @@ class State(Enum):
     GAME_OVER = auto()
     STAGE_CLEAR = auto()
 
+
 PLAYER_SPAWN_IN_FRAMES = 30
 STAGE_CLEAR_FRAMES = 180
+
 
 class GameStateStage:
     def __init__(self, game) -> None:
@@ -48,16 +59,16 @@ class GameStateStage:
         Powerup.reset_cycle()
 
         self.background = StageBackground(
-            self, 
+            self,
             f"stage_{game.game_vars.stage_num}.tmx",
-            self.game.game_vars.is_vortex_stage())
+            self.game.game_vars.is_vortex_stage(),
+        )
 
         self.hud = Hud(game.game_vars, self.font)
 
         self.check_stage_clear = False
 
-        self.music = load_music(
-            STAGE_MUSIC_FILES[self.game.game_vars.stage_num])
+        self.music = load_music(STAGE_MUSIC_FILES[self.game.game_vars.stage_num])
         play_music(self.music, num_channels=3)
 
     def on_exit(self):
@@ -86,7 +97,7 @@ class GameStateStage:
 
     def add_enemy(self, e):
         self.enemies.append(e)
-        #print(f"Added enemy type {e.type} at {e.x//8},{e.y//8}")
+        # print(f"Added enemy type {e.type} at {e.x//8},{e.y//8}")
 
     def add_boss(self, b):
         self.bosses.append(b)
@@ -110,7 +121,7 @@ class GameStateStage:
     # Doesnt include bosses.
     def get_num_enemies(self):
         return len(self.enemies)
-    
+
     def add_player_shot(self, s):
         self.player_shots.append(s)
 
@@ -118,12 +129,17 @@ class GameStateStage:
         self.enemy_shots.append(s)
 
     def update_play(self):
+        """게임 플레이 상태를 업데이트합니다."""
         self.player.update()
+
+        # I 키를 눌렀을 때 무적모드 토글
+        if self.input.has_tapped(input.INVINCIBLE):
+            self.player.toggle_invincibility()
 
     def switch_state(self, new):
         self.state = new
         self.state_time = 0
-        #print(f"Switched stage state to {self.state}")
+        # print(f"Switched stage state to {self.state}")
 
     def update_player_dead(self):
         if len(self.explosions) == 0:
@@ -140,9 +156,11 @@ class GameStateStage:
         play_music(self.music, True, num_channels=3)
 
     def update_game_over(self):
-        if self.input.has_tapped(input.BUTTON_1) or \
-            self.input.has_tapped(input.BUTTON_2) or \
-            not is_music_playing():
+        if (
+            self.input.has_tapped(input.BUTTON_1)
+            or self.input.has_tapped(input.BUTTON_2)
+            or not is_music_playing()
+        ):
             self.game.go_to_titles()
 
     def update_player_spawned(self):
@@ -151,8 +169,7 @@ class GameStateStage:
             self.switch_state(State.PLAY)
 
     def update_stage_clear(self):
-        if self.state_time >= STAGE_CLEAR_FRAMES and \
-            not is_music_playing():
+        if self.state_time >= STAGE_CLEAR_FRAMES and not is_music_playing():
             self.game.go_to_next_stage()
 
     def update(self):
@@ -203,12 +220,11 @@ class GameStateStage:
         if self.state == State.PLAY and self.player.remove:
             self.switch_state(State.PLAYER_DEAD)
             self.player_shots.clear()
-    
+
     def draw(self):
         self.background.draw()
 
-        if self.state != State.PLAYER_DEAD and \
-            self.state != State.GAME_OVER:
+        if self.state != State.PLAYER_DEAD and self.state != State.GAME_OVER:
             self.player.draw()
 
         sprites_draw(self.powerups)
@@ -231,4 +247,3 @@ class GameStateStage:
                         self.font.draw_text(80, 88, "LEAVING VORTEX")
                     else:
                         self.font.draw_text(80, 88, "ENTERING VORTEX")
-    
