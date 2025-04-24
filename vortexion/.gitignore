@@ -6,18 +6,9 @@
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-*.log
 
 # Distribution / packaging
+.Python
 build/
 develop-eggs/
 dist/
@@ -78,28 +69,3 @@ MANIFEST
 .Trashes
 ehthumbs.db
 Thumbs.db
-
-# Node.js
-node_modules/
-npm-debug.log
-yarn-debug.log
-yarn-error.log
-
-# Database
-*.sqlite3
-*.db
-data/db/
-
-# IDE
-.idea/
-.swp
-*.swo
-
-# OS specific
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# Cache
-.cache/
