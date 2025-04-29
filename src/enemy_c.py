@@ -1,12 +1,12 @@
-
-from enemy import Enemy
+from components.enemy import Enemy
 
 BULLET_SPEED = 2
+
 
 class EnemyC(Enemy):
     def __init__(self, state, x, y) -> None:
         super().__init__(state, x, y)
-        self.colour = 13 # purple
+        self.colour = 13  # purple
         self.u = 32
         self.v = 80
 
@@ -15,7 +15,7 @@ class EnemyC(Enemy):
         self.speed = state.get_scroll_x_speed()
 
     def update(self):
-        super().update() # hit frames
+        super().update()  # hit frames
 
         self.speed = self.game_state.get_scroll_x_speed()
 

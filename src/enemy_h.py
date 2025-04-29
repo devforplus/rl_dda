@@ -1,14 +1,14 @@
-
-from enemy import Enemy
+from components.enemy import Enemy
 
 SPEED_X = 1.5
 BOUNCE_VEL = 5
 GRAVITY = 0.2
 
+
 class EnemyH(Enemy):
     def __init__(self, state, x, y) -> None:
         super().__init__(state, x, y)
-        self.colour = 6 # red
+        self.colour = 6  # red
         self.u = 112
         self.v = 80
 
@@ -17,7 +17,7 @@ class EnemyH(Enemy):
         self.vel_y = BOUNCE_VEL
 
     def update(self):
-        super().update() # hit frames
+        super().update()  # hit frames
 
         self.x -= SPEED_X
 
@@ -31,4 +31,3 @@ class EnemyH(Enemy):
         if self.x + self.w < 0:
             self.remove = True
             return
-

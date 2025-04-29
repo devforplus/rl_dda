@@ -2,15 +2,15 @@ from enum import Enum, auto
 
 import pyxel as px
 
-from const import (
+from system.const import (
     FINAL_STAGE,
     STAGE_MUSIC_FILES,
     MUSIC_GAME_OVER,
     MUSIC_BOSS,
     MUSIC_STAGE_CLEAR,
 )
-from player import Player
-from sprite import (
+from components.player import Player
+from components.sprite import (
     sprites_update,
     sprites_draw,
     sprite_lists_collide,
@@ -20,11 +20,13 @@ from hud import Hud
 from explosion import Explosion
 from powerup import Powerup
 from stage_background import StageBackground
-import input
+import input as input
 from audio import load_music, play_music, is_music_playing, stop_music
 
 
 class State(Enum):
+    """스테이지 상태 열거형."""
+
     PLAYER_SPAWNED = 0
     PLAY = auto()
     PLAYER_DEAD = auto()
@@ -33,45 +35,62 @@ class State(Enum):
     STAGE_CLEAR = auto()
 
 
+# 플레이어 스폰 시간 (프레임 단위)
 PLAYER_SPAWN_IN_FRAMES = 30
+# 스테이지 클리어 후 대기 시간 (프레임 단위)
 STAGE_CLEAR_FRAMES = 180
 
 
 class GameStateStage:
     def __init__(self, game) -> None:
+        """
+        스테이지 상태 초기화.
+
+        플레이어, 적, 배경 등을 초기화합니다.
+        """
         self.game = game
         self.state = State.PLAYER_SPAWNED
         self.input = game.app.input
         self.font = game.app.main_font
 
+        # 상태 관련 타이머 초기화
         self.state_time = 0
 
+        # 플레이어 및 관련 객체 초기화
         self.player = Player(self)
         self.player_shots = []
 
+        # 적 및 관련 객체 초기화
         self.enemies = []
         self.enemy_shots = []
         self.bosses = []
 
+        # 폭발 효과 리스트 초기화
         self.explosions = []
 
+        # 파워업 리스트 초기화 및 사이클 리셋
         self.powerups = []
         Powerup.reset_cycle()
 
+        # 배경 초기화
         self.background = StageBackground(
             self,
             f"stage_{game.game_vars.stage_num}.tmx",
             self.game.game_vars.is_vortex_stage(),
         )
 
+        # HUD 초기화
         self.hud = Hud(game.game_vars, self.font)
 
+        # 스테이지 클리어 체크 플래그 초기화
         self.check_stage_clear = False
 
+        # 음악 로드 및 재생
         self.music = load_music(STAGE_MUSIC_FILES[self.game.game_vars.stage_num])
         play_music(self.music, num_channels=3)
 
     def on_exit(self):
+        """스테이지 상태 종료 시 처리."""
         px.stop()
 
     def end_of_vortex_stage(self):
@@ -173,6 +192,7 @@ class GameStateStage:
             self.game.go_to_next_stage()
 
     def update(self):
+        """스테이지 상태 업데이트."""
         self.state_time += 1
 
         if self.state == State.PLAYER_SPAWNED:
@@ -222,6 +242,7 @@ class GameStateStage:
             self.player_shots.clear()
 
     def draw(self):
+        """스테이지 상태 그리기."""
         self.background.draw()
 
         if self.state != State.PLAYER_DEAD and self.state != State.GAME_OVER:

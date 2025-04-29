@@ -1,19 +1,19 @@
-
-from enemy import Enemy
+from components.enemy import Enemy
 
 SPEED_Y = 1.5
+
 
 class EnemyG(Enemy):
     def __init__(self, state, x, y) -> None:
         super().__init__(state, x, y)
-        self.colour = 9 # pink
+        self.colour = 9  # pink
         self.u = 96
         self.v = 80
 
         self.speed = -state.get_scroll_x_speed()
 
     def update(self):
-        super().update() # hit frames
+        super().update()  # hit frames
 
         if self.lifetime < 250:
             self.speed = -(self.game_state.get_scroll_x_speed() + 0.5)
@@ -31,4 +31,3 @@ class EnemyG(Enemy):
         if self.lifetime > 300 and self.x > 255:
             self.remove = True
             return
-

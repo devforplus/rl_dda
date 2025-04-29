@@ -1,8 +1,9 @@
 from enum import IntEnum, auto
+from math import pi
 
 import pyxel as px
-from sprite import Sprite
-from const import MAX_COLOURS, EntityType, MAX_WEAPONS, PI
+from components.sprite import Sprite
+from system.const import MAX_COLOURS, EntityType, MAX_WEAPONS
 from audio import play_sound, SoundType
 
 SPEED = 1
@@ -96,7 +97,7 @@ class Powerup(Sprite):
             self.remove = True
             return
 
-        self.y += px.sin(px.frame_count * PI)
+        self.y += px.sin(px.frame_count * pi)
 
         if px.frame_count % 5 == 0:
             self.colour += 1

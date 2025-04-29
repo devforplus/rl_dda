@@ -10,5 +10,9 @@
 #   universal: false
 
 -e file:.
+pipe==2.2
+    # via rl-dda-game
 pyxel==2.3.18
-    # via test
+    # via rl-dda-game
+toolz==1.0.0
+    # via rl-dda-game
