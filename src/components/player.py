@@ -12,6 +12,10 @@ MOVE_SPEED_DIAGONAL: float = MOVE_SPEED * 0.707
 SHOT_DELAY: int = 10
 # 초기 무적 상태 지속 프레임 수
 INVINCIBILITY_FRAMES: int = 120
+# 피격 후 무적 시간
+DAMAGE_INVINCIBILITY_FRAMES: int = 60
+# 플레이어 발사체 데미지
+PLAYER_SHOT_DAMAGE: int = 1
 
 
 class Player(Sprite):
@@ -28,6 +32,8 @@ class Player(Sprite):
         shot_delay (int): 총알 발사 지연 시간
         invincibility_frames (int): 초기 무적 상태 남은 프레임 수
         forced_invincible (bool): 강제 무적 상태 여부 (I 키 입력 시 토글)
+        max_hp (int): 최대 체력
+        current_hp (int): 현재 체력
     """
 
     game_vars: object
@@ -40,6 +46,8 @@ class Player(Sprite):
     shot_delay: int
     invincibility_frames: int
     forced_invincible: bool
+    max_hp: int
+    current_hp: int
 
     def __init__(self, state) -> None:
         """
@@ -60,6 +68,25 @@ class Player(Sprite):
         # 초기 무적 상태 설정
         self.invincibility_frames = INVINCIBILITY_FRAMES
         self.forced_invincible = False  # 강제 무적 상태는 아님
+        
+        # 체력 설정
+        self.max_hp = 3  # 기본 최대 체력
+        self.current_hp = self.max_hp  # 현재 체력
+
+    def take_damage(self, damage: int) -> None:
+        """
+        데미지를 받았을 때의 처리
+        
+        :param damage: 받은 데미지
+        """
+        if self.is_invincible():
+            return
+        
+        self.current_hp -= damage
+        if self.current_hp <= 0:
+            self.kill()
+        else:
+            self.invincibility_frames = DAMAGE_INVINCIBILITY_FRAMES  # 피격 무적
 
     def explode(self) -> None:
         """플레이어 폭발 효과 처리."""
@@ -94,6 +121,7 @@ class Player(Sprite):
         self.game_vars.subtract_life()  # 생명 수 감소
         self.game_vars.decrease_all_weapon_levels(2)  # 모든 무기 레벨 감소
         self.game_vars.change_weapon(0)  # 기본 무기로 변경
+        self.current_hp = self.max_hp  # 체력 초기화
 
     def collided_with(self, other) -> None:
         """
@@ -107,7 +135,10 @@ class Player(Sprite):
             or other.type == EntityType.BACKGROUND
         ):
             if not self.is_invincible():
-                self.kill()
+                if other.type == EntityType.ENEMY_SHOT:
+                    self.take_damage(other.damage)  # 적 총알의 데미지 적용
+                else:
+                    self.kill()  # 적이나 배경과 충돌 시 즉사
 
     def move(self) -> None:
         """플레이어 이동 처리."""

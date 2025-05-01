@@ -1,6 +1,12 @@
-from system.const import APP_WIDTH, EntityType
+from config.app import APP_WIDTH
+from components.entity_types import EntityType
+from config.player.player_config import PlayerConfig
 from components.sprite import Sprite
 
+# 무기 관련 설정 인스턴스 생성
+player_config = PlayerConfig()
+
+# 무기 관련 상수 정의
 MAX_SHOTS = 4
 UV_FRAME_OFFSET = 1
 SIZE = 14
@@ -20,16 +26,16 @@ class PlayerShot(Sprite):
         self.type = EntityType.PLAYER_SHOT
         self.x = x
         self.y = y
-        self.w = SIZE
-        self.h = SIZE
+        self.w = player_config.shot_size
+        self.h = player_config.shot_size
 
-        self.u = (lvl * 16) + UV_FRAME_OFFSET
-        self.v = UV_OFFSET_Y + (type * 16) + UV_FRAME_OFFSET
+        self.u = (lvl * 16) + player_config.uv_frame_offset
+        self.v = player_config.uv_offset_y + (type * 16) + player_config.uv_frame_offset
 
         self.velx = velx
         self.vely = vely
 
-        self.damage = DAMAGE[type][lvl]
+        self.damage = player_config.damage_levels[type][lvl]
 
     def collide_background(self, bg):
         if bg.is_point_colliding(self.x + 7, self.y + 7):  # centre pixel
@@ -60,24 +66,24 @@ class PlayerShot(Sprite):
 
 
 def create(gs, player_x, player_y, wpn_type, wlvl):
-    if len(gs.player_shots) >= MAX_SHOTS:
+    if len(gs.player_shots) >= player_config.max_shots:
         return False
 
     addshot = gs.add_player_shot
     if wpn_type == 0:  # fwd
         addshot(
             PlayerShot(
-                gs, player_x + 12, player_y - 10, wpn_type, wlvl, SPEED_LVL[wlvl], 0
+                gs, player_x + 12, player_y - 10, wpn_type, wlvl, player_config.speed_levels[wlvl], 0
             )
         )
         addshot(
             PlayerShot(
-                gs, player_x + 12, player_y + 4, wpn_type, wlvl, SPEED_LVL[wlvl], 0
+                gs, player_x + 12, player_y + 4, wpn_type, wlvl, player_config.speed_levels[wlvl], 0
             )
         )
     elif wpn_type == 1:  # spread/diagonal
-        spdx = SPEED_LVL[wlvl] * 0.894
-        spdy = SPEED_LVL[wlvl] * 0.447
+        spdx = player_config.speed_levels[wlvl] * 0.894
+        spdy = player_config.speed_levels[wlvl] * 0.447
         addshot(
             PlayerShot(gs, player_x + 12, player_y - 10, wpn_type, wlvl, spdx, -spdy)
         )
@@ -87,12 +93,12 @@ def create(gs, player_x, player_y, wpn_type, wlvl):
     elif wpn_type == 2:  # back and fwd
         addshot(
             PlayerShot(
-                gs, player_x + 12, player_y - 3, wpn_type, wlvl, SPEED_LVL[wlvl], 0
+                gs, player_x + 12, player_y - 3, wpn_type, wlvl, player_config.speed_levels[wlvl], 0
             )
         )
         addshot(
             PlayerShot(
-                gs, player_x - 10, player_y - 3, wpn_type, wlvl, -SPEED_LVL[wlvl], 0
+                gs, player_x - 10, player_y - 3, wpn_type, wlvl, -player_config.speed_levels[wlvl], 0
             )
         )
 
