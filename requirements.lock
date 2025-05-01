@@ -10,9 +10,24 @@
 #   universal: false
 
 -e file:.
+colorama==0.4.6
+    # via pytest
+exceptiongroup==1.2.2
+    # via pytest
+iniconfig==2.1.0
+    # via pytest
+packaging==25.0
+    # via pytest
 pipe==2.2
     # via rl-dda-game
+pluggy==1.5.0
+    # via pytest
+pytest==8.3.5
+    # via rl-dda-game
 pyxel==2.3.18
+    # via rl-dda-game
+tomli==2.2.1
+    # via pytest
     # via rl-dda-game
 toolz==1.0.0
     # via rl-dda-game
