@@ -1,10 +1,14 @@
 import pyxel as px
 
-from config.const import APP_WIDTH, EntityType
+from src.config.app.app import APP_WIDTH, APP_HEIGHT
+from components.entity_types import EntityType
 from components.sprite import Sprite
 
 # 적의 발사체 크기 정의
 SIZE = 4
+
+# 적 총알 속도
+ENEMY_SHOT_SPEED: int = 2
 
 
 class EnemyShot(Sprite):
@@ -13,6 +17,17 @@ class EnemyShot(Sprite):
 
     적의 발사체의 위치, 속도, 그래픽 표현 등을 관리합니다.
     """
+
+    type: EntityType
+    x: int
+    y: int
+    w: int
+    h: int
+    vx: int
+    vy: int
+    colour: int
+    damage: int
+    delay: int
 
     def __init__(self, game_state, x, y, vx, vy, delay=0) -> None:
         """
@@ -35,11 +50,12 @@ class EnemyShot(Sprite):
         self.vy = vy  # y축 속도
 
         # 그래픽 관련 속성
-        self.colour = 11  # 색상 (노랑)
+        self.colour = 8  # 빨간색
         self.u = 6  # 텍스처 u좌표
         self.v = 102  # 텍스처 v좌표
 
         self.delay = delay  # 발사 지연 시간
+        self.damage = 1  # 기본 데미지
 
     def collide_background(self, bg):
         """
@@ -91,7 +107,7 @@ class EnemyShot(Sprite):
 
         # 색상 변경 (10프레임마다)
         if px.frame_count % 10 == 0:
-            self.colour = 11 if (self.colour == 6) else 6
+            self.colour = 8 if (self.colour == 11) else 11
 
     def draw(self):
         """
@@ -103,3 +119,9 @@ class EnemyShot(Sprite):
         px.pal(15, self.colour)  # 색상 변경
         super().draw()
         px.pal()  # 색상 초기화
+
+    def move(self) -> None:
+        """적 총알 이동."""
+        self.y += ENEMY_SHOT_SPEED
+        if self.y > APP_HEIGHT:
+            self.remove = True

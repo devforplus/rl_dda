@@ -10,6 +10,8 @@ from audio import play_sound, SoundType
 HIT_FRAMES: int = 5
 # 생성 시 무적 프레임 수
 INVINCIBLE_START_FRAMES: int = 15
+# 적 기본 데미지
+ENEMY_DAMAGE: int = 1
 
 
 class Enemy(Sprite):
@@ -23,6 +25,7 @@ class Enemy(Sprite):
         hit_frames (int): 피격 시 무적 프레임 수
         score (int): 적 처치 시 획득 점수
         lifetime (int): 생존 시간
+        damage (int): 플레이어에게 주는 데미지
     """
 
     type: EntityType
@@ -32,6 +35,7 @@ class Enemy(Sprite):
     hit_frames: int
     score: int
     lifetime: int
+    damage: int
 
     def __init__(self, game_state, x: int, y: int) -> None:
         """
@@ -49,6 +53,7 @@ class Enemy(Sprite):
         self.hit_frames = 0
         self.score = ENEMY_SCORE_NORMAL  # 처치 시 획득 점수
         self.lifetime = 0  # 생존 시간 초기화
+        self.damage = ENEMY_DAMAGE  # 기본 데미지 설정
 
     def explode(self) -> None:
         """적 폭발 효과 처리."""
@@ -99,6 +104,8 @@ class Enemy(Sprite):
 
         if other.type == EntityType.PLAYER_SHOT:
             self.hit(other.damage)  # 플레이어 총알과 충돌 시 피격 처리
+        elif other.type == EntityType.PLAYER:
+            other.take_damage(self.damage)  # 플레이어와 충돌 시 데미지 주기
 
     def shoot_at_angle(
         self,
