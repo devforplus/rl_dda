@@ -17,6 +17,9 @@ def test_player_config_initialization():
     assert config.max_weapons == 3
     assert config.max_weapon_level == 5
     assert config.weapon_names == ["A", "B", "C"]
+    assert config.max_hp == 3
+    assert config.invincibility_frames == 120
+    assert config.damage_invincibility_frames == 60
 
 
 def test_player_config_custom_initialization():
@@ -35,12 +38,18 @@ def test_player_config_custom_initialization():
         max_weapons=4,
         max_weapon_level=6,
         weapon_names=["X", "Y", "Z"],
+        max_hp=5,
+        invincibility_frames=180,
+        damage_invincibility_frames=90,
     )
     assert custom_config.starting_lives == 5
     assert custom_config.max_lives == 10
     assert custom_config.max_weapons == 4
     assert custom_config.max_weapon_level == 6
     assert custom_config.weapon_names == ["X", "Y", "Z"]
+    assert custom_config.max_hp == 5
+    assert custom_config.invincibility_frames == 180
+    assert custom_config.damage_invincibility_frames == 90
 
 
 def test_player_config_type_validation():
@@ -56,6 +65,9 @@ def test_player_config_type_validation():
     assert isinstance(config.max_weapon_level, int)
     assert isinstance(config.weapon_names, list)
     assert all(isinstance(name, str) for name in config.weapon_names)
+    assert isinstance(config.max_hp, int)
+    assert isinstance(config.invincibility_frames, int)
+    assert isinstance(config.damage_invincibility_frames, int)
 
 
 def test_player_config_equality():
@@ -64,8 +76,20 @@ def test_player_config_equality():
 
     목적: 동일한 속성값을 가진 두 PlayerConfig 인스턴스가 동등한지 검증
     """
-    config1 = PlayerConfig(starting_lives=5, max_lives=10)
-    config2 = PlayerConfig(starting_lives=5, max_lives=10)
+    config1 = PlayerConfig(
+        starting_lives=5,
+        max_lives=10,
+        max_hp=5,
+        invincibility_frames=180,
+        damage_invincibility_frames=90,
+    )
+    config2 = PlayerConfig(
+        starting_lives=5,
+        max_lives=10,
+        max_hp=5,
+        invincibility_frames=180,
+        damage_invincibility_frames=90,
+    )
     assert config1 == config2
 
 
@@ -75,6 +99,18 @@ def test_player_config_inequality():
 
     목적: 다른 속성값을 가진 두 PlayerConfig 인스턴스가 다른지 검증
     """
-    config1 = PlayerConfig(starting_lives=5, max_lives=10)
-    config2 = PlayerConfig(starting_lives=3, max_lives=9)
+    config1 = PlayerConfig(
+        starting_lives=5,
+        max_lives=10,
+        max_hp=5,
+        invincibility_frames=180,
+        damage_invincibility_frames=90,
+    )
+    config2 = PlayerConfig(
+        starting_lives=3,
+        max_lives=9,
+        max_hp=3,
+        invincibility_frames=120,
+        damage_invincibility_frames=60,
+    )
     assert config1 != config2
