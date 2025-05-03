@@ -3,7 +3,6 @@
 """
 
 from .enemy_config import (
-    ENEMY_SCORE_NORMAL,
     BOMB_DAMAGE,
     ENEMY_DAMAGE,
     HIT_FRAMES,
@@ -11,7 +10,6 @@ from .enemy_config import (
 )
 
 __all__ = [
-    "ENEMY_SCORE_NORMAL",
     "BOMB_DAMAGE",
     "ENEMY_DAMAGE",
     "HIT_FRAMES",

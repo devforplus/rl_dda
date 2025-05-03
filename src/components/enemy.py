@@ -2,7 +2,8 @@ import pyxel as px
 
 from components.sprite import Sprite
 from components.entity_types import EntityType
-from src.config.enemy.enemy_config import ENEMY_SCORE_NORMAL, BOMB_DAMAGE
+from src.config.enemy.enemy_config import BOMB_DAMAGE
+from src.config.score.score_config import ENEMY_SCORE_NORMAL
 from components.enemy_shot import EnemyShot
 import powerup
 from audio import play_sound, SoundType

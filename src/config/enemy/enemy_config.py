@@ -2,9 +2,6 @@
 적 관련 설정을 정의하는 모듈입니다.
 """
 
-# 적 처치 시 기본 점수
-ENEMY_SCORE_NORMAL: int = 100
-
 # 폭탄 데미지
 BOMB_DAMAGE: int = 2
 
