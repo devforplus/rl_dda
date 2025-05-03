@@ -1,5 +1,6 @@
 import pyxel as px
-from system.const import APP_WIDTH, APP_HEIGHT, EntityType
+from src.config.app.app import APP_WIDTH, APP_HEIGHT
+from components.entity_types import EntityType
 from components.sprite import Sprite
 import player_shot
 import input as input
