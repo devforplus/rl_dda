@@ -2,11 +2,14 @@ import pyxel as px
 
 from components.sprite import Sprite
 from components.entity_types import EntityType
-from src.config.enemy.enemy_config import BOMB_DAMAGE
+from src.config.enemy.enemy_config import EnemyConfig
 from src.config.score.score_config import ENEMY_SCORE_NORMAL
 from components.enemy_shot import EnemyShot
 import powerup
 from audio import play_sound, SoundType
+
+# 적 설정 인스턴스 생성
+enemy_config = EnemyConfig()
 
 # 적중 시 무적 프레임 수
 HIT_FRAMES: int = 5
@@ -51,11 +54,11 @@ class Enemy(Sprite):
         self.type = EntityType.ENEMY
         self.x = x
         self.y = y
-        self.hp = 2  # 기본 체력
+        self.hp = enemy_config.base_hp  # 기본 체력
         self.hit_frames = 0
         self.score = ENEMY_SCORE_NORMAL  # 처치 시 획득 점수
         self.lifetime = 0  # 생존 시간 초기화
-        self.damage = ENEMY_DAMAGE  # 기본 데미지 설정
+        self.damage = enemy_config.base_damage  # 기본 데미지 설정
 
     def explode(self) -> None:
         """적 폭발 효과 처리."""
@@ -87,12 +90,12 @@ class Enemy(Sprite):
         if self.hp == 0:
             self.destroy()  # 체력이 0이면 제거 처리
         else:
-            self.hit_frames = HIT_FRAMES  # 무적 프레임 설정
+            self.hit_frames = enemy_config.hit_invincibility_frames  # 무적 프레임 설정
             play_sound(SoundType.BLIP)  # 피격 사운드 재생
 
     def hit_with_bomb(self) -> None:
         """폭탄에 의한 피격 처리."""
-        self.hit(BOMB_DAMAGE)  # 폭탄 데미지로 피격 처리
+        self.hit(enemy_config.bomb_damage)  # 폭탄 데미지로 피격 처리
 
     def collided_with(self, other) -> None:
         """
@@ -101,7 +104,7 @@ class Enemy(Sprite):
         매개변수:
             other: 충돌한 객체
         """
-        if self.lifetime < INVINCIBLE_START_FRAMES:
+        if self.lifetime < enemy_config.spawn_invincibility_frames:
             return  # 초기 무적 시간 중에는 충돌 무시
 
         if other.type == EntityType.PLAYER_SHOT:
