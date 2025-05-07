@@ -1,6 +1,15 @@
 from dataclasses import dataclass, field
 from typing import List, Dict, Tuple
 
+"""
+플레이어 관련 설정을 정의하는 모듈
+"""
+
+# 플레이어 기본 설정
+STARTING_LIVES = 3  # 시작 생명 수
+MAX_LIVES = 5  # 최대 생명 수
+MAX_WEAPONS = 3  # 최대 무기 수
+MAX_WEAPON_LEVEL = 5  # 최대 무기 레벨
 
 @dataclass
 class PlayerConfig:
@@ -44,10 +53,10 @@ class PlayerConfig:
         ### 향후 리팩토링 시 주석의 정확성을 다시 확인해야 합니다.
     """
 
-    starting_lives: int = 3  # 초기 목숨 수
-    max_lives: int = 9  # 최대 목숨 수
-    max_weapons: int = 3  # 최대 무기의 수
-    max_weapon_level: int = 5  # 최대 무기 레벨
+    starting_lives: int = STARTING_LIVES  # 초기 목숨 수
+    max_lives: int = MAX_LIVES  # 최대 목숨 수
+    max_weapons: int = MAX_WEAPONS  # 최대 무기의 수
+    max_weapon_level: int = MAX_WEAPON_LEVEL  # 최대 무기 레벨
     weapon_names: List[str] = field(
         default_factory=lambda: ["A", "B", "C"]
     )  # 무기 이름 목록

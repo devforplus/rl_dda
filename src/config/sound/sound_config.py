@@ -18,10 +18,12 @@ class SoundConfig:
     # 값: 우선순위 (높을수록 우선 재생)
     SND_PRIORITY = {
         SoundType.EXPLODE_SMALL: 5,  # 작은 폭발 효과음 우선순위
+        SoundType.EXPLOSION: 7,  # 큰 폭발 효과음 우선순위
         SoundType.BLIP: 4,  # 기본 UI 효과음 우선순위
         SoundType.WEAPON_POWERUP: 10,  # 무기 업그레이드 효과음 우선순위
         SoundType.LIFE_POWERUP: 10,  # 목숨 증가 효과음 우선순위
         SoundType.BOMB_POWERUP: 10,  # 폭탄 업그레이드 효과음 우선순위
+        SoundType.ENEMY_EXPLOSION: 6,  # 적 폭발 효과음 우선순위
     }
 
     # 기본 사운드 채널 게인값 (0.0 ~ 1.0 범위)
