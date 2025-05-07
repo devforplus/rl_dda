@@ -1,10 +1,12 @@
 from enum import Enum, auto
 from typing import Optional
 
-from game_state_titles import GameStateTitles
-from game_state_stage import GameStateStage
-from game_state_complete import GameStateComplete
+from states.game_state.game_state_titles import GameStateTitles
+from states.game_state.game_state_stage import GameStateStage
+from states.game_state.game_state_complete import GameStateComplete
 from game_vars import GameVars
+from object_detection import GameDetector
+from input import COLLECT_DATA
 
 
 class GameState(Enum):
@@ -46,7 +48,10 @@ class Game:
         self.app = app
         self.next_state = None
         self.game_vars = GameVars(self)
-
+        # 객체 탐지기 초기화
+        self.object_detector = GameDetector()
+        # 데이터 수집기 제거
+        # self.dataset_collector = DatasetCollector()
         # 초기 게임 상태 설정
         self.state = GameStateTitles(self)
         # self.state = GameStateStage(self)
@@ -103,7 +108,22 @@ class Game:
         if self.next_state is not None:
             self.switch_state()
         self.state.update()
+        # C 키 데이터 수집 토글 제거
+        # if COLLECT_DATA in self.app.input.tapped:
+        #     self.toggle_data_collection()
+        # 객체 탐지 수행 (스테이지 상태일 때만)
+        if isinstance(self.state, GameStateStage):
+            # frame = self.dataset_collector.capture_screen()
+            frame = None
+            detections, frame = self.object_detector.detect_objects(frame, self.state)
+            self.object_detector.draw_detections(frame, detections)
+            # 데이터 수집 업데이트 제거
+            # self.dataset_collector.update(detections)
 
     def draw(self) -> None:
         """게임 상태 그리기."""
         self.state.draw()
+
+    def toggle_data_collection(self) -> None:
+        """데이터 수집 시작/중지 토글"""
+        pass
