@@ -10,5 +10,141 @@
 #   universal: false
 
 -e file:.
+certifi==2025.4.26
+    # via requests
+charset-normalizer==3.4.2
+    # via requests
+colorama==0.4.6
+    # via pytest
+    # via tqdm
+contourpy==1.1.1
+    # via matplotlib
+cycler==0.12.1
+    # via matplotlib
+exceptiongroup==1.2.2
+    # via pytest
+filelock==3.16.1
+    # via torch
+fonttools==4.57.0
+    # via matplotlib
+fsspec==2025.3.0
+    # via torch
+idna==3.10
+    # via requests
+importlib-resources==6.4.5
+    # via matplotlib
+iniconfig==2.1.0
+    # via pytest
+jinja2==3.1.6
+    # via torch
+kiwisolver==1.4.7
+    # via matplotlib
+markupsafe==2.1.5
+    # via jinja2
+matplotlib==3.7.5
+    # via seaborn
+    # via ultralytics
+mouseinfo==0.1.3
+    # via pyautogui
+mpmath==1.3.0
+    # via sympy
+networkx==3.1
+    # via torch
+numpy==1.24.4
+    # via contourpy
+    # via matplotlib
+    # via opencv-python
+    # via pandas
+    # via scipy
+    # via seaborn
+    # via torchvision
+    # via ultralytics
+    # via ultralytics-thop
+opencv-python==4.11.0.86
+    # via rl-dda-game
+    # via ultralytics
+packaging==25.0
+    # via matplotlib
+    # via pytest
+pandas==2.0.3
+    # via seaborn
+    # via ultralytics
+pillow==10.4.0
+    # via matplotlib
+    # via pyscreeze
+    # via rl-dda-game
+    # via torchvision
+    # via ultralytics
+pipe==2.2
+    # via rl-dda-game
+pluggy==1.5.0
+    # via pytest
+psutil==7.0.0
+    # via ultralytics
+py-cpuinfo==9.0.0
+    # via ultralytics
+pyautogui==0.9.54
+    # via rl-dda-game
+pygetwindow==0.0.9
+    # via pyautogui
+pymsgbox==1.0.9
+    # via pyautogui
+pyparsing==3.1.4
+    # via matplotlib
+pyperclip==1.9.0
+    # via mouseinfo
+pyrect==0.2.0
+    # via pygetwindow
+pyscreeze==1.0.1
+    # via pyautogui
+pytest==8.3.5
+python-dateutil==2.9.0.post0
+    # via matplotlib
+    # via pandas
+pytweening==1.2.0
+    # via pyautogui
+pytz==2025.2
+    # via pandas
 pyxel==2.3.18
-    # via test
+    # via rl-dda-game
+pyyaml==6.0.2
+    # via ultralytics
+requests==2.32.3
+    # via ultralytics
+scipy==1.10.1
+    # via ultralytics
+seaborn==0.13.2
+    # via ultralytics
+setuptools==75.3.2
+    # via wasm
+six==1.17.0
+    # via python-dateutil
+sympy==1.13.3
+    # via torch
+tomli==2.2.1
+    # via pytest
+toolz==1.0.0
+    # via rl-dda-game
+torch==2.4.1
+    # via rl-dda-game
+    # via torchvision
+    # via ultralytics
+    # via ultralytics-thop
+torchvision==0.19.1
+    # via ultralytics
+tqdm==4.67.1
+    # via ultralytics
+typing-extensions==4.13.2
+    # via torch
+tzdata==2025.2
+    # via pandas
+ultralytics==8.3.127
+    # via rl-dda-game
+ultralytics-thop==2.0.14
+    # via ultralytics
+urllib3==2.2.3
+    # via requests
+wasm==1.2
+    # via rl-dda-game
+zipp==3.20.2
+    # via importlib-resources

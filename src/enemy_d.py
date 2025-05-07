@@ -1,12 +1,14 @@
-
-from enemy import Enemy
+from components.enemy import Enemy
+from components.entity_types import EntityType
 
 SPEED_Y = 2
+
 
 class EnemyD(Enemy):
     def __init__(self, state, x, y) -> None:
         super().__init__(state, x, y)
-        self.colour = 14 # grey
+        self.type = EntityType.ENEMY_D  # EnemyD 타입으로 설정
+        self.colour = 14  # grey
         self.u = 48
         self.v = 80
 
@@ -16,13 +18,13 @@ class EnemyD(Enemy):
         self.vy = 0
 
     def update(self):
-        super().update() # hit frames
+        super().update()  # hit frames
 
         self.x -= self.vx
         if self.x + self.w < 0:
             self.remove = True
             return
-        
+
         if self.vy == 0:
             if self.x - self.game_state.player.x < 24:
                 self.vy = SPEED_Y if self.y < 96 else -SPEED_Y

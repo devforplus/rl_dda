@@ -1,5 +1,5 @@
 [project]
-name = "test"
+name = "rl-dda-game"
 version = "0.1.0"
 description = "Add your description here"
 authors = [
@@ -7,6 +7,14 @@ authors = [
 ]
 dependencies = [
     "pyxel>=2.3.18",
+    "pipe>=2.2",
+    "toolz>=1.0.0",
+    "ultralytics>=8.1.2",
+    "opencv-python>=4.9.0.80",
+    "torch>=2.2.1",
+    "pyautogui>=0.9.54",
+    "pillow>=10.4.0",
+    "wasm>=1.2",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"
@@ -15,12 +23,24 @@ requires-python = ">= 3.8"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.game]
+app_name = "VORTEXION"
+app_version = "1.0"
+
 [tool.rye]
 managed = true
-dev-dependencies = []
+dev-dependencies = [
+    "pytest>=8.3.5",
+]
+
+[tool.rye.scripts]
+test = { cmd = "python -m pytest", env = { PYTHONPATH = "src" } }
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
 
 [tool.hatch.metadata]
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/test"] 
+packages = ["src"] 

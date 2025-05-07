@@ -1,6 +1,12 @@
+from config.player.player_config import (
+    STARTING_LIVES,
+    MAX_WEAPONS,
+    MAX_WEAPON_LEVEL,
+    MAX_LIVES,
+)
+from config.score.score_config import MAX_SCORE
+from config.stage.stage_num import StageNum, FINAL_STAGE
 
-from const import STARTING_LIVES, MAX_WEAPONS, MAX_SCORE, MAX_WEAPON_LEVEL,\
-    MAX_LIVES, StageNum, FINAL_STAGE
 
 class GameVars:
     def __init__(self, game):
@@ -50,13 +56,14 @@ class GameVars:
 
     def increase_all_weapon_levels(self, amount):
         for i in range(len(self.weapon_levels)):
-            self.weapon_levels[i] = \
-                min(MAX_WEAPON_LEVEL, self.weapon_levels[i] + amount)
+            self.weapon_levels[i] = min(
+                MAX_WEAPON_LEVEL, self.weapon_levels[i] + amount
+            )
 
     def change_weapon(self, new_wpn):
         self.current_weapon = new_wpn
 
     def add_current_weapon_level(self):
-        self.weapon_levels[self.current_weapon] = \
-            min(MAX_WEAPON_LEVEL, self.weapon_levels[self.current_weapon] + 1)
-
+        self.weapon_levels[self.current_weapon] = min(
+            MAX_WEAPON_LEVEL, self.weapon_levels[self.current_weapon] + 1
+        )

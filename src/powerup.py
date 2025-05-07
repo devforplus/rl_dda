@@ -1,12 +1,18 @@
 from enum import IntEnum, auto
+from math import pi
 
 import pyxel as px
-from sprite import Sprite
-from const import MAX_COLOURS, EntityType, MAX_WEAPONS, PI
-from audio import play_sound, SoundType
+from components.sprite import Sprite
+from components.entity_types import EntityType
+from config.colors.constants import MAX_COLOURS
+from config.player import max_weapons
+from config.sound import SoundType
+from audio import AudioManager
 
 SPEED = 1
 
+# 오디오 매니저 인스턴스 생성
+audio_manager = AudioManager()
 
 class PowerupType(IntEnum):
     NONE = 0
@@ -76,14 +82,14 @@ class Powerup(Sprite):
     def collected(self):
         self.remove = True
         if self.puptype == PowerupType.LIFE:
-            play_sound(SoundType.LIFE_POWERUP, priority=True)
+            audio_manager.play_sound(SoundType.LIFE_POWERUP, priority=True)
             self.game_state.game.game_vars.add_life()
         elif self.puptype == PowerupType.WEAPON:
-            play_sound(SoundType.WEAPON_POWERUP, priority=True)
+            audio_manager.play_sound(SoundType.WEAPON_POWERUP, priority=True)
             self.game_state.game.game_vars.change_weapon(self.weapon_type)
             self.game_state.game.game_vars.add_current_weapon_level()
         elif self.puptype == PowerupType.BOMB:
-            play_sound(SoundType.BOMB_POWERUP, priority=True)
+            audio_manager.play_sound(SoundType.BOMB_POWERUP, priority=True)
             self.game_state.trigger_bomb()
 
     def collided_with(self, other):
@@ -96,7 +102,7 @@ class Powerup(Sprite):
             self.remove = True
             return
 
-        self.y += px.sin(px.frame_count * PI)
+        self.y += px.sin(px.frame_count * pi)
 
         if px.frame_count % 5 == 0:
             self.colour += 1
@@ -106,7 +112,7 @@ class Powerup(Sprite):
         if px.frame_count % 60 == 0:
             if self.puptype == PowerupType.WEAPON:
                 self.weapon_type += 1
-                if self.weapon_type == MAX_WEAPONS:
+                if self.weapon_type == max_weapons:
                     self.weapon_type = 0
                 self.u = WEAPON_FRAME_UV[self.weapon_type][0]
                 self.v = WEAPON_FRAME_UV[self.weapon_type][1]
