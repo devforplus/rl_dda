@@ -1,4 +1,5 @@
 from components.enemy import Enemy
+from components.entity_types import EntityType
 
 SPEED_Y = 2
 
@@ -6,6 +7,7 @@ SPEED_Y = 2
 class EnemyD(Enemy):
     def __init__(self, state, x, y) -> None:
         super().__init__(state, x, y)
+        self.type = EntityType.ENEMY_D  # EnemyD 타입으로 설정
         self.colour = 14  # grey
         self.u = 48
         self.v = 80

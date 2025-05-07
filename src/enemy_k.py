@@ -1,7 +1,8 @@
 import pyxel as px
-
+from components.sprite import Sprite
+from components.entity_types import EntityType
 from components.enemy import Enemy
-from system.const import ENEMY_SCORE_BOSS
+from config.score.score_config import ENEMY_SCORE_BOSS
 
 BULLET_SPEED = 2.5
 MOVE_SPEED_Y = 0.5
@@ -10,6 +11,7 @@ MOVE_SPEED_Y = 0.5
 class EnemyK(Enemy):
     def __init__(self, state, x, y) -> None:
         super().__init__(state, x, y)
+        self.type = EntityType.ENEMY_K  # EnemyK 타입으로 설정
         self.colour = 11  # yellow
         self.u = 160
         self.v = 80

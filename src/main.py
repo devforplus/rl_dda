@@ -1,17 +1,16 @@
 import pyxel as px
 from game import Game
 
-from system.const import (
+from config.app.constants import (
     APP_WIDTH,
     APP_HEIGHT,
     APP_NAME,
     APP_DISPLAY_SCALE,
     APP_CAPTURE_SCALE,
     APP_FPS,
-    APP_GFX_FILE,
-    PALETTE,
-    SOUNDS_RES_FILE,
 )
+from config.paths import ASSETS_DIR
+from config.colors import PALETTE
 from monospace_bitmap_font import MonospaceBitmapFont
 from input import Input
 
@@ -28,9 +27,9 @@ class App:
         )
 
         px.colors.from_list(PALETTE)
-        px.images[0].load(0, 0, "assets/" + APP_GFX_FILE)
+        px.images[0].load(0, 0, str(ASSETS_DIR / "gfx.png"))
         px.load(
-            "assets/" + SOUNDS_RES_FILE,
+            str(ASSETS_DIR / "sounds.pyxres"),
             excl_images=True,
             excl_tilemaps=True,
             excl_musics=True,

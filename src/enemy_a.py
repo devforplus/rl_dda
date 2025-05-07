@@ -1,4 +1,5 @@
 from components.enemy import Enemy
+from components.entity_types import EntityType
 
 SPEED = 1
 BULLET_SPEED = 2
@@ -9,6 +10,7 @@ SHOT_DELAY = 120
 class EnemyA(Enemy):
     def __init__(self, state, x, y) -> None:
         super().__init__(state, x, y)
+        self.type = EntityType.ENEMY_A  # EnemyA 타입으로 설정
         self.colour = 7  # cyan
         self.u = 0
         self.v = 80

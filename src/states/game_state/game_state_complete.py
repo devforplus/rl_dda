@@ -2,8 +2,8 @@ import pyxel as px
 
 import input as input
 from hud import Hud
-from system.const import MUSIC_GAME_COMPLETE
-from audio import load_music, play_music, stop_music
+from config.music import special_music_files
+from audio import AudioManager
 
 # 화면 너비
 VIEW_WIDTH = 256
@@ -52,13 +52,14 @@ class GameStateComplete:
         self.scroll_x = 0
 
         # 음악 로드 및 재생
-        self.music = load_music(MUSIC_GAME_COMPLETE)
-        play_music(self.music, True, num_channels=3)
+        self.audio_manager = AudioManager()
+        self.music = self.audio_manager.load_music(special_music_files["game_complete"])
+        self.audio_manager.play_music(self.music, True, num_channels=3)
 
     def on_exit(self):
         """게임 완료 상태 종료 시 처리."""
         # 음악 정지
-        stop_music(3)
+        self.audio_manager.stop_music(3)
 
     def update(self):
         """게임 완료 상태 업데이트."""

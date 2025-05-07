@@ -5,8 +5,8 @@ import pyxel as px
 
 import input as input
 from hud import Hud
-from system.const import APP_VERSION
-from audio import load_music, play_music
+from config.app import APP_VERSION
+from audio import AudioManager
 
 # 화면 너비 (픽셀 단위)
 VIEW_WIDTH = 256
@@ -23,6 +23,8 @@ BG_TM_INDEX = 0
 # 전경 타일맵 인덱스 (내부 식별자)
 FG_TM_INDEX = 1
 
+# 오디오 매니저 인스턴스 생성
+audio_manager = AudioManager()
 
 class GameStateTitles:
     """
@@ -83,15 +85,15 @@ class GameStateTitles:
         self.selected_index = 0
 
         # 음악 로딩 및 재생 시작
-        self.music = load_music(MUSIC_FILE)
-        play_music(self.music)
+        self.music = audio_manager.load_music(MUSIC_FILE)
+        audio_manager.play_music(self.music)
 
     def on_exit(self):
         """타이틀 화면 종료 시 처리
 
         pyxel의 사운드 재생을 중지합니다.
         """
-        px.stop()
+        audio_manager.stop_music()
 
     def update(self):
         """

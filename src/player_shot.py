@@ -6,18 +6,18 @@ from components.sprite import Sprite
 # 무기 관련 설정 인스턴스 생성
 player_config = PlayerConfig()
 
-# 무기 관련 상수 정의
-MAX_SHOTS = 4
-UV_FRAME_OFFSET = 1
-SIZE = 14
-UV_OFFSET_Y = 16
+# # 무기 관련 상수 정의
+# MAX_SHOTS = 4
+# UV_FRAME_OFFSET = 1
+# SIZE = 14
+# UV_OFFSET_Y = 16
 
-SPEED_LVL = (10, 10, 11, 11, 12, 12)
-DAMAGE = {
-    0: [1, 1, 1, 1, 1, 2],  # fwd
-    1: [1, 1, 1, 2, 2, 3],  # spread/diagonal
-    2: [1, 1, 2, 2, 3, 3],  # back/fwd
-}
+# SPEED_LVL = (10, 10, 11, 11, 12, 12)
+# DAMAGE = {
+#     0: [1, 1, 1, 1, 1, 2],  # fwd
+#     1: [1, 1, 1, 2, 2, 3],  # spread/diagonal
+#     2: [1, 1, 2, 2, 3, 3],  # back/fwd
+# }
 
 
 class PlayerShot(Sprite):

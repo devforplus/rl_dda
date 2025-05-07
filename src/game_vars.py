@@ -1,12 +1,11 @@
-from system.const import (
+from config.player.player_config import (
     STARTING_LIVES,
     MAX_WEAPONS,
-    MAX_SCORE,
     MAX_WEAPON_LEVEL,
     MAX_LIVES,
-    StageNum,
-    FINAL_STAGE,
 )
+from config.score.score_config import MAX_SCORE
+from config.stage.stage_num import StageNum, FINAL_STAGE
 
 
 class GameVars:

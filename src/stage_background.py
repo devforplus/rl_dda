@@ -2,8 +2,12 @@ import pyxel as px
 
 from enemy_spawn import ENEMY_SPAWN_TILE_INDEX_Y
 import enemy_spawn
-from system.const import EntityType
-from audio import reset_music_gain, fade_out_music, SOUND_CHANNEL_GAIN_DEFAULT
+from components.entity_types import EntityType
+from config.sound import SoundConfig
+from audio import AudioManager
+
+# 오디오 매니저 인스턴스 생성
+audio_manager = AudioManager()
 
 VIEW_WIDTH = 256
 VIEW_HEIGHT = 160
@@ -46,7 +50,7 @@ class StageBackground:
 
         self.last_col_checked = 0
 
-        self.music_gain = SOUND_CHANNEL_GAIN_DEFAULT
+        self.music_gain = SoundConfig.SOUND_CHANNEL_GAIN_DEFAULT
 
     def get_tile(self, tile_x, tile_y):
         return px.tilemaps[TILES_TM_INDEX].pget(tile_x, tile_y)
@@ -83,9 +87,9 @@ class StageBackground:
             self.scroll_x >= SCROLL_X_STOP_STAGE_MUSIC
             and self.scroll_x < SCROLL_X_START_BOSS_MUSIC
         ):
-            self.music_gain = fade_out_music(self.music_gain, 3)
+            self.music_gain = audio_manager.fade_out_music(3)
         elif self.scroll_x == SCROLL_X_START_BOSS_MUSIC:
-            reset_music_gain(3)
+            audio_manager.reset_music_gain(3)
             self.state_stage.play_boss_music()
 
         self.check_next_enemy_spawn()

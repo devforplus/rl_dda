@@ -1,6 +1,6 @@
 import pyxel as px
 
-from system.const import MAX_WEAPONS, MAX_WEAPON_LEVEL, WEAPON_NAMES
+from config.player import max_weapons, max_weapon_level, weapon_names
 
 
 class Hud:
@@ -33,7 +33,7 @@ class Hud:
             y (int): 그리기 시작 y 좌표
         """
         # 무기 이름 그리기
-        self.font.draw_text(x + 16, y, WEAPON_NAMES[i])
+        self.font.draw_text(x + 16, y, weapon_names[i])
         # 무기 아이콘 그리기
         px.blt(x + 24, y, 0, i * 16, 224, 16, 8)
 
@@ -43,7 +43,7 @@ class Hud:
             # 활성화된 레벨 표시
             px.blt(x + (j * 8), y + 8, 0, 32, 232, 8, 8)
             j += 1
-        while j <= MAX_WEAPON_LEVEL:
+        while j <= max_weapon_level:
             # 비활성화된 레벨 표시
             px.blt(x + (j * 8), y + 8, 0, 40, 232, 8, 8)
             j += 1
@@ -67,7 +67,7 @@ class Hud:
 
         # 현재 무기 정보
         self.font.draw_text(176, 0, "ARM")
-        self.font.draw_text(176, 8, WEAPON_NAMES[self.game_vars.current_weapon])
+        self.font.draw_text(176, 8, weapon_names[self.game_vars.current_weapon])
         px.blt(184, 8, 0, self.game_vars.current_weapon * 16, 224, 16, 8)
 
         # 생명 수 표시
@@ -79,5 +79,5 @@ class Hud:
         self.font.draw_text(16, 184, "LVL")
 
         # 무기 레벨 정보
-        for i in range(MAX_WEAPONS):
+        for i in range(max_weapons):
             self.draw_weapon_level(i, 56 + (64 * i), 176)
