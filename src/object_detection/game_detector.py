@@ -26,18 +26,21 @@ class GameDetector:
     def get_sprite_positions(self, game_state):
         """Get sprite positions from game state for dummy detection mode."""
         detections = []
+        
         # Add player detection if exists
         if hasattr(game_state, 'player') and game_state.player:
             player = game_state.player
-            if hasattr(player, 'x') and hasattr(player, 'y') and hasattr(player, 'w') and hasattr(player, 'h'):
-                detections.append((0, int(player.x), int(player.y), int(player.x + player.w), int(player.y + player.h)))
+            if hasattr(player, 'x') and hasattr(player, 'y'):
+                # Assuming player sprite size is 32x32
+                detections.append((0, int(player.x), int(player.y), int(player.x + 32), int(player.y + 32)))
+        
         # Add enemy detections if exists
         if hasattr(game_state, 'enemies'):
             for enemy in game_state.enemies:
-                if hasattr(enemy, 'x') and hasattr(enemy, 'y') and hasattr(enemy, 'w') and hasattr(enemy, 'h') and hasattr(enemy, 'type'):
-                    # Use enemy type id for class_id
-                    class_id = int(getattr(enemy.type, 'value', 1))
-                    detections.append((class_id, int(enemy.x), int(enemy.y), int(enemy.x + enemy.w), int(enemy.y + enemy.h)))
+                if hasattr(enemy, 'x') and hasattr(enemy, 'y'):
+                    # Assuming enemy sprite size is 32x32
+                    detections.append((1, int(enemy.x), int(enemy.y), int(enemy.x + 32), int(enemy.y + 32)))
+        
         return detections
 
     def detect_objects(self, frame, game_state=None):
@@ -81,13 +84,8 @@ class GameDetector:
     def draw_detections(self, frame, detections):
         for det in detections:
             class_id, x_min, y_min, x_max, y_max = det
-            # class_id가 self.classes 범위 내에 있으면 사용, 아니면 "enemy_{class_id}" 또는 "player"
-            if 0 <= class_id < len(self.classes):
-                label = str(self.classes[class_id])
-                color = tuple(map(int, self.colors[class_id]))
-            else:
-                label = f"enemy_{class_id}" if class_id != 0 else "player"
-                color = (0, 0, 255) if class_id != 0 else (0, 255, 0)
+            label = str(self.classes[class_id])
+            color = tuple(map(int, self.colors[class_id]))  # Convert color values to integers
             cv2.rectangle(frame, (int(x_min), int(y_min)), (int(x_max), int(y_max)), color, 2)
             cv2.putText(frame, label, (int(x_min), int(y_min - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
         return frame 
