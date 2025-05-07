@@ -6,7 +6,8 @@ from src.config.enemy.enemy_config import EnemyConfig
 from src.config.score.score_config import ENEMY_SCORE_NORMAL
 from components.enemy_shot import EnemyShot
 import powerup
-from audio import play_sound, SoundType
+from config.sound import SoundType
+from audio import AudioManager
 
 # 적 설정 인스턴스 생성
 enemy_config = EnemyConfig()
@@ -18,46 +19,62 @@ INVINCIBLE_START_FRAMES: int = 15
 # 적 기본 데미지
 ENEMY_DAMAGE: int = 1
 
+# 오디오 매니저 인스턴스 생성
+audio_manager = AudioManager()
 
 class Enemy(Sprite):
     """
-    적 캐릭터를 나타내는 클래스.
+    적 객체를 나타내는 기본 클래스.
 
     속성:
         type (EntityType): 엔티티 타입 (적)
         x, y (int): 위치 좌표
+        w, h (int): 크기
         hp (int): 체력
-        hit_frames (int): 피격 시 무적 프레임 수
-        score (int): 적 처치 시 획득 점수
+        colour (int): 색상
+        u, v (int): 스프라이트 UV 좌표
+        hit_frames (int): 피격 시 무적 프레임
         lifetime (int): 생존 시간
-        damage (int): 플레이어에게 주는 데미지
+        remove (bool): 제거 여부
     """
 
     type: EntityType
     x: int
     y: int
+    w: int
+    h: int
     hp: int
+    colour: int
+    u: int
+    v: int
     hit_frames: int
-    score: int
     lifetime: int
-    damage: int
+    remove: bool
 
-    def __init__(self, game_state, x: int, y: int) -> None:
+    def __init__(self, state, x: int, y: int) -> None:
         """
-        적 캐릭터 초기화.
+        적 초기화.
 
         매개변수:
-            game_state: 게임 상태 객체
+            state: 게임 상태 객체
             x, y (int): 초기 위치 좌표
         """
-        super().__init__(game_state)
-        self.type = EntityType.ENEMY
+        super().__init__(state)
+        self.type = EntityType.ENEMY  # 기본 적 타입
         self.x = x
         self.y = y
+        self.w = 16
+        self.h = 16
         self.hp = enemy_config.base_hp  # 기본 체력
+        self.colour = 7  # cyan
+        self.u = 0
+        self.v = 80
         self.hit_frames = 0
+        self.lifetime = 0
+        self.remove = False
+        self.flip_x = False
+        self.flip_y = False
         self.score = ENEMY_SCORE_NORMAL  # 처치 시 획득 점수
-        self.lifetime = 0  # 생존 시간 초기화
         self.damage = enemy_config.base_damage  # 기본 데미지 설정
 
     def explode(self) -> None:
@@ -89,9 +106,10 @@ class Enemy(Sprite):
         self.hp = max(0, self.hp - dmg)  # 체력 감소
         if self.hp == 0:
             self.destroy()  # 체력이 0이면 제거 처리
+            audio_manager.play_sound(SoundType.ENEMY_EXPLOSION)
         else:
             self.hit_frames = enemy_config.hit_invincibility_frames  # 무적 프레임 설정
-            play_sound(SoundType.BLIP)  # 피격 사운드 재생
+            audio_manager.play_sound(SoundType.BLIP)  # 피격 사운드 재생
 
     def hit_with_bomb(self) -> None:
         """폭탄에 의한 피격 처리."""

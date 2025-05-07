@@ -1,8 +1,13 @@
 from abc import ABC, abstractmethod
 from itertools import filterfalse
+from typing import List, TypeVar, TYPE_CHECKING
 
 import pyxel as px
 
+if TYPE_CHECKING:
+    from .sprite import Sprite
+
+T = TypeVar('T', bound='Sprite')
 
 def rect_overlap(
     x1: int, y1: int, w1: int, h1: int, x2: int, y2: int, w2: int, h2: int
@@ -111,13 +116,12 @@ class Sprite(ABC):
         h = -self.h if self.flip_y else self.h
         px.blt(self.x, self.y, 0, self.u, self.v, w, h, 0)
 
-    @staticmethod
-    def update_list(the_list: list["Sprite"]) -> None:
+    def update_list(the_list: List[T]) -> None:
         """
         스프라이트 목록을 업데이트합니다.
 
         ### 파라미터
-        - `the_list` (`list[Sprite]`): 스프라이트 목록
+        - `the_list` (`List[Sprite]`): 스프라이트 목록
         """
         # 목록 내 모든 스프라이트의 상태를 업데이트
         for s in the_list:
@@ -127,26 +131,24 @@ class Sprite(ABC):
             lambda s: s.remove, the_list
         )  # remove가 True인 스프라이트 필터링
 
-    @staticmethod
-    def draw_list(the_list: list["Sprite"]) -> None:
+    def draw_list(the_list: List[T]) -> None:
         """
         스프라이트 목록을 그립니다.
 
         ### 파라미터
-        - `the_list` (`list[Sprite]`): 스프라이트 목록
+        - `the_list` (`List[Sprite]`): 스프라이트 목록
         """
         # 목록 내 모든 스프라이트를 화면에 그림
         for s in the_list:
             s.draw()  # 각 스프라이트의 draw 메서드 호출
 
-    @staticmethod
-    def lists_collide(list_a: list["Sprite"], list_b: list["Sprite"]) -> None:
+    def lists_collide(list_a: List[T], list_b: List[T]) -> None:
         """
         두 스프라이트 목록 간의 충돌을 처리합니다.
 
         ### 파라미터
-        - `list_a` (`list[Sprite]`): 첫 번째 스프라이트 목록
-        - `list_b` (`list[Sprite]`): 두 번째 스프라이트 목록
+        - `list_a` (`List[Sprite]`): 첫 번째 스프라이트 목록
+        - `list_b` (`List[Sprite]`): 두 번째 스프라이트 목록
         """
         # list_a의 각 스프라이트에 대해 반복
         for a in list_a:
@@ -163,14 +165,13 @@ class Sprite(ABC):
                     # 충돌 시 b의 collided_with 메서드 호출
                     b.collided_with(a)
 
-    @staticmethod
-    def collide_list(spr: "Sprite", the_list: list["Sprite"]) -> None:
+    def collide_list(spr: T, the_list: List[T]) -> None:
         """
         단일 스프라이트와 목록 간의 충돌을 처리합니다.
 
         ### 파라미터
         - `spr` (`Sprite`): 단일 스프라이트
-        - `the_list` (`list[Sprite]`): 스프라이트 목록
+        - `the_list` (`List[Sprite]`): 스프라이트 목록
         """
         # spr이 제거 표시된 경우 함수 종료
         if spr.remove:
@@ -187,7 +188,7 @@ class Sprite(ABC):
                 a.collided_with(spr)
 
     @staticmethod
-    def collide(a: "Sprite", b: "Sprite") -> bool:
+    def collide(a: T, b: T) -> bool:
         """
         두 스프라이트 간의 충돌 여부를 확인합니다.
 
@@ -200,3 +201,67 @@ class Sprite(ABC):
         """
         # 두 스프라이트의 바운딩 박스 겹침 여부를 확인하여 충돌 여부 반환
         return rect_overlap(a.x, a.y, a.w, a.h, b.x, b.y, b.w, b.h)
+
+    def collides_with(self, other: T) -> bool:
+        """
+        다른 스프라이트와의 충돌 검사
+
+        Args:
+            other (Sprite): 충돌 검사할 다른 스프라이트
+
+        Returns:
+            bool: 충돌 여부
+        """
+        return (
+            self.x < other.x + other.w
+            and self.x + self.w > other.x
+            and self.y < other.y + other.h
+            and self.y + self.h > other.y
+        )
+
+    def on_collision(self, other: T) -> None:
+        """
+        충돌 시 호출되는 메서드
+
+        Args:
+            other (Sprite): 충돌한 다른 스프라이트
+        """
+        pass
+
+def sprites_update(sprites: List[T]) -> None:
+    """
+    스프라이트 목록을 업데이트합니다.
+    
+    Args:
+        sprites (List[Sprite]): 업데이트할 스프라이트 목록
+    """
+    Sprite.update_list(sprites)
+
+def sprites_draw(sprites: List[T]) -> None:
+    """
+    스프라이트 목록을 그립니다.
+    
+    Args:
+        sprites (List[Sprite]): 그릴 스프라이트 목록
+    """
+    Sprite.draw_list(sprites)
+
+def sprite_lists_collide(list_a: List[T], list_b: List[T]) -> None:
+    """
+    두 스프라이트 목록 간의 충돌을 처리합니다.
+    
+    Args:
+        list_a (List[Sprite]): 첫 번째 스프라이트 목록
+        list_b (List[Sprite]): 두 번째 스프라이트 목록
+    """
+    Sprite.lists_collide(list_a, list_b)
+
+def sprite_collide_list(spr: T, the_list: List[T]) -> None:
+    """
+    단일 스프라이트와 목록 간의 충돌을 처리합니다.
+    
+    Args:
+        spr (Sprite): 단일 스프라이트
+        the_list (List[Sprite]): 스프라이트 목록
+    """
+    Sprite.collide_list(spr, the_list)
