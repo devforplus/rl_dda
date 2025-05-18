@@ -6,15 +6,20 @@ authors = [
     { name = "devforplus", email = "devforplus@gmail.com" }
 ]
 dependencies = [
-    "pyxel>=2.3.18",
+    "pyxel==2.3.18",
     "pipe>=2.2",
     "toolz>=1.0.0",
     "ultralytics>=8.1.2",
-    "opencv-python>=4.9.0.80",
-    "torch>=2.2.1",
+    "opencv-python>=4.11.0.86",
+    "torch>=2.4.1",
+    "torchrl>=0.5.0",
     "pyautogui>=0.9.54",
     "pillow>=10.4.0",
     "wasm>=1.2",
+    "playwright>=1.48.0",
+    "pytest-playwright>=0.5.2",
+    "pywin32>=310",
+    "tensordict>=0.5.0",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"
@@ -35,6 +40,8 @@ dev-dependencies = [
 
 [tool.rye.scripts]
 test = { cmd = "python -m pytest", env = { PYTHONPATH = "src" } }
+train_rl = { cmd = "python -m src.rl.train", env = { PYTHONPATH = "src" } }
+evaluate_rl = { cmd = "python -m src.rl.evaluate", env = { PYTHONPATH = "src" } }
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

@@ -1,4 +1,6 @@
 import pyxel as px
+import sys
+import platform
 from game import Game
 
 from config.app.constants import (
@@ -14,26 +16,49 @@ from config.colors import PALETTE
 from monospace_bitmap_font import MonospaceBitmapFont
 from input import Input
 
+# 웹 환경 감지
+IS_WEB = platform.system() == "Emscripten"
 
 class App:
     def __init__(self) -> None:
-        px.init(
-            APP_WIDTH,
-            APP_HEIGHT,
-            title=APP_NAME,
-            fps=APP_FPS,
-            display_scale=APP_DISPLAY_SCALE,
-            capture_scale=APP_CAPTURE_SCALE,
-        )
+        # 웹 환경에서는 일부 기능 제한
+        if IS_WEB:
+            px.init(
+                APP_WIDTH,
+                APP_HEIGHT,
+                title=APP_NAME,
+                fps=APP_FPS,
+                display_scale=APP_DISPLAY_SCALE,
+            )
+        else:
+            px.init(
+                APP_WIDTH,
+                APP_HEIGHT,
+                title=APP_NAME,
+                fps=APP_FPS,
+                display_scale=APP_DISPLAY_SCALE,
+                capture_scale=APP_CAPTURE_SCALE,
+            )
 
         px.colors.from_list(PALETTE)
-        px.images[0].load(0, 0, str(ASSETS_DIR / "gfx.png"))
-        px.load(
-            str(ASSETS_DIR / "sounds.pyxres"),
-            excl_images=True,
-            excl_tilemaps=True,
-            excl_musics=True,
-        )
+        
+        # 웹 환경에서 파일 경로 처리 방식 변경
+        if IS_WEB:
+            px.images[0].load(0, 0, "assets/gfx.png")
+            px.load(
+                "assets/sounds.pyxres",
+                excl_images=True,
+                excl_tilemaps=True,
+                excl_musics=True,
+            )
+        else:
+            px.images[0].load(0, 0, str(ASSETS_DIR / "gfx.png"))
+            px.load(
+                str(ASSETS_DIR / "sounds.pyxres"),
+                excl_images=True,
+                excl_tilemaps=True,
+                excl_musics=True,
+            )
 
         self.main_font = MonospaceBitmapFont()
         self.input = Input()

@@ -26,6 +26,14 @@ class Input:
         """
         self.pressing = []
         self.tapped = []
+        
+        # 직접 설정할 수 있는 입력 상태 (RL 에이전트용)
+        self.left_pressed = False
+        self.right_pressed = False
+        self.up_pressed = False
+        self.down_pressed = False
+        self.fire_pressed = False  # Z키에 해당
+        self.z_pressed = False     # Z키 직접 제어용
 
     def is_pressing(self, i: int) -> bool:
         """
@@ -59,28 +67,31 @@ class Input:
         self.tapped.clear()
 
         # 현재 눌려진 입력 처리
-        if px.btn(px.KEY_UP) or px.btn(px.KEY_W) or px.btn(px.GAMEPAD1_BUTTON_DPAD_UP):
+        if px.btn(px.KEY_UP) or px.btn(px.KEY_W) or px.btn(px.GAMEPAD1_BUTTON_DPAD_UP) or self.up_pressed:
             self.pressing.append(UP)
         if (
             px.btn(px.KEY_DOWN)
             or px.btn(px.KEY_S)
             or px.btn(px.GAMEPAD1_BUTTON_DPAD_DOWN)
+            or self.down_pressed
         ):
             self.pressing.append(DOWN)
         if (
             px.btn(px.KEY_LEFT)
             or px.btn(px.KEY_A)
             or px.btn(px.GAMEPAD1_BUTTON_DPAD_LEFT)
+            or self.left_pressed
         ):
             self.pressing.append(LEFT)
         if (
             px.btn(px.KEY_RIGHT)
             or px.btn(px.KEY_D)
             or px.btn(px.GAMEPAD1_BUTTON_DPAD_RIGHT)
+            or self.right_pressed
         ):
             self.pressing.append(RIGHT)
 
-        if px.btn(px.KEY_Z) or px.btn(px.KEY_U) or px.btn(px.GAMEPAD1_BUTTON_A):
+        if px.btn(px.KEY_Z) or px.btn(px.KEY_U) or px.btn(px.GAMEPAD1_BUTTON_A) or self.fire_pressed or self.z_pressed:
             self.pressing.append(BUTTON_1)
         if px.btn(px.KEY_X) or px.btn(px.GAMEPAD1_BUTTON_B):
             self.pressing.append(BUTTON_2)
