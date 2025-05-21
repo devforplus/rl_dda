@@ -184,6 +184,10 @@ class Player(Sprite):
 
     def update(self) -> None:
         """플레이어 상태 업데이트."""
+        # === 디버깅: 에이전트 입력 값 확인 ===
+        # print(f"Player Input Check: L:{self.input.left_pressed}, R:{self.input.right_pressed}, U:{self.input.up_pressed}, D:{self.input.down_pressed}, F:{self.input.fire_pressed}")
+        # === 디버깅 끝 ===
+
         self.move()
 
         # 초기 무적 상태 업데이트
