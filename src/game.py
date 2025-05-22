@@ -1,59 +1,96 @@
-print("Pygbag: src/game.py parsing START - VERY VERY BEGINNING")
+import platform
+from enum import Enum, auto # GameState를 위해 필요
+import sys # sys 모듈 임포트
 
-# from enum import Enum, auto
-# from typing import Optional
-# import platform
+from states.game_state.game_state_stage import GameStateStage
+# from states.game_state.game_state_titles import GameStateTitles # 필요시 주석 해제
+# from states.game_state.game_state_complete import GameStateComplete # 필요시 주석 해제
+from game_vars import GameVars
+# from utils.transform_utils import transform_game_to_image_coords # 데이터 수집 시 필요
+# from data_collection.screen_capture import ScreenCapture # 데이터 수집 시 필요
+# from data_collection.label_generator import LabelGenerator # 데이터 수집 시 필요
+import os
+import time
+from config.game_config import CLASS_MAP # 데이터 수집 시 필요. CLASS_MAP이 정의되어 있어야 함.
 
-# from src.states.game_state.game_state_titles import GameStateTitles
-# from src.states.game_state.game_state_stage import GameStateStage
-# from src.states.game_state.game_state_complete import GameStateComplete
-# from src.game_vars import GameVars
-# # from src.utils.transform_utils import transform_game_to_image_coords # 경로 확인 필요, src. 추가 고려
-# from src.data_collection.screen_capture import ScreenCapture # src. 추가
-# from src.data_collection.label_generator import LabelGenerator # src. 추가
-# import os
-# # import cv2 # 웹에서는 사용 안 함
-# import time
+IS_WEB = platform.system() == "Emscripten"
 
-# from src.config.game_config import CLASS_MAP # src. 추가
+# GameState Enum 정의 (이전에 주석 처리됨)
+class GameState(Enum):
+    NONE = 0
+    TITLES = auto()
+    STAGE = auto()
+    GAME_COMPLETE = auto()
 
-# # 웹 환경 감지
-# IS_WEB = platform.system() == "Emscripten"
-
-# # 웹 환경이 아닐 때만 object_detection 모듈 가져오기
-# # if not IS_WEB:
-# #     from object_detection import GameDetector
-# # from input import COLLECT_DATA # src.input? or src.input.constants?
-
-
-# class GameState(Enum):
-#     """
-#     게임 상태 열거형.
-
-#     게임의 다양한 상태를 정의하며, 각 상태는 게임의 진행 흐름을 결정한다.
-#     """
-
-#     NONE = 0  # 초기/정의되지 않은 상태
-#     TITLES = auto()  # 타이틀 화면
-#     STAGE = auto()  # 게임 스테이지 진행 중
-#     GAME_COMPLETE = auto()  # 게임 완료
-
-
-class Game: # 임포트 오류를 피하기 위해 Game 클래스 정의는 남겨둡니다.
-    print("Pygbag: src/game.py - Game class definition reached")
+class Game:
     def __init__(self, app):
         self.app = app
-        print("Pygbag: src/game.py - Game.__init__ called")
-        # 다음 코드는 GameState 등을 임포트해야 하므로 일단 주석 처리
-        # self.next_state = None
-        # self.game_vars = GameVars(self)
-        # self.collected_frames_data = []
-        # self.state = GameStateStage(self) 
+        self.next_state = None
+        self.game_vars = GameVars(self)
+        self.collected_frames_data = [] # 데이터 수집용
+
+        # 게임 시작 시 바로 스테이지로 진입 (타이틀 생략)
+        self.start_new_game() # GameVars 초기화 및 첫 스테이지 시작
+
+    def start_new_game(self):
+        """새 게임을 시작합니다 (스테이지 1부터)."""
+        self.game_vars.new_game() # 점수, 목숨, 스테이지 등 초기화
+        try:
+            print("[GAME_PY_DEBUG] Starting new game, initializing GameStateStage.")
+            self.state = GameStateStage(self)
+        except Exception as e:
+            print(f"Error initializing GameStateStage in start_new_game: {e}")
+            if IS_WEB and 'js' in globals():
+                js.console.error(f"Error initializing GameStateStage in start_new_game: {e}") # type: ignore
+            self.state = None
+
+    def restart_game(self):
+        """현재 게임을 첫 스테이지부터 다시 시작합니다."""
+        print("[GAME_PY_DEBUG] Restarting game.")
+        self.start_new_game()
+
+    def go_to_next_stage(self):
+        """다음 스테이지로 진행합니다."""
+        if self.game_vars.go_to_next_stage():
+            try:
+                print(f"[GAME_PY_DEBUG] Going to next stage: {self.game_vars.stage_num}")
+                self.state = GameStateStage(self) # 새 스테이지 인스턴스 생성
+            except Exception as e:
+                print(f"Error initializing GameStateStage in go_to_next_stage: {e}")
+                if IS_WEB and 'js' in globals():
+                    js.console.error(f"Error initializing GameStateStage in go_to_next_stage: {e}") # type: ignore
+                self.state = None
+        else:
+            # TODO: 게임 완료 처리 (예: GameStateComplete 상태로 전환)
+            print("[GAME_PY_DEBUG] Final stage cleared. Game complete (Not implemented).")
+            self.go_to_titles() # 임시로 타이틀로 이동 (또는 재시작)
+
+    def go_to_titles(self):
+        """타이틀 화면으로 돌아갑니다 (현재는 게임 재시작으로 대체)."""
+        # 현재 타이틀 화면이 없으므로, 바로 게임을 재시작합니다.
+        # 추후 GameStateTitles가 구현되면 해당 상태로 변경합니다.
+        print("[GAME_PY_DEBUG] Going to titles (currently restarting game).")
+        self.restart_game()
     
     def update(self):
-        pass
+        if self.state:
+            try:
+                self.state.update()
+            except Exception as e:
+                print(f"Error in Game state update ({type(self.state).__name__}): {e}")
+                if IS_WEB and 'js' in globals():
+                    js.console.error(f"Error in Game state update ({type(self.state).__name__}): {e}") # type: ignore
+        
+        if self.next_state:
+            self.state = self.next_state
+            self.next_state = None
     
     def draw(self):
-        pass
-
-print("Pygbag: src/game.py parsing END - VERY VERY END")
+        if self.state:
+            try:
+                self.state.draw()
+            except Exception as e:
+                print(f"Error in Game state draw ({type(self.state).__name__}): {e}")
+                if IS_WEB and 'js' in globals():
+                    js.console.error(f"Error in Game state draw ({type(self.state).__name__}): {e}") # type: ignore
+        # Fallback drawing logic removed

@@ -12,7 +12,7 @@
 -e file:.
 certifi==2025.4.26
     # via requests
-charset-normalizer==3.4.29
+charset-normalizer==3.4.2
     # via requests
 cloudpickle==3.1.1
     # via tensordict

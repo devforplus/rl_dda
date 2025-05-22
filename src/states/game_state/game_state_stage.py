@@ -152,9 +152,12 @@ class GameStateStage:
         if self.input.has_tapped(input.INVINCIBLE):
             self.player.toggle_invincibility()
             
-        # C 키를 눌렀을 때 데이터 수집 토글
-        if self.input.has_tapped(input.COLLECT_DATA):
-            self.game.toggle_data_collection()
+        # C 키를 눌렀을 때 데이터 수집 토글 -> App.update()에서 이미 처리하므로 여기서는 제거
+        # if self.input.has_tapped(input.COLLECT_DATA):
+        #     if hasattr(self.game, 'app') and hasattr(self.game.app, 'toggle_data_collection'):
+        #         self.game.app.toggle_data_collection()
+        #     else:
+        #         print("[GAME_STATE_STAGE_ERROR] Cannot find app.toggle_data_collection")
 
     def switch_state(self, new):
         self.state = new
@@ -176,12 +179,8 @@ class GameStateStage:
         audio_manager.play_music(self.music, True, num_channels=3)
 
     def update_game_over(self):
-        if (
-            self.input.has_tapped(input.BUTTON_1)
-            or self.input.has_tapped(input.BUTTON_2)
-            or not audio_manager.is_music_playing()
-        ):
-            self.game.go_to_titles()
+        print("[GAME_PY_DEBUG] Game over, restarting game automatically.")
+        self.game.restart_game()
 
     def update_player_spawned(self):
         self.player.update_spawned()

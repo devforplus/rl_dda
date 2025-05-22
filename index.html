@@ -2,21 +2,19 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>RL DDA Pyxel Game (pyxel-run)</title>
-    <script src="https://cdn.jsdelivr.net/gh/kitao/pyxel/wasm/pyxel.js"></script>
+    <title>RL DDA Pyxel Game (Local Lib)</title>
+    <link rel="stylesheet" href="pyxel_web_lib/pyxel.css">
+    <link rel="icon" type="image/png" href="pyxel_web_lib/images/pyxel_logo_76x32.png">
+    
+    <script src="pyxel_web_lib/pyxel.js"></script>
     <style>
         body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background-color: #222; color: #fff; }
-        pyxel-run { border: 1px solid #888; }
+        pyxel-run { border: 1px solid #888; /* You can adjust the size via pyxel.init in your Python code */ }
     </style>
 </head>
 <body>
-    <!--
-        root=".": HTML 파일이 있는 위치(프로젝트 루트)를 기준으로 파일 경로를 해석합니다.
-        name="src/run_agent_in_game.py": 실행할 메인 파이썬 스크립트입니다.
-                                         이 경로는 root를 기준으로 RL_DDA/src/run_agent_in_game.py가 됩니다.
-        gamepad="disabled": 가상 게임패드를 사용하지 않습니다. 필요시 "enabled"로 변경.
-        packages="toolz,tomli": toolz와 tomli 패키지를 로드합니다.
-    -->
-    <pyxel-run root="." name="src/run_agent_in_game.py" gamepad="disabled" packages="toolz,tomli"></pyxel-run>
+    <!-- root="src" indicates that your game's main script and assets are relative to the 'src' folder. -->
+    <!-- name="run_agent_in_game.py" is the main Python script inside the 'src' folder. -->
+    <pyxel-run root="src" name="run_agent_in_game.py" gamepad="disabled" packages="toolz,tomli"></pyxel-run>
 </body>
 </html> 
