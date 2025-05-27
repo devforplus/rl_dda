@@ -69,7 +69,7 @@ class Player(Sprite):
         # 초기 무적 상태 설정
         self.invincibility_frames = INVINCIBILITY_FRAMES
         self.forced_invincible = False  # 강제 무적 상태는 아님
-        
+
         # 체력 설정
         self.max_hp = 3  # 기본 최대 체력
         self.current_hp = self.max_hp  # 현재 체력
@@ -77,12 +77,12 @@ class Player(Sprite):
     def take_damage(self, damage: int) -> None:
         """
         데미지를 받았을 때의 처리
-        
+
         :param damage: 받은 데미지
         """
         if self.is_invincible():
             return
-        
+
         self.current_hp -= damage
         if self.current_hp <= 0:
             self.kill()
@@ -207,9 +207,20 @@ class Player(Sprite):
 
     def draw(self) -> None:
         """플레이어 그리기."""
-        if self.is_invincible() and px.frame_count % 2 == 0:
-            return  # 무적 상태일 때 깜빡임 효과
-        px.blt(self.x, self.y, 0, 0, 4, self.w, self.h, 0)
+        if self.is_invincible():
+            # 무적 상태일 때 흰색-회색 깜빡임 효과
+            # 12프레임 주기로 깜빡임 (6프레임 정상, 6프레임 회색)
+            if px.frame_count % 12 < 6:
+                # 정상 색상 (흰색)
+                px.blt(self.x, self.y, 0, 0, 4, self.w, self.h, 0)
+            else:
+                # 흰색을 회색으로 변경
+                px.pal(15, 14)
+                px.blt(self.x, self.y, 0, 0, 4, self.w, self.h, 0)
+                px.pal()  # 팔레트 복원
+        else:
+            # 정상 상태에서는 원래 색상으로 그리기
+            px.blt(self.x, self.y, 0, 0, 4, self.w, self.h, 0)
 
     def toggle_invincibility(self) -> None:
         """

@@ -22,4 +22,4 @@ def run_with_agent():
         print(error_message, file=sys.stderr)
 
 if __name__ == "__main__":
-    run_with_agent() 
+    run_with_agent()

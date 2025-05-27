@@ -6,7 +6,7 @@ authors = [
     { name = "devforplus", email = "devforplus@gmail.com" }
 ]
 dependencies = [
-    "pyxel==2.3.18",
+    "pyxel>=2.3.18",
     "pipe>=2.2",
     "toolz>=1.0.0",
     "ultralytics>=8.1.2",
@@ -20,6 +20,7 @@ dependencies = [
     "pytest-playwright>=0.5.2",
     "pywin32>=310",
     "tensordict>=0.5.0",
+    "requests>=2.31.0",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"
@@ -43,6 +44,7 @@ dev-dependencies = [
 test = { cmd = "python -m pytest", env = { PYTHONPATH = "src" } }
 train_rl = { cmd = "python -m src.rl.train", env = { PYTHONPATH = "src" } }
 evaluate_rl = { cmd = "python -m src.rl.evaluate", env = { PYTHONPATH = "src" } }
+upload_data = { cmd = "python upload_game_data.py", env = { PYTHONPATH = "." } }
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
