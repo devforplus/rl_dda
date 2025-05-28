@@ -5,8 +5,22 @@
 CLASS_LIST = [
     "player",
     "player_shot",
-    "enemy_a", "enemy_b", "enemy_c", "enemy_d", "enemy_e", "enemy_f", "enemy_g", "enemy_h",
-    "enemy_i", "enemy_j", "enemy_k", "enemy_l", "enemy_m", "enemy_n", "enemy_o", "enemy_p",
+    "enemy_a",
+    "enemy_b",
+    "enemy_c",
+    "enemy_d",
+    "enemy_e",
+    "enemy_f",
+    "enemy_g",
+    "enemy_h",
+    "enemy_i",
+    "enemy_j",
+    "enemy_k",
+    "enemy_l",
+    "enemy_m",
+    "enemy_n",
+    "enemy_o",
+    "enemy_p",
     "enemy_shot",
     "powerup",
     # 필요한 다른 적 타입이나 보스 타입, 파워업 종류가 있다면 여기에 추가
@@ -15,6 +29,9 @@ CLASS_LIST = [
 
 # 클래스 이름을 클래스 ID로 매핑
 CLASS_MAP = {cls_name: i for i, cls_name in enumerate(CLASS_LIST)}
+
+# YOLO 라벨 헤더 (파싱 시 참조용)
+CLASS_MAP[-1] = "class_id x_center y_center width height"
 
 # 게임 내 엔티티 타입(EntityType enum)을 문자열 클래스 이름으로 매핑
 # src/components/entity_types.py 의 EntityType을 참고하여 작성해야 합니다.
@@ -28,4 +45,4 @@ CLASS_MAP = {cls_name: i for i, cls_name in enumerate(CLASS_LIST)}
 # }
 # 이 매핑은 GameStateStage에서 적 객체의 타입을 문자열로 변환할 때 사용됩니다.
 # 현재는 GameStateStage에서 enemy.type.name.lower()를 직접 사용하고 있으므로,
-# 이 매핑이 CLASS_LIST의 이름과 일치하는지 확인이 중요합니다. 
+# 이 매핑이 CLASS_LIST의 이름과 일치하는지 확인이 중요합니다.

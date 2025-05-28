@@ -87,7 +87,9 @@ class App:
                 False  # 데이터 수집 활성화 여부 (C키로 토글 가능하도록 설정)
             )
             self.collected_data = []
-            self.capture_interval = 10  # 캡처 간격 (프레임)
+            self.capture_interval = (
+                1  # 캡처 간격 (프레임) - 에이전트 학습용 고해상도 데이터 수집
+            )
             self.frames_since_last_capture = 0
 
             # 에이전트가 있을 때는 데이터 수집 자동 활성화 (AI 학습용 데이터 수집)
@@ -486,41 +488,113 @@ class App:
                     print(f"[AUTO_UPLOAD] Fallback capture failed: {e}")
                     return None
 
-            # 게임 상태에서 YOLO 데이터 생성 (간단화)
+            # 게임 상태에서 YOLO 데이터 생성 (탄환 포함)
             yolo_data_rows = []
             if hasattr(self.game, "state") and self.game.state:
                 game_state = self.game.state
 
-                # 간단한 YOLO 데이터 생성 (필요시 확장)
-                object_lists = {
-                    "player": [game_state.player]
-                    if hasattr(game_state, "player") and game_state.player
-                    else [],
-                    "enemies": game_state.enemies
-                    if hasattr(game_state, "enemies")
-                    else [],
-                }
+                # 모든 게임 객체 수집
+                all_objects = []
 
-                for list_name, obj_list in object_lists.items():
-                    for obj in obj_list:
-                        if not obj or getattr(obj, "remove", False):
-                            continue
+                # 플레이어 추가
+                if (
+                    hasattr(game_state, "player")
+                    and game_state.player
+                    and not getattr(game_state.player, "remove", False)
+                ):
+                    all_objects.append(("player", game_state.player))
 
-                        # 간단한 클래스 매핑
-                        class_id = 0 if list_name == "player" else 1
+                # 플레이어 탄환 추가
+                if hasattr(game_state, "player_shots"):
+                    for shot in game_state.player_shots:
+                        if shot and not getattr(shot, "remove", False):
+                            all_objects.append(("player_shot", shot))
 
-                        obj_x, obj_y = getattr(obj, "x", 0), getattr(obj, "y", 0)
-                        obj_w, obj_h = getattr(obj, "w", 16), getattr(obj, "h", 16)
+                # 적 추가
+                if hasattr(game_state, "enemies"):
+                    for enemy in game_state.enemies:
+                        if enemy and not getattr(enemy, "remove", False):
+                            # EntityType을 사용하여 정확한 적 타입 식별
+                            enemy_type = getattr(enemy, "type", None)
+                            if enemy_type:
+                                if hasattr(enemy_type, "name"):
+                                    enemy_type_name = enemy_type.name.lower()
+                                else:
+                                    enemy_type_name = str(enemy_type).lower()
+                            else:
+                                enemy_type_name = "enemy_a"  # 기본값
+                            all_objects.append((enemy_type_name, enemy))
 
-                        x_center = obj_x + obj_w / 2
-                        y_center = obj_y + obj_h / 2
-                        x_center_norm = x_center / APP_WIDTH
-                        y_center_norm = y_center / APP_HEIGHT
-                        width_norm = obj_w / APP_WIDTH
-                        height_norm = obj_h / APP_HEIGHT
+                # 적 탄환 추가
+                if hasattr(game_state, "enemy_shots"):
+                    for shot in game_state.enemy_shots:
+                        if shot and not getattr(shot, "remove", False):
+                            all_objects.append(("enemy_shot", shot))
 
+                # 보스 추가
+                if hasattr(game_state, "bosses"):
+                    for boss in game_state.bosses:
+                        if boss and not getattr(boss, "remove", False):
+                            # 보스도 적 타입 확인
+                            boss_type = getattr(boss, "type", None)
+                            if boss_type:
+                                if hasattr(boss_type, "name"):
+                                    boss_type_name = boss_type.name.lower()
+                                else:
+                                    boss_type_name = str(boss_type).lower()
+                            else:
+                                boss_type_name = "enemy_k"  # 기본 보스 타입
+                            all_objects.append((boss_type_name, boss))
+
+                # 파워업 추가
+                if hasattr(game_state, "powerups"):
+                    for powerup in game_state.powerups:
+                        if powerup and not getattr(powerup, "remove", False):
+                            all_objects.append(("powerup", powerup))
+
+                # 폭발 추가 (선택적 - 짧은 지속시간)
+                if hasattr(game_state, "explosions"):
+                    for explosion in game_state.explosions:
+                        if explosion and not getattr(explosion, "remove", False):
+                            all_objects.append(("explosion", explosion))
+
+                # 수집된 객체 통계
+                object_counts = {}
+                for obj_type, obj in all_objects:
+                    object_counts[obj_type] = object_counts.get(obj_type, 0) + 1
+
+                # YOLO 라벨 생성
+                for obj_type, obj in all_objects:
+                    # CLASS_MAP에서 클래스 ID 찾기
+                    class_id = CLASS_MAP.get(obj_type, None)
+                    if class_id is None:
+                        print(
+                            f"[APP_WARNING] Unknown object type: {obj_type}, skipping"
+                        )
+                        continue
+
+                    # 객체 좌표와 크기 가져오기
+                    obj_x = getattr(obj, "x", 0)
+                    obj_y = getattr(obj, "y", 0)
+                    obj_w = getattr(obj, "w", 8)
+                    obj_h = getattr(obj, "h", 8)
+
+                    # YOLO 정규화 좌표 계산
+                    x_center = obj_x + obj_w / 2
+                    y_center = obj_y + obj_h / 2
+                    x_center_norm = x_center / APP_WIDTH
+                    y_center_norm = y_center / APP_HEIGHT
+                    width_norm = obj_w / APP_WIDTH
+                    height_norm = obj_h / APP_HEIGHT
+
+                    # 좌표값이 유효한 범위 내에 있는지 확인 (0~1)
+                    if 0 <= x_center_norm <= 1 and 0 <= y_center_norm <= 1:
                         yolo_data_row = f"{class_id} {x_center_norm:.6f} {y_center_norm:.6f} {width_norm:.6f} {height_norm:.6f}"
                         yolo_data_rows.append(yolo_data_row)
+
+                print(
+                    f"[APP_DEBUG] YOLO objects collected: {dict(object_counts)} | Total labels: {len(yolo_data_rows)}"
+                )
 
             # 이미지를 base64로 인코딩
             image_png_base64 = None
