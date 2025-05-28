@@ -35,8 +35,8 @@ class State(Enum):
 
 # 플레이어 스폰 시간 (프레임 단위)
 PLAYER_SPAWN_IN_FRAMES = 30
-# 스테이지 클리어 후 대기 시간 (프레임 단위)
-STAGE_CLEAR_FRAMES = 180
+# 스테이지 클리어 후 대기 시간 (프레임 단위) - 보스 처치 후 빠른 진행을 위해 단축
+STAGE_CLEAR_FRAMES = 60
 
 
 class GameStateStage:
@@ -219,10 +219,8 @@ class GameStateStage:
             self.switch_state(State.PLAY)
 
     def update_stage_clear(self):
-        if (
-            self.state_time >= STAGE_CLEAR_FRAMES
-            and not audio_manager.is_music_playing()
-        ):
+        # 보스를 잡으면 바로 다음 스테이지로 진행 (음악 재생 완료 대기 제거)
+        if self.state_time >= STAGE_CLEAR_FRAMES:
             self.game.go_to_next_stage()
 
     def update(self):
