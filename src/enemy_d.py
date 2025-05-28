@@ -8,9 +8,10 @@ class EnemyD(Enemy):
     def __init__(self, state, x, y) -> None:
         super().__init__(state, x, y)
         self.type = EntityType.ENEMY_D  # EnemyD 타입으로 설정
-        self.colour = 14  # grey
+        self.colour = 12  # orange
         self.u = 48
         self.v = 80
+        self.hp = 2  # 체력을 2로 설정
 
         self.flip_y = True if self.y < 96 else False
 

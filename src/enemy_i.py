@@ -14,7 +14,7 @@ class EnemyI(Enemy):
         self.u = 128
         self.v = 80
 
-        self.hp = 3
+        self.hp = 2  # 체력을 2로 설정
 
         self.vel_y_index = 0
 

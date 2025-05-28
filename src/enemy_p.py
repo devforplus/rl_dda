@@ -14,7 +14,7 @@ class EnemyP(Enemy):
         self.colour = 9  # pink
         self.u = 240
         self.v = 80
-
+        self.hp = 2  # 체력을 2로 설정
         self.shot_delay = 25  # allow time to get on screen
 
     def update(self):

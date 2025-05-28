@@ -16,7 +16,7 @@ class EnemyM(Enemy):
 
         self.w = 32
         self.h = 32
-        self.hp = 300
+        self.hp = 2
         self.score = ENEMY_SCORE_BOSS
 
         self.speed_x = state.get_scroll_x_speed()

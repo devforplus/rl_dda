@@ -11,11 +11,14 @@ class EnemyA(Enemy):
     def __init__(self, state, x, y) -> None:
         super().__init__(state, x, y)
         self.type = EntityType.ENEMY_A  # EnemyA 타입으로 설정
-        self.colour = 7  # cyan
+        self.colour = 6  # dark blue
         self.u = 0
         self.v = 80
+        self.hp = 2  # 체력을 2로 설정
 
         self.shot_delay = 20  # allow time to get on screen
+
+        self.speed = state.get_scroll_x_speed()
 
     def update(self):
         super().update()  # hit frames

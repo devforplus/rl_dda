@@ -12,13 +12,13 @@ class EnemyL(Enemy):
     def __init__(self, state, x, y) -> None:
         super().__init__(state, x, y)
         self.type = EntityType.ENEMY_L  # EnemyL 타입으로 설정
-        self.colour = 3  # light green
+        self.colour = 2  # green
         self.u = 176
         self.v = 80
 
         self.w = 32
         self.h = 32
-        self.hp = 100
+        self.hp = 2  # 체력을 2로 설정
         self.score = ENEMY_SCORE_BOSS
 
         self.speed_x = state.get_scroll_x_speed()

@@ -12,7 +12,7 @@ class EnemyJ(Enemy):
         self.u = 144
         self.v = 80
 
-        self.hp = 40
+        self.hp = 2  # 체력을 2로 설정
 
         self.speed_x = state.get_scroll_x_speed()
 

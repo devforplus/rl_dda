@@ -16,6 +16,7 @@ class EnemyB(Enemy):
         self.colour = 3  # light green
         self.u = 16
         self.v = 80
+        self.hp = 2  # 체력을 2로 설정
 
     def update(self):
         super().update()  # hit frames

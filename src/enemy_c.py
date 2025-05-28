@@ -11,6 +11,7 @@ class EnemyC(Enemy):
         self.colour = 13  # purple
         self.u = 32
         self.v = 80
+        self.hp = 2  # 체력을 2로 설정
 
         self.flip_y = True if self.y < 96 else False
 

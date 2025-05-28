@@ -10,11 +10,12 @@ class EnemyH(Enemy):
     def __init__(self, state, x, y) -> None:
         super().__init__(state, x, y)
         self.type = EntityType.ENEMY_H  # EnemyH 타입으로 설정
-        self.colour = 6  # red
+        self.colour = 9  # pink
         self.u = 112
         self.v = 80
+        self.hp = 2  # 체력을 2로 설정
 
-        self.hp = 4
+        self.flip_y = True if self.y < 96 else False
 
         self.vel_y = BOUNCE_VEL
 

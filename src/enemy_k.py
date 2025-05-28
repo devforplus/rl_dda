@@ -18,7 +18,7 @@ class EnemyK(Enemy):
 
         self.w = 32
         self.h = 32
-        self.hp = 200
+        self.hp = 2  # 체력을 2로 설정
         self.score = ENEMY_SCORE_BOSS
 
         self.speed_x = state.get_scroll_x_speed()

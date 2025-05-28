@@ -12,6 +12,7 @@ class EnemyE(Enemy):
         self.colour = 10  # yellow
         self.u = 64
         self.v = 80
+        self.hp = 2  # 체력을 2로 설정
         # spawn on left
         self.x -= 256 + 16
 

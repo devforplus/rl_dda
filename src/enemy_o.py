@@ -15,7 +15,7 @@ class EnemyO(Enemy):
         self.u = 224
         self.v = 80
 
-        self.hp = 1
+        self.hp = 2  # 체력을 2로 설정
 
         self.shot_delay = 40  # allow time to get on screen
 

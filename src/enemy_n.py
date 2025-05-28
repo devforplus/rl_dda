@@ -9,11 +9,12 @@ class EnemyN(Enemy):
     def __init__(self, state, x, y) -> None:
         super().__init__(state, x, y)
         self.type = EntityType.ENEMY_N  # EnemyN 타입으로 설정
-        self.colour = 14  # grey
+        self.colour = 10  # yellow
         self.u = 208
         self.v = 80
+        self.hp = 2  # 체력을 2로 설정
 
-        self.hp = 1
+        self.speed_x = state.get_scroll_x_speed()
 
         if self.y < 96:
             self.speed_y = SPEED_Y
