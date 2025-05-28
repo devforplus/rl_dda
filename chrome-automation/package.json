@@ -1,0 +1,32 @@
+{
+  "name": "chrome-automation",
+  "version": "1.0.0",
+  "description": "Chrome DevTools Protocol 기반 자동화 도구",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "chrome",
+    "automation",
+    "devtools",
+    "pyxel"
+  ],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.6.5",
+  "dependencies": {
+    "ws": "8.18.2"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.23",
+    "@types/ws": "8.18.1",
+    "tsx": "4.19.4",
+    "typescript": "5.8.3"
+  }
+}
