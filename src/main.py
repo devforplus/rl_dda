@@ -90,6 +90,13 @@ class App:
             self.capture_interval = 10  # 캡처 간격 (프레임)
             self.frames_since_last_capture = 0
 
+            # 에이전트가 있을 때는 데이터 수집 자동 활성화 (AI 학습용 데이터 수집)
+            if self.agent is not None:
+                self.collecting_data = True
+                print(
+                    "[APP_INFO] Agent detected - Data collection automatically enabled for AI training"
+                )
+
             # 서버 업로드 관련 변수 (웹/데스크톱 모두 지원)
             self.server_upload_enabled = False
             self.server_client = None
@@ -117,11 +124,12 @@ class App:
                     )
                     print(f"[APP_INFO] NewServerClient 초기화됨: {server_url}")
 
-                    # 자동 업로드 클라이언트 초기화 로직 전체 삭제
-                    # if AUTO_UPLOAD_AVAILABLE and QuickAutoUpload and not IS_WEB:
-                    # ...
-                    # else:
-                    # ...
+                    # 에이전트가 있을 때는 서버 업로드도 자동 활성화 (AI 학습 데이터 자동 업로드)
+                    if self.agent is not None:
+                        self.server_upload_enabled = True
+                        print(
+                            "[APP_INFO] Agent detected - Server upload automatically enabled for AI training data"
+                        )
 
                 except Exception as e:  # NewServerClient 초기화 실패 시
                     print(f"[APP_ERROR] NewServerClient 초기화 실패: {e}")
@@ -191,6 +199,13 @@ class App:
 
     def toggle_data_collection(self):
         """데이터 수집 상태를 토글합니다."""
+        # 에이전트 사용 중일 때는 데이터 수집 비활성화 방지 (AI 학습용 데이터 보호)
+        if self.agent is not None and self.collecting_data:
+            print(
+                "[APP_INFO] Cannot disable data collection while agent is active (required for AI training)"
+            )
+            return
+
         self.collecting_data = not self.collecting_data
         if self.collecting_data:
             print("[APP_DEBUG] Data collection STARTED (toggled from game state).")
@@ -210,6 +225,13 @@ class App:
 
         if not self.server_client:
             print("[APP_WARNING] 서버 클라이언트가 초기화되지 않았습니다.")
+            return
+
+        # 에이전트 사용 중일 때는 서버 업로드 비활성화 방지 (AI 학습 데이터 업로드 보호)
+        if self.agent is not None and self.server_upload_enabled:
+            print(
+                "[APP_INFO] Cannot disable server upload while agent is active (required for AI training data)"
+            )
             return
 
         self.server_upload_enabled = not self.server_upload_enabled
@@ -328,9 +350,15 @@ class App:
         """데이터 수집 및 서버 업로드 상태를 화면에 표시"""
         y_offset = 5
 
+        # 에이전트 상태 표시 (우선순위 최고)
+        if self.agent is not None:
+            px.text(5, y_offset, "AGENT: ACTIVE", 12)  # 파란색
+            y_offset += 8
+
         # 데이터 수집 상태 표시
         if self.collecting_data:
-            px.text(5, y_offset, "DATA: ON", 11)  # 밝은 녹색
+            status_text = "DATA: AUTO" if self.agent is not None else "DATA: ON"
+            px.text(5, y_offset, status_text, 11)  # 밝은 녹색
         else:
             px.text(5, y_offset, "DATA: OFF", 5)  # 회색
 
@@ -338,13 +366,10 @@ class App:
         if SERVER_CLIENT_AVAILABLE:  # server_client 존재 여부도 확인 가능
             y_offset += 8
             if self.server_upload_enabled:
-                px.text(5, y_offset, "SERVER: ON", 11)  # 밝은 녹색
+                status_text = "SERVER: AUTO" if self.agent is not None else "SERVER: ON"
+                px.text(5, y_offset, status_text, 11)  # 밝은 녹색
             else:
                 px.text(5, y_offset, "SERVER: OFF", 5)  # 회색
-
-        # 자동 업로드 상태 표시 삭제
-        # if self.auto_uploader:
-        # ...
 
         # 수집된 프레임 수 표시
         if self.collected_data:
@@ -353,7 +378,10 @@ class App:
 
         # 키 도움말 표시
         y_offset += 8
-        px.text(5, y_offset, "C:Data U:Server", 6)  # "A:Auto" 삭제, 진한 회색
+        if self.agent is not None:
+            px.text(5, y_offset, "AUTO MODE", 6)  # 진한 회색
+        else:
+            px.text(5, y_offset, "C:Data U:Server", 6)  # 진한 회색
 
     def _collect_current_frame_data(self, for_upload=False):
         """현재 프레임의 이미지와 게임 객체 정보를 수집하여 YOLO 라벨을 생성합니다."""
