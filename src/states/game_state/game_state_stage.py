@@ -294,7 +294,12 @@ class GameStateStage:
         elif self.state == State.GAME_OVER:
             self.font.draw_text(96, 88, "GAME OVER")
         elif self.state == State.STAGE_CLEAR:
-            if self.game.game_vars.stage_num != FINAL_STAGE:
+            if self.game.game_vars.stage_num == FINAL_STAGE:
+                # 최종 스테이지 클리어 시 게임 완료 메시지 표시
+                if self.state_time > 30:
+                    self.font.draw_text(80, 80, "GAME COMPLETE!")
+                    self.font.draw_text(72, 96, "ALL STAGES CLEARED!")
+            else:
                 if self.state_time > 60:
                     if self.game.game_vars.is_vortex_stage():
                         self.font.draw_text(80, 88, "LEAVING VORTEX")
