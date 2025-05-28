@@ -100,9 +100,21 @@ class Player(Sprite):
         """
         플레이어가 무적 상태인지 확인.
 
-        초기 무적 상태 또는 강제 무적 상태일 때 True를 반환합니다.
+        초기 무적 상태, 강제 무적 상태, 또는 에이전트가 있을 때 True를 반환합니다.
+        에이전트 사용 시에는 항상 무적 모드로 동작하여 안전한 학습 환경을 제공합니다.
         """
-        return self.invincibility_frames > 0 or self.forced_invincible
+        # 기본 무적 상태 확인 (초기 무적 또는 강제 무적)
+        base_invincible = self.invincibility_frames > 0 or self.forced_invincible
+
+        # 에이전트가 있을 때는 항상 무적 상태 (랜덤 에이전트의 안전한 플레이를 위함)
+        agent_invincible = (
+            hasattr(self.game_state, "game")
+            and hasattr(self.game_state.game, "app")
+            and hasattr(self.game_state.game.app, "agent")
+            and self.game_state.game.app.agent is not None
+        )
+
+        return base_invincible or agent_invincible
 
     def collide_background(self, bg) -> bool:
         """

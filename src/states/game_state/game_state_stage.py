@@ -21,6 +21,7 @@ from audio import AudioManager
 # 오디오 매니저 인스턴스 생성
 audio_manager = AudioManager()
 
+
 class State(Enum):
     """스테이지 상태 열거형."""
 
@@ -55,6 +56,20 @@ class GameStateStage:
 
         # 플레이어 및 관련 객체 초기화
         self.player = Player(self)
+
+        # 에이전트가 있을 때는 플레이어를 무적 모드로 설정 (랜덤 에이전트 안전을 위함)
+        if (
+            hasattr(self.game, "app")
+            and hasattr(self.game.app, "agent")
+            and self.game.app.agent is not None
+        ):
+            self.player.forced_invincible = (
+                True  # 에이전트 사용 시 항상 무적 모드 활성화
+            )
+            print(
+                "[GAME_STATE_STAGE_INFO] Agent detected - Player set to invincible mode for agent safety"
+            )
+
         self.player_shots = []
 
         # 적 및 관련 객체 초기화
@@ -83,7 +98,9 @@ class GameStateStage:
         self.check_stage_clear = False
 
         # 음악 로드 및 재생
-        self.music = audio_manager.load_music(stage_music_mapping[self.game.game_vars.stage_num])
+        self.music = audio_manager.load_music(
+            stage_music_mapping[self.game.game_vars.stage_num]
+        )
         audio_manager.play_music(self.music, num_channels=3)
 
     def on_exit(self):
@@ -106,7 +123,21 @@ class GameStateStage:
             audio_manager.stop_music()
 
     def respawn_player(self):
+        """플레이어를 리스폰합니다."""
         self.player = Player(self)
+
+        # 에이전트가 있을 때는 플레이어를 무적 모드로 설정 (랜덤 에이전트 안전을 위함)
+        if (
+            hasattr(self.game, "app")
+            and hasattr(self.game.app, "agent")
+            and self.game.app.agent is not None
+        ):
+            self.player.forced_invincible = (
+                True  # 에이전트 사용 시 항상 무적 모드 활성화
+            )
+            print(
+                "[GAME_STATE_STAGE_INFO] Agent detected - Player set to invincible mode for agent safety"
+            )
 
     def get_scroll_x_speed(self):
         return self.background.scroll_x_speed
@@ -151,7 +182,7 @@ class GameStateStage:
         # I 키를 눌렀을 때 무적모드 토글
         if self.input.has_tapped(input.INVINCIBLE):
             self.player.toggle_invincibility()
-            
+
         # C 키를 눌렀을 때 데이터 수집 토글 -> App.update()에서 이미 처리하므로 여기서는 제거
         # if self.input.has_tapped(input.COLLECT_DATA):
         #     if hasattr(self.game, 'app') and hasattr(self.game.app, 'toggle_data_collection'):
@@ -188,7 +219,10 @@ class GameStateStage:
             self.switch_state(State.PLAY)
 
     def update_stage_clear(self):
-        if self.state_time >= STAGE_CLEAR_FRAMES and not audio_manager.is_music_playing():
+        if (
+            self.state_time >= STAGE_CLEAR_FRAMES
+            and not audio_manager.is_music_playing()
+        ):
             self.game.go_to_next_stage()
 
     def update(self):
