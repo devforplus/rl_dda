@@ -6,6 +6,7 @@ import traceback
 import time  # For timestamping (optional)
 import json
 import os
+import asyncio
 
 # 웹 환경에서만 Pillow, io, base64, numpy를 import 시도 -> 전역으로 변경
 IS_WEB = platform.system() == "Emscripten"
@@ -18,15 +19,26 @@ try:
     from PIL import Image as PILImage
     import io
     import base64
-    import numpy
+
+    print("[APP_INFO] PIL, io, base64 imported successfully")
 except ImportError as e:
     print(
-        f"[APP_ERROR] Failed to import libraries for image processing: {e}. Data collection might fail."
+        f"[APP_ERROR] Failed to import PIL/io/base64: {e}. Data collection might fail."
     )
-    # Pillow 등이 없으면 이미지 처리가 불가능하므로, 이후 로직에서 이를 고려해야 함.
     PILImage = None
     io = None
     base64 = None
+
+# numpy는 별도로 처리 (웹 환경에서 문제가 될 수 있음)
+try:
+    import numpy
+
+    print("[APP_INFO] NumPy imported successfully")
+except ImportError as e:
+    print(f"[APP_WARNING] NumPy not available: {e}. Using fallback methods.")
+    numpy = None
+except Exception as e:
+    print(f"[APP_WARNING] NumPy import failed: {e}. Using fallback methods.")
     numpy = None
 
 from game import Game
@@ -45,8 +57,11 @@ from monospace_bitmap_font import MonospaceBitmapFont
 import input as input_module  # 수정된 방식
 
 # 서버 업로드 기능 import (웹/데스크톱 모두 지원)
+SERVER_CLIENT_AVAILABLE = False
 try:
-    from server_client import GameDataServerClient
+    from server_client import (
+        NewServerClient,
+    )  # 변경: GameDataServerClient -> NewServerClient
 
     SERVER_CLIENT_AVAILABLE = True
     print(
@@ -54,7 +69,10 @@ try:
     )
 except ImportError as e:
     print(f"[APP_WARNING] Server client not available: {e}")
-    SERVER_CLIENT_AVAILABLE = False
+except Exception as e:
+    print(f"[APP_WARNING] Server client import failed: {e}")
+
+# 자동 업로드 관련 import 및 변수 삭제됨
 
 print("[MAIN_PY_DEBUG] App class definition START")
 
@@ -69,26 +87,57 @@ class App:
                 False  # 데이터 수집 활성화 여부 (C키로 토글 가능하도록 설정)
             )
             self.collected_data = []
-            self.capture_interval = 1  # 캡처 간격 (프레임)
+            self.capture_interval = 10  # 캡처 간격 (프레임)
             self.frames_since_last_capture = 0
 
             # 서버 업로드 관련 변수 (웹/데스크톱 모두 지원)
             self.server_upload_enabled = False
             self.server_client = None
+            # self.auto_uploader = None 삭제됨
+
+            # 서버 클라이언트 초기화 시도
             if SERVER_CLIENT_AVAILABLE:
                 # 환경 변수나 설정 파일에서 서버 URL을 가져올 수 있음
-                # 웹/데스크톱 모두 동일한 서버 주소 사용
-                default_server_url = "http://127.0.0.1:8787"  # 통일된 서버 주소
+                # 웹 환경에서는 현재 호스트를 기본으로 사용
+                if IS_WEB:
+                    default_server_url = os.getenv(
+                        "PUBLIC_WORKER_URL",
+                        "https://rl-dda-server.ijihyeon164.workers.dev",
+                    )  # 웹 환경 기본값 - Cloudflare Workers 배포 주소
+                else:
+                    default_server_url = "https://rl-dda-server.ijihyeon164.workers.dev"  # 데스크톱 환경 기본값 - Cloudflare Workers 배포 주소
                 server_url = os.getenv("GAME_SERVER_URL", default_server_url)
+                api_key = os.getenv("GAME_API_KEY", None)  # API 키 추가
                 try:
-                    self.server_client = GameDataServerClient(server_url)
-                    if self.server_client.check_server_status():
-                        self.server_upload_enabled = True
-                        print(f"[APP_INFO] 서버 업로드 활성화됨: {server_url}")
-                    else:
-                        print(f"[APP_WARNING] 서버에 연결할 수 없음: {server_url}")
-                except Exception as e:
-                    print(f"[APP_WARNING] 서버 클라이언트 초기화 실패: {e}")
+                    self.server_client = NewServerClient(
+                        server_url, api_key
+                    )  # 변경: NewServerClient 사용
+                    self.server_upload_enabled = (
+                        True  # 상태 확인 로직 제거하고 기본 활성화 (필요시 조정)
+                    )
+                    print(f"[APP_INFO] NewServerClient 초기화됨: {server_url}")
+
+                    # 자동 업로드 클라이언트 초기화 로직 전체 삭제
+                    # if AUTO_UPLOAD_AVAILABLE and QuickAutoUpload and not IS_WEB:
+                    # ...
+                    # else:
+                    # ...
+
+                except Exception as e:  # NewServerClient 초기화 실패 시
+                    print(f"[APP_ERROR] NewServerClient 초기화 실패: {e}")
+                    self.server_client = None
+                    self.server_upload_enabled = False
+                    # self.auto_uploader = SimpleAutoUploader(None) 삭제됨
+                    print(
+                        "[APP_WARNING] NewServerClient 초기화 실패. 서버 업로드 기능 사용 불가."
+                    )
+            else:
+                # SERVER_CLIENT_AVAILABLE 자체가 False인 경우
+                print("[APP_WARNING] Server client 라이브러리를 사용할 수 없습니다.")
+                self.server_client = None
+                self.server_upload_enabled = False
+                # self.auto_uploader = SimpleAutoUploader(None) 삭제됨
+                print("[APP_WARNING] 서버 업로드 기능 사용 불가.")
 
             if IS_WEB:
                 px.init(
@@ -166,11 +215,14 @@ class App:
         self.server_upload_enabled = not self.server_upload_enabled
         if self.server_upload_enabled:
             # 서버 연결 재확인
-            if self.server_client.check_server_status():
-                print("[APP_INFO] 서버 업로드 활성화됨")
-            else:
-                print("[APP_WARNING] 서버에 연결할 수 없어 업로드를 비활성화합니다.")
-                self.server_upload_enabled = False
+            # NewServerClient에는 check_server_status_sync가 없으므로, 단순 토글로 변경
+            # 또는 비동기 상태 확인 후 콜백으로 UI 업데이트 등의 복잡한 처리 필요
+            print("[APP_INFO] 서버 업로드 활성화됨 (실제 연결 상태는 업로드 시 확인)")
+            # if self.server_client.check_server_status_sync(): # 해당 메서드 없음
+            #     print("[APP_INFO] 서버 업로드 활성화됨")
+            # else:
+            #     print("[APP_WARNING] 서버에 연결할 수 없어 업로드를 비활성화합니다.")
+            #     self.server_upload_enabled = False
         else:
             print("[APP_INFO] 서버 업로드 비활성화됨")
 
@@ -227,7 +279,26 @@ class App:
                 self.frames_since_last_capture += 1
                 if self.frames_since_last_capture >= self.capture_interval:
                     self.frames_since_last_capture = 0
-                    self._collect_current_frame_data()
+                    collected_info = self._collect_current_frame_data(for_upload=False)
+                    if collected_info:
+                        frame_data, pil_image, yolo_data_rows = collected_info
+                        if frame_data and frame_data.get("image_png_base64"):
+                            self.collected_data.append(frame_data)
+                            print(
+                                f"[APP_DEBUG] Frame collected. Image size: {len(frame_data.get('image_png_base64', ''))} chars, YOLO objects: {len(frame_data.get('yolo_labels', [])) - 1}"
+                            )  # -1 for header
+                        if (
+                            self.server_upload_enabled
+                            and self.server_client
+                            and pil_image
+                            and yolo_data_rows  # yolo_data_rows도 확인 (서버 업로드 시 필요)
+                        ):
+                            print(f"[APP_DEBUG] Uploading frame to server...")
+                            self._upload_frame_to_server(
+                                pil_image, yolo_data_rows, frame_data
+                            )
+                        else:
+                            print("[APP_DEBUG] Failed to collect frame data")
 
             if not IS_WEB and self.input.has_tapped(input_module.BUTTON_2):
                 print("Local save triggered (not implemented).")
@@ -264,19 +335,27 @@ class App:
             px.text(5, y_offset, "DATA: OFF", 5)  # 회색
 
         # 서버 업로드 상태 표시 (웹/데스크톱 모두 지원)
-        if SERVER_CLIENT_AVAILABLE:
+        if SERVER_CLIENT_AVAILABLE:  # server_client 존재 여부도 확인 가능
             y_offset += 8
             if self.server_upload_enabled:
                 px.text(5, y_offset, "SERVER: ON", 11)  # 밝은 녹색
             else:
                 px.text(5, y_offset, "SERVER: OFF", 5)  # 회색
 
+        # 자동 업로드 상태 표시 삭제
+        # if self.auto_uploader:
+        # ...
+
         # 수집된 프레임 수 표시
         if self.collected_data:
             y_offset += 8
             px.text(5, y_offset, f"FRAMES: {len(self.collected_data)}", 7)  # 흰색
 
-    def _collect_current_frame_data(self):
+        # 키 도움말 표시
+        y_offset += 8
+        px.text(5, y_offset, "C:Data U:Server", 6)  # "A:Auto" 삭제, 진한 회색
+
+    def _collect_current_frame_data(self, for_upload=False):
         """현재 프레임의 이미지와 게임 객체 정보를 수집하여 YOLO 라벨을 생성합니다."""
         print("[APP_DEBUG] _collect_current_frame_data CALLED")
 
@@ -290,13 +369,13 @@ class App:
                     "[APP_DEBUG] Data collection STOPPED due to missing core libraries."
                 )
                 self.collecting_data = False
-            return
+            return None
 
         if not hasattr(self.game, "state") or not self.game.state:
             print(
                 "[APP_DEBUG] Game state not available. Skipping frame data collection."
             )
-            return
+            return None
 
         current_game_state = self.game.state
         image_payload = None
@@ -308,240 +387,258 @@ class App:
             height = px.height  # Pyxel의 전역 화면 높이 사용
             image_shape_info = (height, width)
 
-            # Optimized NumPy-based approach
-            try:
-                if not numpy:  # numpy가 성공적으로 임포트되었는지 확인
-                    raise RuntimeError("NumPy not available for optimized capture.")
-                if not PILImage:  # PILImage도 여기서 다시 한번 확인 (상단에서 이미 확인했지만, 명시적 방어)
-                    raise RuntimeError(
-                        "Pillow (PIL) not available for optimized capture."
-                    )
+            # NumPy를 사용한 빠른 화면 캡처 (가능한 경우)
+            pil_image = None
+            if numpy:
+                try:
+                    screen_data_raw = px.screen.data
 
-                screen_data_raw = px.screen.data
-                screen_data_np = None
-
-                if IS_WEB:
-                    if hasattr(
-                        screen_data_raw, "to_py"
-                    ):  # Pyodide/JS TypedArray (e.g., Uint8Array)
-                        # Pyxel web: px.screen.data는 (width * height) 크기의 플랫 Uint8Array (색상 인덱스)
-                        screen_data_flat_py = screen_data_raw.to_py()
-                        screen_data_np = numpy.array(
-                            screen_data_flat_py, dtype=numpy.int32
-                        ).reshape(height, width)
-                    else:
-                        raise RuntimeError(
-                            "Web environment: px.screen.data is not a JS object with to_py method or is not in the expected format."
-                        )
-                else:
-                    # Desktop: px.screen.data는 (height, width) 형태의 NumPy 배열 (색상 인덱스)
-                    screen_data_np = numpy.asarray(screen_data_raw, dtype=numpy.int32)
-
-                if screen_data_np.shape != (height, width):
-                    raise ValueError(
-                        f"Screen data shape mismatch. Expected ({height},{width}), got {screen_data_np.shape}."
-                    )
-
-                palette_hex = (
-                    px.colors.to_list()
-                )  # 현재 활성화된 팔레트 (hex 값 리스트)
-
-                max_index_on_screen = numpy.max(screen_data_np)
-                current_palette_size = len(palette_hex)
-
-                if max_index_on_screen >= current_palette_size:
-                    # NumPy 배열 인덱싱 시 IndexError 발생 방지
-                    raise ValueError(
-                        f"Color index {max_index_on_screen} from screen data is out of bounds for current palette size {current_palette_size}."
-                    )
-                if numpy.min(screen_data_np) < 0:
-                    raise ValueError("Negative color index found in screen data.")
-
-                palette_rgb = numpy.array(
-                    [
-                        ((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF)
-                        for c in palette_hex
-                    ],
-                    dtype=numpy.uint8,
-                )
-
-                rgb_array = palette_rgb[
-                    screen_data_np
-                ]  # NumPy의 fancy indexing으로 RGB 값 매핑
-
-                pil_image = PILImage.fromarray(rgb_array, "RGB")
-                print("[APP_DEBUG] Frame captured using NumPy optimization.")
-
-            except Exception as e_optimized:
-                print(
-                    f"[APP_DEBUG] NumPy optimization failed: {type(e_optimized).__name__} - {e_optimized}. Falling back to pixel-by-pixel method."
-                )
-
-                # Fallback to existing pixel-by-pixel method
-                if not PILImage:  # PILImage가 폴백에 사용 가능한지 확인
-                    print(
-                        "[APP_ERROR] PILImage not available for fallback image capture."
-                    )
-                    return  # PILImage 없이는 진행 불가
-
-                pil_image = PILImage.new("RGB", (width, height))
-                current_palette_for_fallback = (
-                    px.colors.to_list()
-                )  # 폴백에서도 현재 팔레트 사용
-
-                for y_coord in range(height):
-                    for x_coord in range(width):
-                        # px.pget()은 화면에서 직접 색상 인덱스를 가져옴 (웹/데스크톱 호환)
-                        color_index = px.pget(x_coord, y_coord)
-
-                        if 0 <= color_index < len(current_palette_for_fallback):
-                            rgb_hex = current_palette_for_fallback[color_index]
-                            r = (rgb_hex >> 16) & 0xFF
-                            g = (rgb_hex >> 8) & 0xFF
-                            b = rgb_hex & 0xFF
-                            pil_image.putpixel((x_coord, y_coord), (r, g, b))
+                    if IS_WEB:
+                        # 웹 환경에서 screen.data 안전하게 처리
+                        if hasattr(screen_data_raw, "to_py"):
+                            screen_data_flat_py = screen_data_raw.to_py()
+                            screen_data_np = numpy.array(
+                                screen_data_flat_py, dtype=numpy.int32
+                            ).reshape(height, width)
+                        elif hasattr(screen_data_raw, "__iter__"):
+                            # 리스트나 배열인 경우
+                            screen_data_np = numpy.array(
+                                list(screen_data_raw), dtype=numpy.int32
+                            ).reshape(height, width)
                         else:
-                            # pget()이 팔레트 범위를 벗어난 인덱스를 반환하는 경우 (비정상적 상황)
-                            print(
-                                f"[APP_WARNING] Fallback: color_index {color_index} from pget() is out of bounds for palette size {len(current_palette_for_fallback)}. Using black pixel."
-                            )
-                            pil_image.putpixel(
-                                (x_coord, y_coord), (0, 0, 0)
-                            )  # 기본값 (검정색)
+                            # 직접 numpy 변환 시도
+                            screen_data_np = numpy.asarray(
+                                screen_data_raw, dtype=numpy.int32
+                            ).reshape(height, width)
+                    else:
+                        # 데스크톱 환경
+                        screen_data_np = numpy.asarray(
+                            screen_data_raw, dtype=numpy.int32
+                        )
+                        # 필요시 reshape
+                        if screen_data_np.shape != (height, width):
+                            screen_data_np = screen_data_np.reshape(height, width)
 
-                print("[APP_DEBUG] Frame captured using pixel-by-pixel fallback.")
+                    # 팔레트를 사용하여 RGB로 변환
+                    palette_hex = px.colors.to_list()
+                    palette_rgb = numpy.array(
+                        [
+                            ((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF)
+                            for c in palette_hex
+                        ],
+                        dtype=numpy.uint8,
+                    )
 
-            # PIL 이미지가 성공적으로 생성되었는지 확인 후 처리
+                    rgb_array = palette_rgb[screen_data_np]
+                    pil_image = PILImage.fromarray(rgb_array, "RGB")
+                except Exception as e:
+                    print(
+                        f"[AUTO_UPLOAD] NumPy capture failed: {type(e).__name__}: {e}, using fallback"
+                    )
+                    pil_image = None
+
+            # NumPy 실패 시 픽셀별 캡처 (폴백)
+            if pil_image is None:
+                try:
+                    pil_image = PILImage.new("RGB", (width, height))
+                    palette_hex = px.colors.to_list()
+
+                    for y in range(height):
+                        for x in range(width):
+                            color_index = px.pget(x, y)
+                            if 0 <= color_index < len(palette_hex):
+                                rgb_hex = palette_hex[color_index]
+                                r = (rgb_hex >> 16) & 0xFF
+                                g = (rgb_hex >> 8) & 0xFF
+                                b = rgb_hex & 0xFF
+                                pil_image.putpixel((x, y), (r, g, b))
+                            else:
+                                pil_image.putpixel((x, y), (0, 0, 0))
+                except Exception as e:
+                    print(f"[AUTO_UPLOAD] Fallback capture failed: {e}")
+                    return None
+
+            # 게임 상태에서 YOLO 데이터 생성 (간단화)
+            yolo_data_rows = []
+            if hasattr(self.game, "state") and self.game.state:
+                game_state = self.game.state
+
+                # 간단한 YOLO 데이터 생성 (필요시 확장)
+                object_lists = {
+                    "player": [game_state.player]
+                    if hasattr(game_state, "player") and game_state.player
+                    else [],
+                    "enemies": game_state.enemies
+                    if hasattr(game_state, "enemies")
+                    else [],
+                }
+
+                for list_name, obj_list in object_lists.items():
+                    for obj in obj_list:
+                        if not obj or getattr(obj, "remove", False):
+                            continue
+
+                        # 간단한 클래스 매핑
+                        class_id = 0 if list_name == "player" else 1
+
+                        obj_x, obj_y = getattr(obj, "x", 0), getattr(obj, "y", 0)
+                        obj_w, obj_h = getattr(obj, "w", 16), getattr(obj, "h", 16)
+
+                        x_center = obj_x + obj_w / 2
+                        y_center = obj_y + obj_h / 2
+                        x_center_norm = x_center / APP_WIDTH
+                        y_center_norm = y_center / APP_HEIGHT
+                        width_norm = obj_w / APP_WIDTH
+                        height_norm = obj_h / APP_HEIGHT
+
+                        yolo_data_row = f"{class_id} {x_center_norm:.6f} {y_center_norm:.6f} {width_norm:.6f} {height_norm:.6f}"
+                        yolo_data_rows.append(yolo_data_row)
+
+            # 이미지를 base64로 인코딩
+            image_png_base64 = None
+            image_original_shape = None
+
             if pil_image:
-                buffered = io.BytesIO()
-                pil_image.save(buffered, format="PNG")  # PNG는 무손실 압축
-                image_payload = base64.b64encode(buffered.getvalue()).decode("utf-8")
-                image_shape_info = (height, width, 3)  # RGB이므로 채널은 3
+                try:
+                    # image_original_shape 생성
+                    image_original_shape = [
+                        pil_image.height,
+                        pil_image.width,
+                        len(pil_image.getbands()),
+                    ]
+
+                    # image_png_base64 생성
+                    buffered = io.BytesIO()
+                    pil_image.save(buffered, format="PNG")
+                    image_png_base64 = base64.b64encode(buffered.getvalue()).decode(
+                        "utf-8"
+                    )
+
+                    print(
+                        f"[APP_DEBUG] Image encoded: shape={image_original_shape}, base64_len={len(image_png_base64)}"
+                    )
+                except Exception as e:
+                    print(f"[APP_ERROR] Image encoding failed: {e}")
+                    return None
             else:
-                print(
-                    "[APP_ERROR] Failed to create PIL image using any method. Frame data not collected."
-                )
-                return
+                print("[APP_ERROR] PIL image is None, cannot encode")
+                return None
+
+            # yolo_labels 생성 (헤더 포함)
+            header = CLASS_MAP.get(-1, "entity_num x_center y_center width height")
+            yolo_labels = [header] + yolo_data_rows
+
+            print(
+                f"[APP_DEBUG] YOLO labels: {len(yolo_labels)} items (including header)"
+            )
+
+            # 프레임 데이터 생성 (서버 API 형식에 맞춤)
+            frame_data = {
+                "timestamp": time.time(),
+                "image_original_shape": image_original_shape,
+                "image_png_base64": image_png_base64,
+                "yolo_labels": yolo_labels,
+            }
+
+            print(
+                f"[APP_DEBUG] Frame data created with keys: {list(frame_data.keys())}"
+            )
+
+            if for_upload:
+                return frame_data, pil_image, yolo_data_rows
+            else:
+                return frame_data, pil_image, yolo_data_rows
 
         except Exception as e:
             error_message = f"Error in _collect_current_frame_data: {type(e).__name__}: {e}\\n{traceback.format_exc()}"
             if IS_WEB and "js" in globals():
                 js.console.error(error_message)
             print(error_message, file=sys.stderr)
-            return  # 오류 발생 시 데이터 수집 중단 또는 해당 프레임 스킵
+            return None
 
-        # YOLO 라벨을 CSV 형식으로 수집
-        csv_header = "entity_num x_center y_center width height"
-        yolo_data_rows = []  # 실제 데이터만 저장
-        print(f"[APP_DEBUG] CSV 헤더 설정: {csv_header}")
+    async def _upload_frame_to_server_async(
+        self, pil_image, yolo_data_rows, frame_data
+    ):
+        """서버로 프레임 데이터 비동기 업로드 (NewServerClient 사용)"""
+        if not self.server_client or not self.server_upload_enabled:
+            # print("[APP_UPLOAD] Server client not available or upload not enabled.")
+            return False
 
-        object_lists_to_process = {
-            "player": [current_game_state.player]
-            if hasattr(current_game_state, "player") and current_game_state.player
-            else [],
-            "enemies": current_game_state.enemies
-            if hasattr(current_game_state, "enemies")
-            else [],
-            "bosses": current_game_state.bosses
-            if hasattr(current_game_state, "bosses")
-            else [],
-            "player_shots": current_game_state.player_shots
-            if hasattr(current_game_state, "player_shots")
-            else [],
-            "enemy_shots": current_game_state.enemy_shots
-            if hasattr(current_game_state, "enemy_shots")
-            else [],
-            "powerups": current_game_state.powerups
-            if hasattr(current_game_state, "powerups")
-            else [],
-        }
-
-        for list_name, obj_list in object_lists_to_process.items():
-            if not obj_list:
-                continue
-            for obj in obj_list:
-                if not obj or obj.remove:
-                    continue
-                class_name = obj.type.name.lower()
-                class_id = CLASS_MAP.get(class_name)
-                if class_id is None:
-                    continue
-                obj_x, obj_y, obj_w, obj_h = obj.x, obj.y, obj.w, obj.h
-                x_center = obj_x + obj_w / 2
-                y_center = obj_y + obj_h / 2
-                x_center_norm = x_center / APP_WIDTH
-                y_center_norm = y_center / APP_HEIGHT
-                width_norm = obj_w / APP_WIDTH
-                height_norm = obj_h / APP_HEIGHT
-                # CSV 데이터 행 추가
-                yolo_data_row = f"{class_id} {x_center_norm:.6f} {y_center_norm:.6f} {width_norm:.6f} {height_norm:.6f}"
-                yolo_data_rows.append(yolo_data_row)
-
-            # 헤더와 데이터를 결합하여 최종 CSV 형식 생성
-            yolo_labels_csv = [csv_header] + yolo_data_rows
+        if not frame_data or not frame_data.get("image_png_base64"):
             print(
-                f"[APP_DEBUG] 수집된 데이터 행 수: {len(yolo_data_rows)}, 총 CSV 라인 수 (헤더 포함): {len(yolo_labels_csv)}"
+                "[APP_UPLOAD] Frame data or image_png_base64 is missing, cannot upload."
             )
+            return False
 
-            # 데이터 저장 (헤더는 항상 포함)
-            if image_payload:
-                frame_data = {
-                    "timestamp": time.time(),
-                    "image_original_shape": image_shape_info,
-                    "image_png_base64": image_payload,
-                    "yolo_labels": yolo_labels_csv,  # CSV 형식으로 저장 (헤더 + 데이터)
-                }
-                self.collected_data.append(frame_data)
-
-                # 서버 업로드 (활성화된 경우)
-                if self.server_upload_enabled and self.server_client:
-                    self._upload_frame_to_server(pil_image, yolo_data_rows, frame_data)
-
-    def _upload_frame_to_server(self, pil_image, yolo_data_rows, frame_data):
-        """현재 프레임을 서버에 업로드"""
         try:
-            # PIL 이미지를 numpy 배열로 변환
-            if not numpy:
-                print("[APP_WARNING] NumPy not available for server upload")
-                return
-
-            image_array = numpy.array(pil_image)
-
-            # YOLO 라벨 내용 생성 (헤더 제외)
-            label_content = "\n".join(yolo_data_rows)
-
-            # 메타데이터 생성
-            metadata = {
-                "game_name": APP_NAME,
-                "app_width": APP_WIDTH,
-                "app_height": APP_HEIGHT,
-                "frame_timestamp": frame_data["timestamp"],
-                "detection_count": len(yolo_data_rows),
-                "upload_source": "game_realtime",
+            # frame_data에 이미 필요한 모든 정보가 포함되어 있음
+            dataset_entry = {
+                "timestamp": frame_data.get("timestamp", time.time()),
+                "image_original_shape": frame_data.get("image_original_shape"),
+                "image_png_base64": frame_data.get("image_png_base64"),
+                "yolo_labels": frame_data.get("yolo_labels", []),
             }
 
-            # 게임 상태 정보 추가 (가능한 경우)
-            if hasattr(self.game, "state") and self.game.state:
-                game_state = self.game.state
-                if hasattr(game_state, "score"):
-                    metadata["game_score"] = game_state.score
-                if hasattr(game_state, "level"):
-                    metadata["game_level"] = game_state.level
-                if hasattr(game_state, "lives"):
-                    metadata["player_lives"] = game_state.lives
+            # 필수 필드 검증
+            if not all(
+                [
+                    dataset_entry["timestamp"],
+                    dataset_entry["image_original_shape"],
+                    dataset_entry["image_png_base64"],
+                    isinstance(dataset_entry["yolo_labels"], list),
+                ]
+            ):
+                print("[APP_UPLOAD] ❌ Missing required fields in frame_data")
+                print(
+                    f"[APP_UPLOAD] Debug - dataset_entry keys: {list(dataset_entry.keys())}"
+                )
+                return False
 
-            # 서버에 업로드
-            data_id = self.server_client.upload_game_data_from_memory(
-                image_array, label_content, "game_frame", metadata
-            )
+            # NewServerClient의 create_data는 list of dicts를 받음
+            upload_id = await self.server_client.create_data([dataset_entry])
 
-            if data_id:
-                print(f"[APP_INFO] 서버 업로드 성공: {data_id}")
+            if upload_id:
+                print(f"[APP_UPLOAD] ✅ Frame uploaded. ID: {upload_id}")
+                return True
             else:
-                print("[APP_WARNING] 서버 업로드 실패")
-
+                print(f"[APP_UPLOAD] ❌ Frame upload failed (API response).")
+                return False
         except Exception as e:
-            print(f"[APP_ERROR] 서버 업로드 중 오류: {e}")
+            print(f"[APP_UPLOAD] ❌ Error: {type(e).__name__}: {e}")
+            traceback.print_exc()
+            return False
+
+    def _upload_frame_to_server(self, pil_image, yolo_data_rows, frame_data):
+        """서버로 프레임 데이터 업로드 (비동기 작업을 스케줄링하는 동기 래퍼)"""
+        # print("[DEBUG] _upload_frame_to_server called")
+        if not self.server_client or not self.server_upload_enabled:
+            return False
+
+        # 비동기 작업을 호출하고 즉시 반환 (결과는 백그라운드에서 처리)
+        async def task_wrapper():
+            success = await self._upload_frame_to_server_async(
+                pil_image, yolo_data_rows, frame_data
+            )
+            # print(f"[DEBUG] Async upload task finished. Success: {success}")
+
+        if IS_WEB:
+            asyncio.ensure_future(task_wrapper())
+        else:
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.create_task(task_wrapper())
+                else:
+                    # 루프가 실행 중이지 않으면, 현재 컨텍스트에서 직접 실행 시도 (주의)
+                    # 또는 App 레벨에서 관리되는 루프에 제출해야 함
+                    # print("[APP_UPLOAD] Event loop not running for _upload_frame_to_server. Create task may fail or run differently.")
+                    # asyncio.run(task_wrapper()) # 최후의 수단. App update 루프와 충돌 가능성
+                    pass  # App의 메인 루프에서 처리되도록 함 (아래 _try_simple_auto_upload와 유사하게)
+            except RuntimeError:
+                # print("[APP_UPLOAD] No event loop for _upload_frame_to_server.")
+                pass  # 이벤트 루프가 없는 경우 업로드 시도하지 않음
+
+        return True  # 작업 스케줄링 성공으로 간주 (실제 결과는 비동기)
 
     def download_collected_data_web(self):
         if not IS_WEB or not self.collected_data:
