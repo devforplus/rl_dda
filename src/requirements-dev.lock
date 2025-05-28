@@ -48,6 +48,8 @@ markupsafe==2.1.5
     # via jinja2
 matplotlib==3.7.5
     # via ultralytics
+micropip==0.1.0
+    # via rl-dda-game
 mouseinfo==0.1.3
     # via pyautogui
 mpmath==1.3.0
