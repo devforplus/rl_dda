@@ -1,7 +1,7 @@
 import pyxel as px
 import platform
 import traceback
-import sys # For stderr
+import sys  # For stderr
 
 from main import App
 from rl.agents import RandomAgent
@@ -9,6 +9,7 @@ from rl.agents import RandomAgent
 # from config.app.constants import APP_FPS # Example: if needed, ensure path is correct
 
 IS_WEB = platform.system() == "Emscripten"
+
 
 def run_with_agent():
     try:
@@ -20,6 +21,7 @@ def run_with_agent():
         # Pyxel/Pyodide will typically print Python exceptions to the browser console.
         # Using sys.stderr for additional safety.
         print(error_message, file=sys.stderr)
+
 
 if __name__ == "__main__":
     run_with_agent()

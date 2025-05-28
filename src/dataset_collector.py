@@ -1,10 +1,33 @@
 import os
 import pyautogui
-import cv2
+import platform
 import numpy as np
 from datetime import datetime
 from typing import Optional, Dict
 from server_client import GameDataServerClient
+
+# OpenCV 대체를 위한 라이브러리들
+try:
+    from PIL import Image as PILImage
+    import io
+
+    PILLOW_AVAILABLE = True
+except ImportError as e:
+    print(f"[WARNING] PIL/Pillow not available: {e}")
+    PILLOW_AVAILABLE = False
+
+# 데스크톱 환경에서만 cv2 시도
+IS_WEB = platform.system() == "Emscripten"
+if not IS_WEB:
+    try:
+        import cv2
+
+        CV2_AVAILABLE = True
+    except ImportError:
+        print("[WARNING] OpenCV (cv2) not available in desktop environment")
+        CV2_AVAILABLE = False
+else:
+    CV2_AVAILABLE = False
 
 
 class DatasetCollector:
@@ -28,7 +51,7 @@ class DatasetCollector:
         if enable_server_upload and server_url:
             self.server_client = GameDataServerClient(server_url)
             # 서버 연결 확인
-            if not self.server_client.check_server_status():
+            if not self.server_client.check_server_status_sync():
                 print(
                     f"경고: 서버 {server_url}에 연결할 수 없습니다. 로컬 저장만 수행됩니다."
                 )
@@ -51,13 +74,41 @@ class DatasetCollector:
     def capture_screen(self):
         # Capture the region of the game window (top-left at (0,0), size app_width x app_height)
         img = pyautogui.screenshot(region=(0, 0, self.app_width, self.app_height))
-        img = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+
+        # 이미지를 NumPy 배열로 변환
+        img_array = np.array(img)
+
+        if CV2_AVAILABLE:
+            # OpenCV를 사용한 색상 변환 (RGB → BGR)
+            img = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+        else:
+            # OpenCV 없이 색상 채널 순서 변경 (RGB → BGR)
+            img = img_array[:, :, ::-1]  # RGB를 BGR로 변환
+
         return img
 
     def save_image(self, img, timestamp):
         img_name = f"frame_{timestamp}.png"
         img_path = os.path.join(self.image_dir, img_name)
-        cv2.imwrite(img_path, img)
+
+        if CV2_AVAILABLE:
+            # OpenCV를 사용한 이미지 저장
+            cv2.imwrite(img_path, img)
+        elif PILLOW_AVAILABLE:
+            # PIL/Pillow를 사용한 이미지 저장
+            # BGR을 RGB로 변환
+            if len(img.shape) == 3 and img.shape[2] == 3:
+                rgb_img = img[:, :, ::-1]  # BGR을 RGB로 변환
+            else:
+                rgb_img = img
+
+            pil_image = PILImage.fromarray(rgb_img.astype(np.uint8))
+            pil_image.save(img_path)
+        else:
+            raise RuntimeError(
+                "Neither OpenCV nor PIL/Pillow is available for image saving"
+            )
+
         return img_name
 
     def save_labels(self, detections, timestamp):
@@ -119,7 +170,7 @@ class DatasetCollector:
             )
 
             # 서버에 업로드
-            data_id = self.server_client.upload_game_data_from_memory(
+            data_id = self.server_client.upload_game_data_from_memory_sync(
                 img, label_content.strip(), "frame", upload_metadata
             )
 

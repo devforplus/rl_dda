@@ -117,7 +117,7 @@ def batch_upload_mode(server_url: str, images_dir: str, labels_dir: str):
     client = GameDataServerClient(server_url)
 
     # 서버 연결 확인
-    if not client.check_server_status():
+    if not client.check_server_status_sync():
         print(f"오류: 서버 {server_url}에 연결할 수 없습니다.")
         return
 
@@ -146,11 +146,23 @@ def list_server_data(server_url: str):
 
     client = GameDataServerClient(server_url)
 
-    if not client.check_server_status():
+    if not client.check_server_status_sync():
         print(f"오류: 서버 {server_url}에 연결할 수 없습니다.")
         return
 
-    data_list = client.list_data()
+    # 비동기 메서드를 동기적으로 호출하기 위한 처리
+    import asyncio
+
+    try:
+        data_list = asyncio.run(client.list_data())
+    except RuntimeError:
+        # 이미 이벤트 루프가 실행 중인 경우
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            data_list = loop.run_until_complete(client.list_data())
+        finally:
+            loop.close()
 
     if data_list is None:
         print("데이터 목록을 가져올 수 없습니다.")
