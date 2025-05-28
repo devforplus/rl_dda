@@ -88,7 +88,7 @@ class App:
             )
             self.collected_data = []
             self.capture_interval = (
-                1  # 캡처 간격 (프레임) - 에이전트 학습용 고해상도 데이터 수집
+                5  # 캡처 간격 (프레임) - 에이전트 학습용 고해상도 데이터 수집
             )
             self.frames_since_last_capture = 0
 
