@@ -36,7 +36,7 @@ class EnemyK(Enemy):
 
         self.x -= self.speed_x
         if self.x + self.w < 0:
-            self.remove = True
+            self.remove_out_of_bounds("moved_off_screen_left")
             return
 
         self.y += self.speed_y

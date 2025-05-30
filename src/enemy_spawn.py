@@ -1,3 +1,4 @@
+import time
 from enemy_a import EnemyA
 from enemy_b import EnemyB
 from enemy_c import EnemyC
@@ -49,9 +50,21 @@ def create(state, tile_x, x, y):
     :param x: x좌표
     :param y: y좌표
     """
+    current_time = time.time()
+
     if tile_x in ENEMY_BOSS_SPAWN_TILE_X:
         f = ENEMY_BOSS_SPAWN_TILE_X[tile_x]
-        state.add_boss(f(state, x, y))  # 보스 적 추가
+        enemy = f(state, x, y)
+        state.add_boss(enemy)  # 보스 적 추가
+        boss_type = f.__name__  # 클래스 이름 사용
+        print(
+            f"[ENEMY_SPAWN] Boss created at {current_time:.3f} | Type: {boss_type} | Position: ({x}, {y})"
+        )
     elif tile_x in ENEMY_SPAWN_TILE_X:
         f = ENEMY_SPAWN_TILE_X[tile_x]
-        state.add_enemy(f(state, x, y))  # 일반 적 추가
+        enemy = f(state, x, y)
+        state.add_enemy(enemy)  # 일반 적 추가
+        enemy_type = f.__name__  # 클래스 이름 사용
+        print(
+            f"[ENEMY_SPAWN] Enemy created at {current_time:.3f} | Type: {enemy_type} | Position: ({x}, {y})"
+        )

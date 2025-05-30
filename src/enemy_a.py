@@ -25,7 +25,7 @@ class EnemyA(Enemy):
 
         self.x -= SPEED
         if self.x + self.w < 0:
-            self.remove = True
+            self.remove_out_of_bounds("moved_off_screen_left")
             return
 
         if self.shot_delay == 0:

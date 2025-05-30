@@ -1,4 +1,5 @@
 import pyxel as px
+import time
 
 from components.sprite import Sprite
 from components.entity_types import EntityType
@@ -21,6 +22,7 @@ ENEMY_DAMAGE: int = 1
 
 # 오디오 매니저 인스턴스 생성
 audio_manager = AudioManager()
+
 
 class Enemy(Sprite):
     """
@@ -50,6 +52,11 @@ class Enemy(Sprite):
     hit_frames: int
     lifetime: int
     remove: bool
+    removal_reason: str
+    flip_x: bool
+    flip_y: bool
+    score: int
+    damage: int
 
     def __init__(self, state, x: int, y: int) -> None:
         """
@@ -72,6 +79,7 @@ class Enemy(Sprite):
         self.hit_frames = 0
         self.lifetime = 0
         self.remove = False
+        self.removal_reason = ""  # 제거 사유 추가
         self.flip_x = False
         self.flip_y = False
         self.score = ENEMY_SCORE_NORMAL  # 처치 시 획득 점수
@@ -90,11 +98,19 @@ class Enemy(Sprite):
         if self.remove:
             return
         self.remove = True
+        self.removal_reason = "killed_by_player"  # 플레이어에 의한 제거 사유 설정
         self.game_state.add_score(self.score)  # 점수 추가
         self.explode()  # 폭발 효과
         powerup.check_create_next(
             self.game_state, self.x, self.y
         )  # 파워업 아이템 생성 체크
+
+        # 엔티티 종류 정보 추가
+        entity_type = self.__class__.__name__
+        current_time = time.time()
+        print(
+            f"[ENEMY_DESTROY] {entity_type} destroyed at {current_time:.3f} | Position: ({self.x}, {self.y}) | Reason: {self.removal_reason}"
+        )
 
     def hit(self, dmg: int) -> None:
         """
@@ -185,3 +201,21 @@ class Enemy(Sprite):
             px.pal()  # 색상 원래대로 복원
         else:
             super().draw()  # 일반 상태로 그리기
+
+    def remove_out_of_bounds(self, reason="out_of_bounds") -> None:
+        """
+        화면 밖으로 나간 적을 제거하고 로그를 출력합니다.
+
+        매개변수:
+            reason (str): 제거 사유
+        """
+        if not self.remove:  # 이미 제거되지 않은 경우만
+            self.remove = True
+            self.removal_reason = reason
+
+            # 엔티티 종류 정보 추가
+            entity_type = self.__class__.__name__
+            current_time = time.time()
+            print(
+                f"[ENEMY_DESTROY] {entity_type} destroyed at {current_time:.3f} | Position: ({self.x}, {self.y}) | Reason: {self.removal_reason}"
+            )
