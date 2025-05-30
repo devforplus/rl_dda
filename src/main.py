@@ -579,6 +579,10 @@ class App:
                     obj_w = getattr(obj, "w", 8)
                     obj_h = getattr(obj, "h", 8)
 
+                    # 플레이어 탄환의 경우 YOLO 라벨 생성 시 X 좌표를 왼쪽으로 3px 이동
+                    if obj_type == "player_shot":
+                        obj_x -= 3
+
                     # YOLO 정규화 좌표 계산
                     x_center = obj_x + obj_w / 2
                     y_center = obj_y + obj_h / 2
