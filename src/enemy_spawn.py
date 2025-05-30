@@ -1,21 +1,21 @@
 import time
 import json
-from components.boss.enemy_k import EnemyK
-from components.boss.enemy_l import EnemyL
-from components.boss.enemy_m import EnemyM
-from components.enemy.enemy_a import EnemyA
-from components.enemy.enemy_b import EnemyB
-from components.enemy.enemy_c import EnemyC
-from components.enemy.enemy_d import EnemyD
-from components.enemy.enemy_e import EnemyE
-from components.enemy.enemy_f import EnemyF
-from components.enemy.enemy_g import EnemyG
-from components.enemy.enemy_h import EnemyH
-from components.enemy.enemy_i import EnemyI
-from components.enemy.enemy_j import EnemyJ
-from components.enemy.enemy_n import EnemyN
-from components.enemy.enemy_o import EnemyO
-from components.enemy.enemy_p import EnemyP
+from enemy_k import EnemyK
+from enemy_l import EnemyL
+from enemy_m import EnemyM
+from enemy_a import EnemyA
+from enemy_b import EnemyB
+from enemy_c import EnemyC
+from enemy_d import EnemyD
+from enemy_e import EnemyE
+from enemy_f import EnemyF
+from enemy_g import EnemyG
+from enemy_h import EnemyH
+from enemy_i import EnemyI
+from enemy_j import EnemyJ
+from enemy_n import EnemyN
+from enemy_o import EnemyO
+from enemy_p import EnemyP
 
 ENEMY_SPAWN_TILE_X = {
     0: EnemyA,
