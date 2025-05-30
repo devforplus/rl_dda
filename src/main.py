@@ -61,8 +61,6 @@ except Exception as e:
 
 # 자동 업로드 관련 import 및 변수 삭제됨
 
-print("[MAIN_PY_DEBUG] App class definition START")
-
 
 class App:
     def __init__(self, agent=None) -> None:
@@ -268,15 +266,33 @@ class App:
                         if frame_data and frame_data.get("image_png_base64"):
                             self.collected_data.append(frame_data)
 
-                            # 플레이어 정보 수집 (콘솔 출력 전용 - 데이터 수집에는 포함하지 않음)
-                            player_info_log = ""
+                            # 데이터 수집 완료 로그 출력 (플레이어 정보는 참고용으로만 출력)
+                            frame_data_log = {
+                                "type": "event",
+                                "event": "frame_collected",
+                                "timestamp": time.time(),
+                                "data": {
+                                    "image_size_chars": len(
+                                        frame_data.get("image_png_base64", "")
+                                    ),
+                                    "yolo_objects_count": len(
+                                        frame_data.get("yolo_labels", [])
+                                    )
+                                    - 1,  # -1 for header
+                                },
+                            }
+
+                            # 플레이어 정보 추가 (콘솔 출력 전용)
                             if hasattr(self.game, "game_vars") and self.game.game_vars:
                                 lives = getattr(self.game.game_vars, "lives", "N/A")
                                 score = getattr(self.game.game_vars, "score", "N/A")
                                 stage = getattr(self.game.game_vars, "stage_num", "N/A")
-                                player_info_log = (
-                                    f" | Lives: {lives}, Score: {score}, Stage: {stage}"
-                                )
+
+                                frame_data_log["data"]["player"] = {
+                                    "lives": lives,
+                                    "score": score,
+                                    "stage": str(stage),
+                                }
 
                                 # 플레이어 체력 정보 추가 (콘솔 출력 전용)
                                 if (
@@ -291,12 +307,12 @@ class App:
                                     max_hp = getattr(
                                         self.game.state.player, "max_hp", "N/A"
                                     )
-                                    player_info_log = f" | Lives: {lives}, HP: {current_hp}/{max_hp}, Score: {score}, Stage: {stage}"
+                                    frame_data_log["data"]["player"]["hp"] = {
+                                        "current": current_hp,
+                                        "max": max_hp,
+                                    }
 
-                            # 데이터 수집 완료 로그 출력 (플레이어 정보는 참고용으로만 출력)
-                            print(
-                                f"[APP_DEBUG] Frame collected. Image size: {len(frame_data.get('image_png_base64', ''))} chars, YOLO objects: {len(frame_data.get('yolo_labels', [])) - 1}{player_info_log}"
-                            )  # -1 for header
+                            print(json.dumps(frame_data_log))
                         if (
                             self.server_upload_enabled
                             and self.server_client
@@ -580,7 +596,17 @@ class App:
                         yolo_data_rows.append(yolo_data_row)
 
                 print(
-                    f"[APP_DEBUG] YOLO objects collected: {dict(object_counts)} | Total labels: {len(yolo_data_rows)}"
+                    json.dumps(
+                        {
+                            "type": "event",
+                            "event": "yolo_objects_collected",
+                            "timestamp": time.time(),
+                            "data": {
+                                "objects_by_type": dict(object_counts),
+                                "total_labels": len(yolo_data_rows),
+                            },
+                        }
+                    )
                 )
 
             # 이미지를 base64로 인코딩

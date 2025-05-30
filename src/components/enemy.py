@@ -1,5 +1,6 @@
 import pyxel as px
 import time
+import json
 
 from components.sprite import Sprite
 from components.entity_types import EntityType
@@ -105,11 +106,22 @@ class Enemy(Sprite):
             self.game_state, self.x, self.y
         )  # 파워업 아이템 생성 체크
 
-        # 엔티티 종류 정보 추가
-        entity_type = self.__class__.__name__
+        # 적 제거 로그 출력
         current_time = time.time()
+        entity_type = type(self).__name__
         print(
-            f"[ENEMY_DESTROY] {entity_type} destroyed at {current_time:.3f} | Position: ({self.x}, {self.y}) | Reason: {self.removal_reason}"
+            json.dumps(
+                {
+                    "type": "entity",
+                    "event": "enemy_destroyed",
+                    "timestamp": current_time,
+                    "data": {
+                        "entity_type": entity_type,
+                        "position": {"x": self.x, "y": self.y},
+                        "reason": self.removal_reason,
+                    },
+                }
+            )
         )
 
     def hit(self, dmg: int) -> None:
@@ -213,9 +225,20 @@ class Enemy(Sprite):
             self.remove = True
             self.removal_reason = reason
 
-            # 엔티티 종류 정보 추가
-            entity_type = self.__class__.__name__
+            # 적 제거 로그 출력
             current_time = time.time()
+            entity_type = type(self).__name__
             print(
-                f"[ENEMY_DESTROY] {entity_type} destroyed at {current_time:.3f} | Position: ({self.x}, {self.y}) | Reason: {self.removal_reason}"
+                json.dumps(
+                    {
+                        "type": "entity",
+                        "event": "enemy_destroyed",
+                        "timestamp": current_time,
+                        "data": {
+                            "entity_type": entity_type,
+                            "position": {"x": self.x, "y": self.y},
+                            "reason": self.removal_reason,
+                        },
+                    }
+                )
             )
