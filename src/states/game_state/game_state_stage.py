@@ -35,8 +35,8 @@ class State(Enum):
 
 # 플레이어 스폰 시간 (프레임 단위)
 PLAYER_SPAWN_IN_FRAMES = 30
-# 스테이지 클리어 후 대기 시간 (프레임 단위)
-STAGE_CLEAR_FRAMES = 180
+# 스테이지 클리어 후 대기 시간 (프레임 단위) - 보스 처치 후 빠른 진행을 위해 단축
+STAGE_CLEAR_FRAMES = 60
 
 
 class GameStateStage:
@@ -210,7 +210,6 @@ class GameStateStage:
         audio_manager.play_music(self.music, True, num_channels=3)
 
     def update_game_over(self):
-        print("[GAME_PY_DEBUG] Game over, restarting game automatically.")
         self.game.restart_game()
 
     def update_player_spawned(self):
@@ -219,10 +218,8 @@ class GameStateStage:
             self.switch_state(State.PLAY)
 
     def update_stage_clear(self):
-        if (
-            self.state_time >= STAGE_CLEAR_FRAMES
-            and not audio_manager.is_music_playing()
-        ):
+        # 보스를 잡으면 바로 다음 스테이지로 진행 (음악 재생 완료 대기 제거)
+        if self.state_time >= STAGE_CLEAR_FRAMES:
             self.game.go_to_next_stage()
 
     def update(self):
@@ -296,7 +293,12 @@ class GameStateStage:
         elif self.state == State.GAME_OVER:
             self.font.draw_text(96, 88, "GAME OVER")
         elif self.state == State.STAGE_CLEAR:
-            if self.game.game_vars.stage_num != FINAL_STAGE:
+            if self.game.game_vars.stage_num == FINAL_STAGE:
+                # 최종 스테이지 클리어 시 게임 완료 메시지 표시
+                if self.state_time > 30:
+                    self.font.draw_text(80, 80, "GAME COMPLETE!")
+                    self.font.draw_text(72, 96, "ALL STAGES CLEARED!")
+            else:
                 if self.state_time > 60:
                     if self.game.game_vars.is_vortex_stage():
                         self.font.draw_text(80, 88, "LEAVING VORTEX")
