@@ -309,17 +309,17 @@ class App:
                         if frame_data and frame_data.get("image_png_base64"):
                             self.collected_data.append(frame_data)
 
-                            # 플레이어 정보 수집 및 로그 출력
-                            player_info = ""
+                            # 플레이어 정보 수집 (콘솔 출력 전용 - 데이터 수집에는 포함하지 않음)
+                            player_info_log = ""
                             if hasattr(self.game, "game_vars") and self.game.game_vars:
                                 lives = getattr(self.game.game_vars, "lives", "N/A")
                                 score = getattr(self.game.game_vars, "score", "N/A")
                                 stage = getattr(self.game.game_vars, "stage_num", "N/A")
-                                player_info = (
+                                player_info_log = (
                                     f" | Lives: {lives}, Score: {score}, Stage: {stage}"
                                 )
 
-                                # 플레이어 체력 정보 추가
+                                # 플레이어 체력 정보 추가 (콘솔 출력 전용)
                                 if (
                                     hasattr(self.game, "state")
                                     and self.game.state
@@ -332,10 +332,11 @@ class App:
                                     max_hp = getattr(
                                         self.game.state.player, "max_hp", "N/A"
                                     )
-                                    player_info = f" | Lives: {lives}, HP: {current_hp}/{max_hp}, Score: {score}, Stage: {stage}"
+                                    player_info_log = f" | Lives: {lives}, HP: {current_hp}/{max_hp}, Score: {score}, Stage: {stage}"
 
+                            # 데이터 수집 완료 로그 출력 (플레이어 정보는 참고용으로만 출력)
                             print(
-                                f"[APP_DEBUG] Frame collected. Image size: {len(frame_data.get('image_png_base64', ''))} chars, YOLO objects: {len(frame_data.get('yolo_labels', [])) - 1}{player_info}"
+                                f"[APP_DEBUG] Frame collected. Image size: {len(frame_data.get('image_png_base64', ''))} chars, YOLO objects: {len(frame_data.get('yolo_labels', [])) - 1}{player_info_log}"
                             )  # -1 for header
                         if (
                             self.server_upload_enabled
