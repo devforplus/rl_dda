@@ -73,32 +73,54 @@ def create(gs, player_x, player_y, wpn_type, wlvl):
     if wpn_type == 0:  # fwd
         addshot(
             PlayerShot(
-                gs, player_x + 12, player_y - 10, wpn_type, wlvl, player_config.speed_levels[wlvl], 0
+                gs,
+                player_x + 9,
+                player_y - 10,
+                wpn_type,
+                wlvl,
+                player_config.speed_levels[wlvl],
+                0,
             )
         )
         addshot(
             PlayerShot(
-                gs, player_x + 12, player_y + 4, wpn_type, wlvl, player_config.speed_levels[wlvl], 0
+                gs,
+                player_x + 9,
+                player_y + 4,
+                wpn_type,
+                wlvl,
+                player_config.speed_levels[wlvl],
+                0,
             )
         )
     elif wpn_type == 1:  # spread/diagonal
         spdx = player_config.speed_levels[wlvl] * 0.894
         spdy = player_config.speed_levels[wlvl] * 0.447
         addshot(
-            PlayerShot(gs, player_x + 12, player_y - 10, wpn_type, wlvl, spdx, -spdy)
+            PlayerShot(gs, player_x + 9, player_y - 10, wpn_type, wlvl, spdx, -spdy)
         )
-        addshot(
-            PlayerShot(gs, player_x + 12, player_y + 4, wpn_type, wlvl, spdx, +spdy)
-        )
+        addshot(PlayerShot(gs, player_x + 9, player_y + 4, wpn_type, wlvl, spdx, +spdy))
     elif wpn_type == 2:  # back and fwd
         addshot(
             PlayerShot(
-                gs, player_x + 12, player_y - 3, wpn_type, wlvl, player_config.speed_levels[wlvl], 0
+                gs,
+                player_x + 9,
+                player_y - 3,
+                wpn_type,
+                wlvl,
+                player_config.speed_levels[wlvl],
+                0,
             )
         )
         addshot(
             PlayerShot(
-                gs, player_x - 10, player_y - 3, wpn_type, wlvl, -player_config.speed_levels[wlvl], 0
+                gs,
+                player_x - 10,
+                player_y - 3,
+                wpn_type,
+                wlvl,
+                -player_config.speed_levels[wlvl],
+                0,
             )
         )
 
