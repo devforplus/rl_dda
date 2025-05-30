@@ -42,10 +42,8 @@ class Game:
         """새 게임을 시작합니다 (스테이지 1부터)."""
         self.game_vars.new_game()  # 점수, 목숨, 스테이지 등 초기화
         try:
-            print("[GAME_PY_DEBUG] Starting new game, initializing GameStateStage.")
             self.state = GameStateStage(self)
         except Exception as e:
-            print(f"Error initializing GameStateStage in start_new_game: {e}")
             if IS_WEB and "js" in globals():
                 js.console.error(
                     f"Error initializing GameStateStage in start_new_game: {e}"
@@ -54,19 +52,14 @@ class Game:
 
     def restart_game(self):
         """현재 게임을 첫 스테이지부터 다시 시작합니다."""
-        print("[GAME_PY_DEBUG] Restarting game.")
         self.start_new_game()
 
     def go_to_next_stage(self):
         """다음 스테이지로 진행합니다."""
         if self.game_vars.go_to_next_stage():
             try:
-                print(
-                    f"[GAME_PY_DEBUG] Going to next stage: {self.game_vars.stage_num}"
-                )
                 self.state = GameStateStage(self)  # 새 스테이지 인스턴스 생성
             except Exception as e:
-                print(f"Error initializing GameStateStage in go_to_next_stage: {e}")
                 if IS_WEB and "js" in globals():
                     js.console.error(
                         f"Error initializing GameStateStage in go_to_next_stage: {e}"
@@ -74,15 +67,12 @@ class Game:
                 self.state = None
         else:
             # 게임 완료 처리 - 모든 스테이지 클리어 시 자동 재시작
-            print("[GAME_PY_DEBUG] *** GAME COMPLETE! All stages cleared! ***")
-            print("[GAME_PY_DEBUG] Automatically restarting game from stage 1...")
             self.restart_game()
 
     def go_to_titles(self):
         """타이틀 화면으로 돌아갑니다 (현재는 게임 재시작으로 대체)."""
         # 현재 타이틀 화면이 없으므로, 바로 게임을 재시작합니다.
         # 추후 GameStateTitles가 구현되면 해당 상태로 변경합니다.
-        print("[GAME_PY_DEBUG] Going to titles (currently restarting game).")
         self.restart_game()
 
     def update(self):

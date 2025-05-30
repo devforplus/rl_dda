@@ -1,4 +1,3 @@
-print("[MAIN_PY_DEBUG] main.py TOP LEVEL EXECUTION STARTED")
 import pyxel as px
 import sys
 import platform
@@ -19,12 +18,7 @@ try:
     from PIL import Image as PILImage
     import io
     import base64
-
-    print("[APP_INFO] PIL, io, base64 imported successfully")
 except ImportError as e:
-    print(
-        f"[APP_ERROR] Failed to import PIL/io/base64: {e}. Data collection might fail."
-    )
     PILImage = None
     io = None
     base64 = None
@@ -32,13 +26,9 @@ except ImportError as e:
 # numpy는 별도로 처리 (웹 환경에서 문제가 될 수 있음)
 try:
     import numpy
-
-    print("[APP_INFO] NumPy imported successfully")
 except ImportError as e:
-    print(f"[APP_WARNING] NumPy not available: {e}. Using fallback methods.")
     numpy = None
 except Exception as e:
-    print(f"[APP_WARNING] NumPy import failed: {e}. Using fallback methods.")
     numpy = None
 
 from game import Game
@@ -64,13 +54,10 @@ try:
     )  # 변경: GameDataServerClient -> NewServerClient
 
     SERVER_CLIENT_AVAILABLE = True
-    print(
-        f"[APP_INFO] Server client available in {'web' if IS_WEB else 'desktop'} environment"
-    )
 except ImportError as e:
-    print(f"[APP_WARNING] Server client not available: {e}")
+    pass
 except Exception as e:
-    print(f"[APP_WARNING] Server client import failed: {e}")
+    pass
 
 # 자동 업로드 관련 import 및 변수 삭제됨
 
@@ -79,7 +66,6 @@ print("[MAIN_PY_DEBUG] App class definition START")
 
 class App:
     def __init__(self, agent=None) -> None:
-        print("[MAIN_PY_DEBUG] App.__init__ VERY START")
         try:
             self.agent = agent
             # Data collection variables
@@ -95,9 +81,6 @@ class App:
             # 에이전트가 있을 때는 데이터 수집 자동 활성화 (AI 학습용 데이터 수집)
             if self.agent is not None:
                 self.collecting_data = True
-                print(
-                    "[APP_INFO] Agent detected - Data collection automatically enabled for AI training"
-                )
 
             # 서버 업로드 관련 변수 (웹/데스크톱 모두 지원)
             self.server_upload_enabled = False
@@ -124,30 +107,18 @@ class App:
                     self.server_upload_enabled = (
                         True  # 상태 확인 로직 제거하고 기본 활성화 (필요시 조정)
                     )
-                    print(f"[APP_INFO] NewServerClient 초기화됨: {server_url}")
 
                     # 에이전트가 있을 때는 서버 업로드도 자동 활성화 (AI 학습 데이터 자동 업로드)
                     if self.agent is not None:
                         self.server_upload_enabled = True
-                        print(
-                            "[APP_INFO] Agent detected - Server upload automatically enabled for AI training data"
-                        )
 
                 except Exception as e:  # NewServerClient 초기화 실패 시
-                    print(f"[APP_ERROR] NewServerClient 초기화 실패: {e}")
                     self.server_client = None
                     self.server_upload_enabled = False
-                    # self.auto_uploader = SimpleAutoUploader(None) 삭제됨
-                    print(
-                        "[APP_WARNING] NewServerClient 초기화 실패. 서버 업로드 기능 사용 불가."
-                    )
             else:
                 # SERVER_CLIENT_AVAILABLE 자체가 False인 경우
-                print("[APP_WARNING] Server client 라이브러리를 사용할 수 없습니다.")
                 self.server_client = None
                 self.server_upload_enabled = False
-                # self.auto_uploader = SimpleAutoUploader(None) 삭제됨
-                print("[APP_WARNING] 서버 업로드 기능 사용 불가.")
 
             if IS_WEB:
                 px.init(
@@ -203,37 +174,25 @@ class App:
         """데이터 수집 상태를 토글합니다."""
         # 에이전트 사용 중일 때는 데이터 수집 비활성화 방지 (AI 학습용 데이터 보호)
         if self.agent is not None and self.collecting_data:
-            print(
-                "[APP_INFO] Cannot disable data collection while agent is active (required for AI training)"
-            )
             return
 
         self.collecting_data = not self.collecting_data
         if self.collecting_data:
-            print("[APP_DEBUG] Data collection STARTED (toggled from game state).")
             self.collected_data.clear()
         else:
-            print("[APP_DEBUG] Data collection STOPPED (toggled from game state).")
             if IS_WEB and self.collected_data:
-                print(
-                    f"[APP_DEBUG] {len(self.collected_data)} frames collected. Press 'S' to download."
-                )
+                pass
 
     def toggle_server_upload(self):
         """서버 업로드 상태를 토글합니다 (웹/데스크톱 모두 지원)."""
         if not SERVER_CLIENT_AVAILABLE:
-            print("[APP_WARNING] 서버 클라이언트를 사용할 수 없습니다.")
             return
 
         if not self.server_client:
-            print("[APP_WARNING] 서버 클라이언트가 초기화되지 않았습니다.")
             return
 
         # 에이전트 사용 중일 때는 서버 업로드 비활성화 방지 (AI 학습 데이터 업로드 보호)
         if self.agent is not None and self.server_upload_enabled:
-            print(
-                "[APP_INFO] Cannot disable server upload while agent is active (required for AI training data)"
-            )
             return
 
         self.server_upload_enabled = not self.server_upload_enabled
@@ -241,14 +200,14 @@ class App:
             # 서버 연결 재확인
             # NewServerClient에는 check_server_status_sync가 없으므로, 단순 토글로 변경
             # 또는 비동기 상태 확인 후 콜백으로 UI 업데이트 등의 복잡한 처리 필요
-            print("[APP_INFO] 서버 업로드 활성화됨 (실제 연결 상태는 업로드 시 확인)")
+            pass
             # if self.server_client.check_server_status_sync(): # 해당 메서드 없음
             #     print("[APP_INFO] 서버 업로드 활성화됨")
             # else:
             #     print("[APP_WARNING] 서버에 연결할 수 없어 업로드를 비활성화합니다.")
             #     self.server_upload_enabled = False
         else:
-            print("[APP_INFO] 서버 업로드 비활성화됨")
+            pass
 
     def apply_agent_action(self, action_id):
         self.input.left_pressed = False
@@ -344,12 +303,26 @@ class App:
                             and pil_image
                             and yolo_data_rows  # yolo_data_rows도 확인 (서버 업로드 시 필요)
                         ):
-                            print(f"[APP_DEBUG] Uploading frame to server...")
-                            self._upload_frame_to_server(
-                                pil_image, yolo_data_rows, frame_data
-                            )
+                            # 서버 업로드는 백그라운드에서 처리
+                            if IS_WEB:
+                                asyncio.ensure_future(
+                                    self._upload_frame_to_server(
+                                        pil_image, yolo_data_rows, frame_data
+                                    )
+                                )
+                            else:
+                                try:
+                                    loop = asyncio.get_event_loop()
+                                    if loop.is_running():
+                                        loop.create_task(
+                                            self._upload_frame_to_server(
+                                                pil_image, yolo_data_rows, frame_data
+                                            )
+                                        )
+                                except RuntimeError:
+                                    pass
                         else:
-                            print("[APP_DEBUG] Failed to collect frame data")
+                            pass
 
             if not IS_WEB and self.input.has_tapped(input_module.BUTTON_2):
                 print("Local save triggered (not implemented).")
@@ -414,24 +387,14 @@ class App:
 
     def _collect_current_frame_data(self, for_upload=False):
         """현재 프레임의 이미지와 게임 객체 정보를 수집하여 YOLO 라벨을 생성합니다."""
-        print("[APP_DEBUG] _collect_current_frame_data CALLED")
 
         # Pillow, io, base64는 공통 임포트 시도됨. numpy도 마찬가지.
         if not PILImage or not io or not base64:
-            print(
-                "[APP_ERROR] Core image processing libraries (Pillow, io, base64) not available. Cannot collect frame data."
-            )
             if self.collecting_data:
-                print(
-                    "[APP_DEBUG] Data collection STOPPED due to missing core libraries."
-                )
                 self.collecting_data = False
             return None
 
         if not hasattr(self.game, "state") or not self.game.state:
-            print(
-                "[APP_DEBUG] Game state not available. Skipping frame data collection."
-            )
             return None
 
         current_game_state = self.game.state
@@ -489,9 +452,6 @@ class App:
                     rgb_array = palette_rgb[screen_data_np]
                     pil_image = PILImage.fromarray(rgb_array, "RGB")
                 except Exception as e:
-                    print(
-                        f"[AUTO_UPLOAD] NumPy capture failed: {type(e).__name__}: {e}, using fallback"
-                    )
                     pil_image = None
 
             # NumPy 실패 시 픽셀별 캡처 (폴백)
@@ -512,7 +472,6 @@ class App:
                             else:
                                 pil_image.putpixel((x, y), (0, 0, 0))
                 except Exception as e:
-                    print(f"[AUTO_UPLOAD] Fallback capture failed: {e}")
                     return None
 
             # 게임 상태에서 YOLO 데이터 생성 (탄환 포함)
@@ -595,9 +554,6 @@ class App:
                     # CLASS_MAP에서 클래스 ID 찾기
                     class_id = CLASS_MAP.get(obj_type, None)
                     if class_id is None:
-                        print(
-                            f"[APP_WARNING] Unknown object type: {obj_type}, skipping"
-                        )
                         continue
 
                     # 객체 좌표와 크기 가져오기
@@ -647,23 +603,14 @@ class App:
                         "utf-8"
                     )
 
-                    print(
-                        f"[APP_DEBUG] Image encoded: shape={image_original_shape}, base64_len={len(image_png_base64)}"
-                    )
                 except Exception as e:
-                    print(f"[APP_ERROR] Image encoding failed: {e}")
                     return None
             else:
-                print("[APP_ERROR] PIL image is None, cannot encode")
                 return None
 
             # yolo_labels 생성 (헤더 포함)
             header = CLASS_MAP.get(-1, "entity_num x_center y_center width height")
             yolo_labels = [header] + yolo_data_rows
-
-            print(
-                f"[APP_DEBUG] YOLO labels: {len(yolo_labels)} items (including header)"
-            )
 
             # 프레임 데이터 생성 (서버 API 형식에 맞춤)
             frame_data = {
@@ -672,10 +619,6 @@ class App:
                 "image_png_base64": image_png_base64,
                 "yolo_labels": yolo_labels,
             }
-
-            print(
-                f"[APP_DEBUG] Frame data created with keys: {list(frame_data.keys())}"
-            )
 
             if for_upload:
                 return frame_data, pil_image, yolo_data_rows
@@ -689,18 +632,12 @@ class App:
             print(error_message, file=sys.stderr)
             return None
 
-    async def _upload_frame_to_server_async(
-        self, pil_image, yolo_data_rows, frame_data
-    ):
-        """서버로 프레임 데이터 비동기 업로드 (NewServerClient 사용)"""
+    async def _upload_frame_to_server(self, pil_image, yolo_data_rows, frame_data):
+        """서버로 프레임 데이터 업로드 (비동기 작업을 스케줄링하는 동기 래퍼)"""
         if not self.server_client or not self.server_upload_enabled:
-            # print("[APP_UPLOAD] Server client not available or upload not enabled.")
             return False
 
         if not frame_data or not frame_data.get("image_png_base64"):
-            print(
-                "[APP_UPLOAD] Frame data or image_png_base64 is missing, cannot upload."
-            )
             return False
 
         try:
@@ -721,57 +658,18 @@ class App:
                     isinstance(dataset_entry["yolo_labels"], list),
                 ]
             ):
-                print("[APP_UPLOAD] ❌ Missing required fields in frame_data")
-                print(
-                    f"[APP_UPLOAD] Debug - dataset_entry keys: {list(dataset_entry.keys())}"
-                )
                 return False
 
             # NewServerClient의 create_data는 list of dicts를 받음
             upload_id = await self.server_client.create_data([dataset_entry])
 
             if upload_id:
-                print(f"[APP_UPLOAD] ✅ Frame uploaded. ID: {upload_id}")
                 return True
             else:
-                print(f"[APP_UPLOAD] ❌ Frame upload failed (API response).")
                 return False
         except Exception as e:
-            print(f"[APP_UPLOAD] ❌ Error: {type(e).__name__}: {e}")
             traceback.print_exc()
             return False
-
-    def _upload_frame_to_server(self, pil_image, yolo_data_rows, frame_data):
-        """서버로 프레임 데이터 업로드 (비동기 작업을 스케줄링하는 동기 래퍼)"""
-        # print("[DEBUG] _upload_frame_to_server called")
-        if not self.server_client or not self.server_upload_enabled:
-            return False
-
-        # 비동기 작업을 호출하고 즉시 반환 (결과는 백그라운드에서 처리)
-        async def task_wrapper():
-            success = await self._upload_frame_to_server_async(
-                pil_image, yolo_data_rows, frame_data
-            )
-            # print(f"[DEBUG] Async upload task finished. Success: {success}")
-
-        if IS_WEB:
-            asyncio.ensure_future(task_wrapper())
-        else:
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    loop.create_task(task_wrapper())
-                else:
-                    # 루프가 실행 중이지 않으면, 현재 컨텍스트에서 직접 실행 시도 (주의)
-                    # 또는 App 레벨에서 관리되는 루프에 제출해야 함
-                    # print("[APP_UPLOAD] Event loop not running for _upload_frame_to_server. Create task may fail or run differently.")
-                    # asyncio.run(task_wrapper()) # 최후의 수단. App update 루프와 충돌 가능성
-                    pass  # App의 메인 루프에서 처리되도록 함 (아래 _try_simple_auto_upload와 유사하게)
-            except RuntimeError:
-                # print("[APP_UPLOAD] No event loop for _upload_frame_to_server.")
-                pass  # 이벤트 루프가 없는 경우 업로드 시도하지 않음
-
-        return True  # 작업 스케줄링 성공으로 간주 (실제 결과는 비동기)
 
     def download_collected_data_web(self):
         if not IS_WEB or not self.collected_data:

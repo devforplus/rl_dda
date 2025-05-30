@@ -210,7 +210,6 @@ class GameStateStage:
         audio_manager.play_music(self.music, True, num_channels=3)
 
     def update_game_over(self):
-        print("[GAME_PY_DEBUG] Game over, restarting game automatically.")
         self.game.restart_game()
 
     def update_player_spawned(self):
