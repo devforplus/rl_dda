@@ -46,7 +46,8 @@ test = { cmd = "python -m pytest", env = { PYTHONPATH = "src" } }
 train_rl = { cmd = "python -m src.rl.train", env = { PYTHONPATH = "src" } }
 evaluate_rl = { cmd = "python -m src.rl.evaluate", env = { PYTHONPATH = "src" } }
 upload_data = { cmd = "python upload_game_data.py", env = { PYTHONPATH = "." } }
-build = { cmd = "pyxel package src src/run_agent_in_game.py", env = { PYTHONPATH = "." } }
+build = { cmd = "bash -c 'mkdir -p output && python -m pyxel package src src/run_agent_in_game.py && mv src.pyxapp output/game.pyxapp'", env = { PYTHONPATH = "." } }
+serve = { cmd = "python -m http.server 5175 -d output", env = { PYTHONPATH = "." } }
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
