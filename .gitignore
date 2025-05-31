@@ -211,6 +211,17 @@ TODO.txt
 
 # Pyxel build artifacts
 *.pyxapp
+web/
 
 # TensorBoard log files
 src/runs/
+
+# Data collection output files
+data/
+*.txt
+*.raw.json
+collection_stats.json
+
+# Test files
+test_*.py
+test_*.html
