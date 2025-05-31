@@ -10,8 +10,21 @@
 #   universal: false
 
 -e file:.
+aiohappyeyeballs==2.6.1
+    # via aiohttp
+aiohttp==3.12.6
+    # via rl-dda-game
+aiosignal==1.3.2
+    # via aiohttp
+async-timeout==5.0.1
+    # via aiohttp
+attrs==25.3.0
+    # via aiohttp
+    # via outcome
+    # via trio
 certifi==2025.4.26
     # via requests
+    # via selenium
 charset-normalizer==3.4.2
     # via requests
 cloudpickle==3.1.1
@@ -23,17 +36,28 @@ cycler==0.12.1
     # via matplotlib
 exceptiongroup==1.3.0
     # via pytest
+    # via trio
+    # via trio-websocket
 filelock==3.16.1
     # via torch
     # via triton
 fonttools==4.57.0
     # via matplotlib
+frozenlist==1.6.0
+    # via aiohttp
+    # via aiosignal
 fsspec==2025.3.0
     # via torch
 greenlet==3.1.1
     # via playwright
+h11==0.16.0
+    # via wsproto
+helium==5.1.1
+    # via rl-dda-game
 idna==3.10
     # via requests
+    # via trio
+    # via yarl
 iniconfig==2.1.0
     # via pytest
 jinja2==3.1.6
@@ -50,6 +74,9 @@ mouseinfo==0.1.3
     # via pyautogui
 mpmath==1.3.0
     # via sympy
+multidict==6.4.4
+    # via aiohttp
+    # via yarl
 networkx==3.1
     # via torch
 numpy==1.24.4
@@ -96,10 +123,14 @@ opencv-python==4.11.0.86
     # via ultralytics
 orjson==3.10.15
     # via tensordict
+outcome==1.3.0.post0
+    # via trio
+    # via trio-websocket
 packaging==25.0
     # via matplotlib
     # via pytest
     # via torchrl
+    # via webdriver-manager
 pandas==2.0.3
     # via ultralytics
 pillow==10.4.0
@@ -115,6 +146,9 @@ playwright==1.48.0
     # via rl-dda-game
 pluggy==1.5.0
     # via pytest
+propcache==0.3.1
+    # via aiohttp
+    # via yarl
 psutil==7.0.0
     # via ultralytics
 py-cpuinfo==9.0.0
@@ -136,6 +170,8 @@ pyrect==0.2.0
     # via pygetwindow
 pyscreeze==1.0.1
     # via pyautogui
+pysocks==1.7.1
+    # via urllib3
 pytest==8.3.5
     # via pytest-base-url
     # via pytest-playwright
@@ -146,6 +182,8 @@ pytest-playwright==0.5.2
 python-dateutil==2.9.0.post0
     # via matplotlib
     # via pandas
+python-dotenv==1.1.0
+    # via webdriver-manager
 python-slugify==8.0.4
     # via pytest-playwright
 python3-xlib==0.15
@@ -163,12 +201,20 @@ requests==2.32.3
     # via pytest-base-url
     # via rl-dda-game
     # via ultralytics
+    # via webdriver-manager
 scipy==1.10.1
     # via ultralytics
+selenium==4.33.0
+    # via helium
+    # via rl-dda-game
 setuptools==75.3.2
     # via wasm
 six==1.17.0
     # via python-dateutil
+sniffio==1.3.1
+    # via trio
+sortedcontainers==2.4.0
+    # via trio
 sympy==1.13.3
     # via torch
 tensordict==0.5.0
@@ -193,11 +239,18 @@ torchvision==0.19.1
     # via ultralytics
 tqdm==4.67.1
     # via ultralytics
+trio==0.30.0
+    # via selenium
+    # via trio-websocket
+trio-websocket==0.12.2
+    # via selenium
 triton==3.0.0
     # via torch
 typing-extensions==4.13.2
     # via exceptiongroup
+    # via multidict
     # via pyee
+    # via selenium
     # via torch
 tzdata==2025.2
     # via pandas
@@ -205,7 +258,18 @@ ultralytics==8.3.145
     # via rl-dda-game
 ultralytics-thop==2.0.14
     # via ultralytics
-urllib3==2.2.3
+urllib3==2.4.0
     # via requests
+    # via selenium
 wasm==1.2
     # via rl-dda-game
+webdriver-manager==4.0.2
+    # via rl-dda-game
+websocket-client==1.8.0
+    # via selenium
+websockets==15.0.1
+    # via rl-dda-game
+wsproto==1.2.0
+    # via trio-websocket
+yarl==1.20.0
+    # via aiohttp
