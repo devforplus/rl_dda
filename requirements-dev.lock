@@ -17,17 +17,15 @@ charset-normalizer==3.4.2
 cloudpickle==3.1.1
     # via tensordict
     # via torchrl
-colorama==0.4.6
-    # via pytest
-    # via tqdm
 contourpy==1.1.1
     # via matplotlib
 cycler==0.12.1
     # via matplotlib
-exceptiongroup==1.2.2
+exceptiongroup==1.3.0
     # via pytest
 filelock==3.16.1
     # via torch
+    # via triton
 fonttools==4.57.0
     # via matplotlib
 fsspec==2025.3.0
@@ -36,8 +34,6 @@ greenlet==3.1.1
     # via playwright
 idna==3.10
     # via requests
-importlib-resources==6.4.5
-    # via matplotlib
 iniconfig==2.1.0
     # via pytest
 jinja2==3.1.6
@@ -47,8 +43,9 @@ kiwisolver==1.4.7
 markupsafe==2.1.5
     # via jinja2
 matplotlib==3.7.5
-    # via seaborn
     # via ultralytics
+micropip==0.1.0
+    # via rl-dda-game
 mouseinfo==0.1.3
     # via pyautogui
 mpmath==1.3.0
@@ -61,12 +58,39 @@ numpy==1.24.4
     # via opencv-python
     # via pandas
     # via scipy
-    # via seaborn
     # via tensordict
     # via torchrl
     # via torchvision
     # via ultralytics
     # via ultralytics-thop
+nvidia-cublas-cu12==12.1.3.1
+    # via nvidia-cudnn-cu12
+    # via nvidia-cusolver-cu12
+    # via torch
+nvidia-cuda-cupti-cu12==12.1.105
+    # via torch
+nvidia-cuda-nvrtc-cu12==12.1.105
+    # via torch
+nvidia-cuda-runtime-cu12==12.1.105
+    # via torch
+nvidia-cudnn-cu12==9.1.0.70
+    # via torch
+nvidia-cufft-cu12==11.0.2.54
+    # via torch
+nvidia-curand-cu12==10.3.2.106
+    # via torch
+nvidia-cusolver-cu12==11.4.5.107
+    # via torch
+nvidia-cusparse-cu12==12.1.0.106
+    # via nvidia-cusolver-cu12
+    # via torch
+nvidia-nccl-cu12==2.20.5
+    # via torch
+nvidia-nvjitlink-cu12==12.9.41
+    # via nvidia-cusolver-cu12
+    # via nvidia-cusparse-cu12
+nvidia-nvtx-cu12==12.1.105
+    # via torch
 opencv-python==4.11.0.86
     # via rl-dda-game
     # via ultralytics
@@ -77,7 +101,6 @@ packaging==25.0
     # via pytest
     # via torchrl
 pandas==2.0.3
-    # via seaborn
     # via ultralytics
 pillow==10.4.0
     # via matplotlib
@@ -125,22 +148,22 @@ python-dateutil==2.9.0.post0
     # via pandas
 python-slugify==8.0.4
     # via pytest-playwright
+python3-xlib==0.15
+    # via mouseinfo
+    # via pyautogui
 pytweening==1.2.0
     # via pyautogui
 pytz==2025.2
     # via pandas
-pywin32==310
-    # via rl-dda-game
 pyxel==2.3.18
     # via rl-dda-game
 pyyaml==6.0.2
     # via ultralytics
 requests==2.32.3
     # via pytest-base-url
+    # via rl-dda-game
     # via ultralytics
 scipy==1.10.1
-    # via ultralytics
-seaborn==0.13.2
     # via ultralytics
 setuptools==75.3.2
     # via wasm
@@ -170,12 +193,15 @@ torchvision==0.19.1
     # via ultralytics
 tqdm==4.67.1
     # via ultralytics
+triton==3.0.0
+    # via torch
 typing-extensions==4.13.2
+    # via exceptiongroup
     # via pyee
     # via torch
 tzdata==2025.2
     # via pandas
-ultralytics==8.3.127
+ultralytics==8.3.145
     # via rl-dda-game
 ultralytics-thop==2.0.14
     # via ultralytics
@@ -183,5 +209,3 @@ urllib3==2.2.3
     # via requests
 wasm==1.2
     # via rl-dda-game
-zipp==3.20.2
-    # via importlib-resources
