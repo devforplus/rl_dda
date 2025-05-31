@@ -146,6 +146,8 @@ playwright==1.48.0
     # via rl-dda-game
 pluggy==1.5.0
     # via pytest
+polars==1.30.0
+    # via rl-dda-game
 propcache==0.3.1
     # via aiohttp
     # via yarl
