@@ -211,8 +211,6 @@ TODO.txt
 
 # Pyxel build artifacts
 *.pyxapp
+
 # TensorBoard log files
 src/runs/
-
-# Build output directory
-output/

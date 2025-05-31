@@ -1,69 +1,44 @@
 """애플리케이션 기본 정보를 관리하는 모듈"""
 
-import tomli
-from pathlib import Path
-from typing import Dict
+import json
 import platform
-import os
+from pathlib import Path
 
 IS_WEB = platform.system() == "Emscripten"
 
+# 기본값
+DEFAULT_APP_NAME = "VORTEXION"
+DEFAULT_APP_VERSION = "1.0"
 
-def load_app_config() -> Dict[str, str]:
-    """pyproject.toml에서 앱 설정을 로드합니다.
+
+def load_app_config():
+    """pyproject.json에서 앱 설정을 로드합니다.
 
     Returns:
-        Dict[str, str]: 앱 설정 딕셔너리
-
-    Raises:
-        FileNotFoundError: pyproject.toml 파일을 찾을 수 없는 경우
-        tomli.TOMLDecodeError: TOML 파일 형식이 잘못된 경우
-        PermissionError: 파일 읽기 권한이 없는 경우
-        Exception: 그 외 오류가 발생한 경우
+        tuple: (APP_NAME, APP_VERSION)
     """
-    content = ""
-    pyproject_path = None
+    json_path = None
 
     if IS_WEB:
-        pyproject_path = Path("pyproject.toml")
-    else:  # 로컬 환경
-        pyproject_path = (
-            Path(__file__).resolve().parent.parent.parent / "pyproject.toml"
-        )
+        # 웹 환경에서는 현재 디렉토리에서 찾기
+        json_path = Path("pyproject.json")
+    else:
+        # 로컬 환경에서는 src/ 디렉토리에서 찾기
+        json_path = Path(__file__).resolve().parent.parent.parent / "pyproject.json"
 
     try:
-        with open(pyproject_path, "rb") as f:
-            content = f.read().decode("utf-8")
-            pyproject = tomli.loads(content)
+        with open(json_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
 
-        game_config = pyproject.get("tool", {}).get("game", {})
-        return {
-            "APP_NAME": game_config.get("app_name", "VORTEXION"),
-            "APP_VERSION": game_config.get("app_version", "1.0"),
-        }
-    except FileNotFoundError:
-        pyproject_path_str = str(pyproject_path)
-        # 이전 디버그 print문 대신, FileNotFoundError 발생 시 기본값으로 처리하도록 수정 가능 (이전 제안 참고)
-        # 여기서는 일단 에러 메시지만 간결하게 유지
-        raise FileNotFoundError(
-            f"Configuration file 'pyproject.toml' not found at expected path: {pyproject_path_str}."
-        )
-    except tomli.TOMLDecodeError as e:
-        raise tomli.TOMLDecodeError(
-            msg=str(e),
-            doc=content if content else "Error: content not read",
-            pos=getattr(e, "pos", 0),
-        )
-    except PermissionError as e:
-        raise PermissionError(f"Permission denied for pyproject.toml: {str(e)}")
-    except Exception as e:
-        pyproject_path_str = str(pyproject_path)
-        raise Exception(
-            f"Error loading configuration from {pyproject_path_str}: {str(e)}"
-        )
+        app_name = config.get("app_name", DEFAULT_APP_NAME)
+        app_version = config.get("app_version", DEFAULT_APP_VERSION)
+
+        return app_name, app_version
+
+    except (FileNotFoundError, json.JSONDecodeError, Exception):
+        # 파일이 없거나 읽기 실패 시 기본값 사용
+        return DEFAULT_APP_NAME, DEFAULT_APP_VERSION
 
 
 # 앱 설정 로드
-config = load_app_config()
-APP_NAME = config["APP_NAME"]
-APP_VERSION = config["APP_VERSION"]
+APP_NAME, APP_VERSION = load_app_config()

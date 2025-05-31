@@ -46,8 +46,14 @@ test = { cmd = "python -m pytest", env = { PYTHONPATH = "src" } }
 train_rl = { cmd = "python -m src.rl.train", env = { PYTHONPATH = "src" } }
 evaluate_rl = { cmd = "python -m src.rl.evaluate", env = { PYTHONPATH = "src" } }
 upload_data = { cmd = "python upload_game_data.py", env = { PYTHONPATH = "." } }
-build = { cmd = "bash -c 'mkdir -p output && python -m pyxel package src src/run_agent_in_game.py && mv src.pyxapp output/game.pyxapp'", env = { PYTHONPATH = "." } }
-serve = { cmd = "python -m http.server 5175 -d output", env = { PYTHONPATH = "." } }
+extract-config = { cmd = "python scripts/extract_config.py", env = { PYTHONPATH = "." } }
+cleanup-config = { cmd = "python scripts/cleanup_config.py", env = { PYTHONPATH = "." } }
+dev = { cmd = "bash -c 'python scripts/extract_config.py && python src/main.py && python scripts/cleanup_config.py'", env = { PYTHONPATH = "." } }
+build = { cmd = "bash -c 'python scripts/extract_config.py && mkdir -p web/game && python -m pyxel package src src/main.py && mv src.pyxapp web/game/game.pyxapp && python scripts/cleanup_config.py'", env = { PYTHONPATH = "." } }
+build-agent = { cmd = "bash -c 'python scripts/extract_config.py && mkdir -p web/agentic-game && python -m pyxel package src src/run_agent_in_game.py && mv src.pyxapp web/agentic-game/game.pyxapp && python scripts/cleanup_config.py'", env = { PYTHONPATH = "." } }
+serve = { cmd = "python -m http.server 5175 -d web/game", env = { PYTHONPATH = "." } }
+serve-agent = { cmd = "python -m http.server 5176 -d web/agentic-game", env = { PYTHONPATH = "." } }
+clean = { cmd = "bash -c 'rm -rf web/game web/agentic-game src.pyxapp *.pyxapp'", env = { PYTHONPATH = "." } }
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
