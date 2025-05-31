@@ -211,3 +211,7 @@ TODO.txt
 
 # Pyxel build artifacts
 *.pyxapp
+# Game logs and data
+src/runs/
+*.csv
+*.tfevents.*
