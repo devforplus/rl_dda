@@ -24,6 +24,9 @@ dependencies = [
     "micropip>=0.1.0",
     "websockets>=12.0",
     "aiohttp>=3.9.0",
+    "helium>=5.1.0",
+    "selenium>=4.24.0",
+    "webdriver-manager>=4.0.2",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"
@@ -45,36 +48,47 @@ dev-dependencies = [
 ]
 
 [tool.rye.scripts]
-# Development
-dev = { cmd = "python scripts/dev.py", env = { PYTHONPATH = "." } }  # Run game in development mode
-test = { cmd = "python -m pytest", env = { PYTHONPATH = "src" } }  # Run tests
 
-# Build pipeline
-extract-config = { cmd = "python scripts/extract_config.py", env = { PYTHONPATH = "." } }  # Extract config files
-build = { cmd = "python scripts/build.py", env = { PYTHONPATH = "." } }  # Build main game
-build-agent = { cmd = "python scripts/build_agent.py", env = { PYTHONPATH = "." } }  # Build agent game
-build-all = { chain = ["build", "build-agent"] }  # Build both game versions
-cleanup-config = { cmd = "python scripts/cleanup_config.py", env = { PYTHONPATH = "." } }  # Clean config files
+# 🚀 자주 사용하는 명령어 (EventLogger 통합)
+collect-quick = { cmd = "python -m scripts.cli --url http://0.0.0.0:5176/ --namespace quick-test --duration 30 --headless --verbose", env = { PYTHONPATH = "." } }
+collect-full = { cmd = "python -m scripts.cli --url http://0.0.0.0:5176/ --namespace full-test --duration 60 --headless --collect-all --save-raw --verbose", env = { PYTHONPATH = "." } }
+dev = { cmd = "python scripts/dev.py", env = { PYTHONPATH = "." } }
+test = { cmd = "python -m pytest", env = { PYTHONPATH = "src" } }
+help = { cmd = "rye run --list", env = { PYTHONPATH = "." } }
 
-# Serve built games
-serve = { cmd = "python -m http.server 5175 -d web/game", env = { PYTHONPATH = "." } }  # Serve main game (port 5175)
-serve-agent = { cmd = "python -m http.server 5176 -d web/agentic-game", env = { PYTHONPATH = "." } }  # Serve agent game (port 5176)
+# 🎮 Pyxel 데이터 수집 (EventLogger 통합)
+collect = { cmd = "python -m scripts.cli", env = { PYTHONPATH = "." } }
+collect-demo = { cmd = "python -m scripts.cli --url http://0.0.0.0:5176/ --namespace demo --duration 30 --headless --verbose", env = { PYTHONPATH = "." } }
+collect-game = { cmd = "python -m scripts.cli --url http://0.0.0.0:5176/ --namespace gameplay --duration 120 --headless --collect-all --save-raw --verbose", env = { PYTHONPATH = "." } }
+collect-infinite = { cmd = "python -m scripts.cli --url http://0.0.0.0:5176/ --namespace infinite --headless --collect-all --save-raw --verbose", env = { PYTHONPATH = "." } }
 
-# Cleanup
-clean = { cmd = "python scripts/clean.py", env = { PYTHONPATH = "." } }  # Remove build artifacts
+# 🧪 테스트 및 예제
+test-event-logger = { cmd = "python examples/event_logger_example.py", env = { PYTHONPATH = "." } }
+test-collector = { cmd = "python -m scripts.cli --url http://0.0.0.0:5176/ --namespace test --duration 10 --headless --verbose", env = { PYTHONPATH = "." } }
 
-# Reinforcement Learning
-train_rl = { cmd = "python -m src.rl.train", env = { PYTHONPATH = "src" } }  # Train RL models
-evaluate_rl = { cmd = "python -m src.rl.evaluate", env = { PYTHONPATH = "src" } }  # Evaluate RL models
+# 🌐 서버
+serve-game = { cmd = "python -m http.server 5176 -d web/agentic-game", env = { PYTHONPATH = "." } }
+serve-simple = { cmd = "python -m http.server 5175 -d web/game", env = { PYTHONPATH = "." } }
+serve-test = { cmd = "python -m http.server 8000", env = { PYTHONPATH = "." } }
 
-# Data management
-upload_data = { cmd = "python upload_game_data.py", env = { PYTHONPATH = "." } }  # Upload game data
+# 🏗️ 빌드
+build = { cmd = "python scripts/build.py", env = { PYTHONPATH = "." } }
+build-agent = { cmd = "python scripts/build_agent.py", env = { PYTHONPATH = "." } }
+clean = { cmd = "python scripts/clean.py", env = { PYTHONPATH = "." } }
 
-# CLI tools
-cli = { cmd = "python -m scripts.cli", env = { PYTHONPATH = "." } }  # CLI tool main interface
-install-browser = { cmd = "python -m scripts.cli install", env = { PYTHONPATH = "." } }  # Install browser for automation
-capture-console = { cmd = "python -m scripts.cli capture", env = { PYTHONPATH = "." } }  # Capture browser console
-collect-data = { cmd = "python -m scripts.cli collect", env = { PYTHONPATH = "." } }  # Collect data from websites
+# 🔄 워크플로우
+dev-setup = { chain = ["clean", "build", "test"] }
+game-workflow = { chain = ["serve-game", "collect-demo"] }
+full-workflow = { chain = ["clean", "build", "serve-game", "collect-full"] }
+
+# 🛠️ 기타
+check-deps = { cmd = "python -c \"from scripts.cli.simple_pyxel_collector import check_selenium_dependency, check_websockets_dependency; print('✅ 모든 의존성 확인됨' if check_selenium_dependency() and check_websockets_dependency() else '❌ 의존성 오류')\"", env = { PYTHONPATH = "." } }
+
+# 🔧 고급 명령어
+extract-config = { cmd = "python scripts/extract_config.py", env = { PYTHONPATH = "." } }
+build-all = { chain = ["build", "build-agent"] }
+cleanup-config = { cmd = "python scripts/cleanup_config.py", env = { PYTHONPATH = "." } }
+upload_data = { cmd = "python src/upload_game_data.py", env = { PYTHONPATH = "." } }
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
