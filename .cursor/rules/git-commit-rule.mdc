@@ -1,7 +1,7 @@
 ---
-description: 깃 커밋과 관련된 사용자 규칙 모음
+description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 # 깃 커밋 규칙
 

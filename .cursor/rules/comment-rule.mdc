@@ -1,7 +1,7 @@
 ---
-description: 코드 주석 작성 규칙
+description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 # 주석 작성 규칙
 
