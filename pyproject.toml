@@ -45,25 +45,36 @@ dev-dependencies = [
 ]
 
 [tool.rye.scripts]
-test = { cmd = "python -m pytest", env = { PYTHONPATH = "src" } }
-train_rl = { cmd = "python -m src.rl.train", env = { PYTHONPATH = "src" } }
-evaluate_rl = { cmd = "python -m src.rl.evaluate", env = { PYTHONPATH = "src" } }
-upload_data = { cmd = "python upload_game_data.py", env = { PYTHONPATH = "." } }
-extract-config = { cmd = "python scripts/extract_config.py", env = { PYTHONPATH = "." } }
-cleanup-config = { cmd = "python scripts/cleanup_config.py", env = { PYTHONPATH = "." } }
-dev = { cmd = "python scripts/dev.py", env = { PYTHONPATH = "." } }
-build = { cmd = "python scripts/build.py", env = { PYTHONPATH = "." } }
-build-agent = { cmd = "python scripts/build_agent.py", env = { PYTHONPATH = "." } }
-build-all = { chain = ["build", "build-agent"] }
-serve = { cmd = "python -m http.server 5175 -d web/game", env = { PYTHONPATH = "." } }
-serve-agent = { cmd = "python -m http.server 5176 -d web/agentic-game", env = { PYTHONPATH = "." } }
-clean = { cmd = "python scripts/clean.py", env = { PYTHONPATH = "." } }
+# Development
+dev = { cmd = "python scripts/dev.py", env = { PYTHONPATH = "." } }  # Run game in development mode
+test = { cmd = "python -m pytest", env = { PYTHONPATH = "src" } }  # Run tests
 
-# CLI 도구 스크립트
-cli = { cmd = "python -m scripts.cli", env = { PYTHONPATH = "." } }
-install-browser = { cmd = "python -m scripts.cli install", env = { PYTHONPATH = "." } }
-capture-console = { cmd = "python -m scripts.cli capture", env = { PYTHONPATH = "." } }
-collect-data = { cmd = "python -m scripts.cli collect", env = { PYTHONPATH = "." } }
+# Build pipeline
+extract-config = { cmd = "python scripts/extract_config.py", env = { PYTHONPATH = "." } }  # Extract config files
+build = { cmd = "python scripts/build.py", env = { PYTHONPATH = "." } }  # Build main game
+build-agent = { cmd = "python scripts/build_agent.py", env = { PYTHONPATH = "." } }  # Build agent game
+build-all = { chain = ["build", "build-agent"] }  # Build both game versions
+cleanup-config = { cmd = "python scripts/cleanup_config.py", env = { PYTHONPATH = "." } }  # Clean config files
+
+# Serve built games
+serve = { cmd = "python -m http.server 5175 -d web/game", env = { PYTHONPATH = "." } }  # Serve main game (port 5175)
+serve-agent = { cmd = "python -m http.server 5176 -d web/agentic-game", env = { PYTHONPATH = "." } }  # Serve agent game (port 5176)
+
+# Cleanup
+clean = { cmd = "python scripts/clean.py", env = { PYTHONPATH = "." } }  # Remove build artifacts
+
+# Reinforcement Learning
+train_rl = { cmd = "python -m src.rl.train", env = { PYTHONPATH = "src" } }  # Train RL models
+evaluate_rl = { cmd = "python -m src.rl.evaluate", env = { PYTHONPATH = "src" } }  # Evaluate RL models
+
+# Data management
+upload_data = { cmd = "python upload_game_data.py", env = { PYTHONPATH = "." } }  # Upload game data
+
+# CLI tools
+cli = { cmd = "python -m scripts.cli", env = { PYTHONPATH = "." } }  # CLI tool main interface
+install-browser = { cmd = "python -m scripts.cli install", env = { PYTHONPATH = "." } }  # Install browser for automation
+capture-console = { cmd = "python -m scripts.cli capture", env = { PYTHONPATH = "." } }  # Capture browser console
+collect-data = { cmd = "python -m scripts.cli collect", env = { PYTHONPATH = "." } }  # Collect data from websites
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
