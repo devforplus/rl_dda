@@ -211,7 +211,5 @@ TODO.txt
 
 # Pyxel build artifacts
 *.pyxapp
-# Game logs and data
+# TensorBoard log files
 src/runs/
-*.csv
-*.tfevents.*
