@@ -4,8 +4,8 @@ import traceback
 import sys  # For stderr
 
 try:
-    from src.main import App
-    from src.rl.agents import RandomAgent
+    from main import App
+    from rl.agents import RandomAgent
 except ImportError as e:
     error_message = (
         f"Error importing modules: {type(e).__name__}: {e}\n{traceback.format_exc()}"
