@@ -29,6 +29,7 @@ dependencies = [
     "polars>=1.30.0",
     "pyxel>=2.3.18",
     "pystache>=0.6.8",
+    "loguru>=0.7.3",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"
