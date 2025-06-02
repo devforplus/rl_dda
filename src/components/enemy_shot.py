@@ -1,19 +1,11 @@
 import pyxel as px
 
-from .sprite import Sprite
-from .entity_types import EntityType
-from src.config.app.constants import APP_WIDTH, APP_HEIGHT
+from components.sprite import Sprite
+from components.entity_types import EntityType
+from config.enemy.enemy_config import EnemyConfig
 
-# enemy_config import 수정
-try:
-    from src.config.enemy import enemy_config
-except ImportError:
-
-    class DefaultEnemyConfig:
-        def __init__(self):
-            self.shot_damage = 1
-
-    enemy_config = DefaultEnemyConfig()
+# 적 설정 인스턴스 생성
+enemy_config = EnemyConfig()
 
 
 class EnemyShot(Sprite):
@@ -36,9 +28,7 @@ class EnemyShot(Sprite):
     delay: int
     damage: int
 
-    def __init__(
-        self, game_state, x: int, y: int, dx: float, dy: float, delay: int = 0
-    ) -> None:
+    def __init__(self, game_state, x: int, y: int, dx: float, dy: float, delay: int = 0) -> None:
         """
         적 발사체 초기화.
 
@@ -67,11 +57,16 @@ class EnemyShot(Sprite):
             self.delay -= 1
             return
 
-        self.x += int(self.dx)
-        self.y += int(self.dy)
+        self.x += self.dx
+        self.y += self.dy
 
         # 화면 밖으로 나가면 제거
-        if self.x < -self.w or self.x > 256 or self.y < -self.h or self.y > 192:
+        if (
+            self.x < -self.w
+            or self.x > 256
+            or self.y < -self.h
+            or self.y > 192
+        ):
             self.remove = True
 
     def collided_with(self, other) -> None:
@@ -83,4 +78,4 @@ class EnemyShot(Sprite):
         """
         if other.type == EntityType.PLAYER:
             other.take_damage(self.damage)  # 플레이어에게 데미지 주기
-            self.remove = True  # 발사체 제거
+            self.remove = True  # 발사체 제거 

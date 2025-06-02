@@ -7,8 +7,7 @@ import pyxel as px
 if TYPE_CHECKING:
     from .sprite import Sprite
 
-T = TypeVar("T", bound="Sprite")
-
+T = TypeVar('T', bound='Sprite')
 
 def rect_overlap(
     x1: int, y1: int, w1: int, h1: int, x2: int, y2: int, w2: int, h2: int
@@ -229,42 +228,38 @@ class Sprite(ABC):
         """
         pass
 
-
 def sprites_update(sprites: List[T]) -> None:
     """
     스프라이트 목록을 업데이트합니다.
-
+    
     Args:
         sprites (List[Sprite]): 업데이트할 스프라이트 목록
     """
     Sprite.update_list(sprites)
 
-
 def sprites_draw(sprites: List[T]) -> None:
     """
     스프라이트 목록을 그립니다.
-
+    
     Args:
         sprites (List[Sprite]): 그릴 스프라이트 목록
     """
     Sprite.draw_list(sprites)
 
-
 def sprite_lists_collide(list_a: List[T], list_b: List[T]) -> None:
     """
     두 스프라이트 목록 간의 충돌을 처리합니다.
-
+    
     Args:
         list_a (List[Sprite]): 첫 번째 스프라이트 목록
         list_b (List[Sprite]): 두 번째 스프라이트 목록
     """
     Sprite.lists_collide(list_a, list_b)
 
-
 def sprite_collide_list(spr: T, the_list: List[T]) -> None:
     """
     단일 스프라이트와 목록 간의 충돌을 처리합니다.
-
+    
     Args:
         spr (Sprite): 단일 스프라이트
         the_list (List[Sprite]): 스프라이트 목록

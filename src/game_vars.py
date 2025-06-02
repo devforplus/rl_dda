@@ -1,11 +1,11 @@
-from src.config.player.player_config import (
-    MAX_LIVES,
+from config.player.player_config import (
     STARTING_LIVES,
+    MAX_WEAPONS,
     MAX_WEAPON_LEVEL,
-    MAX_WEAPON_COUNT,
+    MAX_LIVES,
 )
-from src.config.score.score_config import MAX_SCORE
-from src.config.stage.stage_num import StageNum, FINAL_STAGE
+from config.score.score_config import MAX_SCORE
+from config.stage.stage_num import StageNum, FINAL_STAGE
 
 
 class GameVars:
@@ -16,7 +16,7 @@ class GameVars:
         self.current_weapon = 0
         self.lives = STARTING_LIVES
         self.weapon_levels = []
-        for _ in range(MAX_WEAPON_COUNT):
+        for _ in range(MAX_WEAPONS):
             self.weapon_levels.append(0)
         self.stage_num = StageNum.STAGE_1
 

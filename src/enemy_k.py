@@ -1,8 +1,8 @@
 import pyxel as px
-from src.components.sprite import Sprite
-from src.components.entity_types import EntityType
-from src.components.enemy import Enemy
-from src.config.score.score_config import ENEMY_SCORE_BOSS
+from components.sprite import Sprite
+from components.entity_types import EntityType
+from components.enemy import Enemy
+from config.score.score_config import ENEMY_SCORE_BOSS
 
 BULLET_SPEED = 2.5
 MOVE_SPEED_Y = 0.5

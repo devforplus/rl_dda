@@ -1,9 +1,8 @@
 import pyxel as px
-import time
 from math import pi
 
-from .components.enemy import Enemy
-from .components.entity_types import EntityType
+from components.enemy import Enemy
+from components.entity_types import EntityType
 
 SPEED = 1.5
 
@@ -25,7 +24,7 @@ class EnemyB(Enemy):
     def update(self):
         super().update()  # hit frames
 
-        self.x -= int(SPEED)
+        self.x -= SPEED
         if self.x + self.w < 0:
             self.remove_out_of_bounds("moved_off_screen_left")
             return

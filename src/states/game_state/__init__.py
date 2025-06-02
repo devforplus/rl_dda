@@ -5,8 +5,8 @@
 # from .game_state_titles import GameStateTitles
 # from .game_state_complete import GameStateComplete
 
-from states.game_state.game_state_complete import GameStateComplete
-from states.game_state.game_state_stage import GameStateStage
-from states.game_state.game_state_titles import GameStateTitles
+from .game_state_complete import GameStateComplete
+from .game_state_stage import GameStateStage
+from .game_state_titles import GameStateTitles
 
 __all__ = ["GameStateComplete", "GameStateStage", "GameStateTitles"]
