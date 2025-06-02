@@ -1,8 +1,8 @@
 import pyxel as px
 import math
-from src.components.sprite import Sprite
-from src.config.sound import SoundType
-from src.audio import AudioManager
+from components.sprite import Sprite
+from config.sound import SoundType
+from audio import AudioManager
 
 # 폭발 애니메이션 프레임 정보
 FRAMES = ((0, 64), (16, 64), (32, 64))

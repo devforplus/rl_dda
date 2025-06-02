@@ -1,12 +1,14 @@
 import json
 from typing import List, Optional, Any
 import platform
+import pyxel as px
+import os
+import time
+import threading
 
 # 사운드 관련 설정 및 경로 임포트
-from src.config.sound import SoundType, SoundConfig  # 사운드 타입 및 상수 정의
-from src.config.paths import ASSETS_DIR  # 에셋 디렉토리 경로
-
-import pyxel as px
+from config.sound import SoundType, SoundConfig  # 사운드 타입 및 상수 정의
+from config.paths import ASSETS_DIR  # 에셋 디렉토리 경로
 
 
 class AudioManager:
