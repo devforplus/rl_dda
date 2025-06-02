@@ -144,21 +144,33 @@ class EventLogger:
         return f"session_{int(time.time())}"
 
     def _setup_file_handlers(self) -> None:
-        """파일 핸들러 초기화"""
-        # 메인 로그 파일
+        """파일 핸들러 설정 (동적 생성 방식)"""
+        if not self.enable_file:
+            return
+
+        # 출력 디렉토리 생성
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+
+        # 메인 로그 파일 (항상 생성)
         main_log_file = self.output_dir / "events.log"
         self.file_handlers["main"] = open(main_log_file, "w", encoding="utf-8")
 
-        # JSON 로그 파일
+        # JSON 로그 파일 (항상 생성)
         json_log_file = self.output_dir / "events.json"
         self.file_handlers["json"] = open(json_log_file, "w", encoding="utf-8")
 
-        # 이벤트 타입별 파일들
-        for event_type in EventType.__members__.values():
+        # 이벤트 타입별 파일들은 동적 생성으로 변경
+        # (실제 데이터가 있을 때만 생성됨)
+
+    def _get_or_create_type_file_handler(self, event_type: EventType):
+        """이벤트 타입별 파일 핸들러를 동적으로 생성"""
+        type_key = event_type.value
+
+        if type_key not in self.file_handlers:
             type_file = self.output_dir / f"events_{event_type.value.lower()}.log"
-            self.file_handlers[event_type.value] = open(
-                type_file, "w", encoding="utf-8"
-            )
+            self.file_handlers[type_key] = open(type_file, "w", encoding="utf-8")
+
+        return self.file_handlers[type_key]
 
     def add_event_callback(self, callback: Callable[[LogEvent], None]) -> None:
         """이벤트 콜백 추가"""
@@ -220,7 +232,7 @@ class EventLogger:
         return event
 
     def _write_to_files(self, event: LogEvent) -> None:
-        """파일에 이벤트 기록"""
+        """파일에 이벤트 기록 (동적 파일 생성 적용)"""
         try:
             # 메인 로그 파일
             if "main" in self.file_handlers:
@@ -235,11 +247,10 @@ class EventLogger:
                 self.file_handlers["json"].write("\n")
                 self.file_handlers["json"].flush()
 
-            # 이벤트 타입별 파일
-            type_key = event.event_type.value
-            if type_key in self.file_handlers:
-                self.file_handlers[type_key].write(event.to_console_format() + "\n")
-                self.file_handlers[type_key].flush()
+            # 이벤트 타입별 파일 (동적 생성)
+            type_handler = self._get_or_create_type_file_handler(event.event_type)
+            type_handler.write(event.to_console_format() + "\n")
+            type_handler.flush()
 
         except Exception as e:
             # 파일 쓰기 에러는 콘솔에 출력하고 계속 진행
@@ -419,7 +430,7 @@ def get_logger(
     if _global_logger is None or _global_logger.namespace != namespace:
         _global_logger = EventLogger(namespace=namespace, log_level=log_level, **kwargs)
 
-    return _global_logger
+    return _global_logger  # type: ignore
 
 
 def setup_logger(

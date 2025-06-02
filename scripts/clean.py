@@ -39,13 +39,13 @@ def main():
     """정리 메인 함수"""
     print("빌드 파일 정리 시작...")
 
-    # 웹 디렉토리 삭제
+    # 웹 디렉토리 삭제 (HTML 파일 포함)
     remove_directory("web/game")
     remove_directory("web/agentic-game")
 
-    # pyxapp 파일들 삭제
-    remove_file("src.pyxapp")
-    remove_pattern("*.pyxapp")
+    # pyxapp 파일들 삭제 (실제 생성되는 파일명들)
+    remove_file(".pyxapp")  # 메인 게임용
+    remove_pattern("*.pyxapp")  # 모든 pyxapp 파일
 
     print("빌드 파일 정리 완료!")
 

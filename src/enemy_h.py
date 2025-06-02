@@ -1,5 +1,5 @@
-from components.enemy import Enemy
-from components.entity_types import EntityType
+from src.components.enemy import Enemy
+from src.components.entity_types import EntityType
 
 SPEED_X = 1.5
 BOUNCE_VEL = 5

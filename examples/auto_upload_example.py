@@ -8,6 +8,8 @@ import asyncio
 import numpy as np
 import time
 from typing import Dict, List, Optional
+import json
+from pathlib import Path
 
 # 프로젝트 루트에서 실행하는 경우
 import sys
@@ -15,12 +17,15 @@ import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.auto_game_client import (
+from .auto_game_client import (
     RLDDAAutoClient,
     GameFrameData,
     GameSessionConfig,
     create_auto_client_sync,
 )
+
+# NewServerClient는 해당 파일 끝부분에서 import
+from .server_client import GameDataServerClient
 
 
 class MockGame:
@@ -302,8 +307,6 @@ def example_batch_upload():
 
     try:
         # 기존 server_client 사용
-        from src.server_client import GameDataServerClient
-
         client = GameDataServerClient("http://localhost:3000")
 
         # 예시: data/images와 data/labels 디렉토리가 있는 경우

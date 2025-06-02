@@ -109,8 +109,8 @@ else:
                         response_json = response.json()
                     except httpx.JSONDecodeError:  # httpx의 경우 httpx.JSONDecodeError
                         response_json = {}
-                    except (
-                        json.JSONDecodeError
+                    except getattr(
+                        json, "JSONDecodeError", ValueError
                     ):  # json 모듈의 경우 json.JSONDecodeError
                         response_json = {}
 

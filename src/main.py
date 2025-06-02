@@ -6,11 +6,12 @@ import time  # For timestamping (optional)
 import json
 import os
 import asyncio
+from typing import Optional, Tuple, List, Dict, Any, Union
 
 # 웹 환경에서만 Pillow, io, base64, numpy를 import 시도 -> 전역으로 변경
 IS_WEB = platform.system() == "Emscripten"
 if IS_WEB:
-    import js
+    import js  # type: ignore
     # json은 이미 위에서 import
 
 # Pillow, io, base64, numpy를 공통으로 import 시도
@@ -31,8 +32,8 @@ except ImportError as e:
 except Exception as e:
     numpy = None
 
-from game import Game
-from config.app.constants import (
+from src.game import Game
+from src.config.app.constants import (
     APP_WIDTH,
     APP_HEIGHT,
     APP_NAME,
@@ -40,16 +41,22 @@ from config.app.constants import (
     APP_CAPTURE_SCALE,
     APP_FPS,
 )
-from config.paths import ASSETS_DIR
-from config.colors import PALETTE
-from config.game_config import CLASS_MAP  # YOLO 라벨링용
-from monospace_bitmap_font import MonospaceBitmapFont
-import input as input_module  # 수정된 방식
+from src.config.paths import ASSETS_DIR
+from src.config.colors import PALETTE
+from src.config.game_config import CLASS_MAP, YOLO_HEADER  # YOLO 라벨링용
+from src.monospace_bitmap_font import MonospaceBitmapFont
+import src.input as input_module  # 수정된 방식
+from src.utils.game_event_logger import (
+    setup_game_logger,
+    log_frame_data,
+    PlayerData,
+    PlayerHp,
+)
 
 # 서버 업로드 기능 import (웹/데스크톱 모두 지원)
 SERVER_CLIENT_AVAILABLE = False
 try:
-    from server_client import (
+    from src.server_client import (
         NewServerClient,
     )  # 변경: GameDataServerClient -> NewServerClient
 
@@ -67,10 +74,9 @@ class App:
         try:
             self.agent = agent
             # Data collection variables
-            self.collecting_data = (
-                False  # 데이터 수집 활성화 여부 (C키로 토글 가능하도록 설정)
-            )
-            self.collected_data = []
+            self.collected_data: List[Dict[str, Any]] = []
+            self.is_collecting_data = False
+            self.frame_count = 0
             self.capture_interval = (
                 5  # 캡처 간격 (프레임) - 에이전트 학습용 고해상도 데이터 수집
             )
@@ -78,11 +84,11 @@ class App:
 
             # 에이전트가 있을 때는 데이터 수집 자동 활성화 (AI 학습용 데이터 수집)
             if self.agent is not None:
-                self.collecting_data = True
+                self.is_collecting_data = True
 
             # 서버 업로드 관련 변수 (웹/데스크톱 모두 지원)
             self.server_upload_enabled = False
-            self.server_client = None
+            self.server_client: Optional[Any] = None
             # self.auto_uploader = None 삭제됨
 
             # 서버 클라이언트 초기화 시도
@@ -160,22 +166,25 @@ class App:
             self.input = input_module.Input()
             self.game = Game(self)
 
+            # 게임 이벤트 로거 설정
+            setup_game_logger(enable_console=True, enable_file=False)
+
             px.run(self.update, self.draw)
         except Exception as e:
             error_message = f"Error in App.__init__: {type(e).__name__}: {e}\n{traceback.format_exc()}"
             if IS_WEB and "js" in globals():
-                js.console.error(error_message)
+                js.console.error(error_message)  # type: ignore
             print(error_message, file=sys.stderr)
             raise
 
     def toggle_data_collection(self):
         """데이터 수집 상태를 토글합니다."""
         # 에이전트 사용 중일 때는 데이터 수집 비활성화 방지 (AI 학습용 데이터 보호)
-        if self.agent is not None and self.collecting_data:
+        if self.agent is not None and self.is_collecting_data:
             return
 
-        self.collecting_data = not self.collecting_data
-        if self.collecting_data:
+        self.is_collecting_data = not self.is_collecting_data
+        if self.is_collecting_data:
             self.collected_data.clear()
         else:
             if IS_WEB and self.collected_data:
@@ -256,7 +265,7 @@ class App:
             self.game.update()
 
             # 데이터 수집 로직
-            if self.collecting_data:
+            if self.is_collecting_data:
                 self.frames_since_last_capture += 1
                 if self.frames_since_last_capture >= self.capture_interval:
                     self.frames_since_last_capture = 0
@@ -266,35 +275,17 @@ class App:
                         if frame_data and frame_data.get("image_png_base64"):
                             self.collected_data.append(frame_data)
 
-                            # 데이터 수집 완료 로그 출력 (플레이어 정보는 참고용으로만 출력)
-                            frame_data_log = {
-                                "type": "event",
-                                "event": "frame_collected",
-                                "timestamp": time.time(),
-                                "data": {
-                                    "image_size_chars": len(
-                                        frame_data.get("image_png_base64", "")
-                                    ),
-                                    "yolo_objects_count": len(
-                                        frame_data.get("yolo_labels", [])
-                                    )
-                                    - 1,  # -1 for header
-                                },
-                            }
-
-                            # 플레이어 정보 추가 (콘솔 출력 전용)
+                            # 콘솔 출력용 프레임 데이터 로그 (GameEventLogger 사용)
                             if hasattr(self.game, "game_vars") and self.game.game_vars:
-                                lives = getattr(self.game.game_vars, "lives", "N/A")
-                                score = getattr(self.game.game_vars, "score", "N/A")
-                                stage = getattr(self.game.game_vars, "stage_num", "N/A")
+                                lives = getattr(self.game.game_vars, "lives", 0)
+                                score = getattr(self.game.game_vars, "score", 0)
+                                stage = str(
+                                    getattr(self.game.game_vars, "stage_num", "N/A")
+                                )
 
-                                frame_data_log["data"]["player"] = {
-                                    "lives": lives,
-                                    "score": score,
-                                    "stage": str(stage),
-                                }
-
-                                # 플레이어 체력 정보 추가 (콘솔 출력 전용)
+                                # 플레이어 체력 정보
+                                current_hp = 0
+                                max_hp = 0
                                 if (
                                     hasattr(self.game, "state")
                                     and self.game.state
@@ -302,17 +293,39 @@ class App:
                                     and self.game.state.player
                                 ):
                                     current_hp = getattr(
-                                        self.game.state.player, "current_hp", "N/A"
+                                        self.game.state.player, "current_hp", 0
                                     )
                                     max_hp = getattr(
-                                        self.game.state.player, "max_hp", "N/A"
+                                        self.game.state.player, "max_hp", 0
                                     )
-                                    frame_data_log["data"]["player"]["hp"] = {
-                                        "current": current_hp,
-                                        "max": max_hp,
-                                    }
 
-                            print(json.dumps(frame_data_log))
+                                # PlayerData 객체 생성
+                                player_data = PlayerData(
+                                    lives=lives,
+                                    score=score,
+                                    stage=stage,
+                                    hp=PlayerHp(current=current_hp, max=max_hp)
+                                    if max_hp > 0
+                                    else None,
+                                )
+
+                                # 추가 데이터 - 타입 안전하게 처리
+                                image_png_base64 = frame_data.get(
+                                    "image_png_base64", ""
+                                )
+                                yolo_labels = frame_data.get("yolo_labels", [])
+
+                                additional_data = {
+                                    "image_size_chars": len(image_png_base64)
+                                    if isinstance(image_png_base64, str)
+                                    else 0,
+                                    "yolo_objects_count": max(0, len(yolo_labels) - 1)
+                                    if isinstance(yolo_labels, list)
+                                    else 0,
+                                }
+
+                                # 게임 이벤트 로거로 출력
+                                log_frame_data(player_data, additional_data)
                         if (
                             self.server_upload_enabled
                             and self.server_client
@@ -347,7 +360,7 @@ class App:
         except Exception as e:
             error_message = f"Error in App.update: {type(e).__name__}: {e}\n{traceback.format_exc()}"
             if IS_WEB and "js" in globals():
-                js.console.error(error_message)
+                js.console.error(error_message)  # type: ignore
             print(error_message, file=sys.stderr)
 
     def draw(self):
@@ -361,7 +374,7 @@ class App:
                 f"Error in App.draw: {type(e).__name__}: {e}\n{traceback.format_exc()}"
             )
             if IS_WEB and "js" in globals():
-                js.console.error(error_message)
+                js.console.error(error_message)  # type: ignore
             print(error_message, file=sys.stderr)
 
     def _draw_status_indicators(self):
@@ -374,7 +387,7 @@ class App:
             y_offset += 8
 
         # 데이터 수집 상태 표시
-        if self.collecting_data:
+        if self.is_collecting_data:
             status_text = "DATA: AUTO" if self.agent is not None else "DATA: ON"
             px.text(5, y_offset, status_text, 11)  # 밝은 녹색
         else:
@@ -401,13 +414,15 @@ class App:
         else:
             px.text(5, y_offset, "C:Data U:Server", 6)  # 진한 회색
 
-    def _collect_current_frame_data(self, for_upload=False):
+    def _collect_current_frame_data(
+        self, for_upload=False
+    ) -> Optional[Tuple[Dict[str, Any], Any, List[str]]]:
         """현재 프레임의 이미지와 게임 객체 정보를 수집하여 YOLO 라벨을 생성합니다."""
 
         # Pillow, io, base64는 공통 임포트 시도됨. numpy도 마찬가지.
         if not PILImage or not io or not base64:
-            if self.collecting_data:
-                self.collecting_data = False
+            if self.is_collecting_data:
+                self.is_collecting_data = False
             return None
 
         if not hasattr(self.game, "state") or not self.game.state:
@@ -427,66 +442,53 @@ class App:
             pil_image = None
             if numpy:
                 try:
-                    screen_data_raw = px.screen.data
-
-                    if IS_WEB:
-                        # 웹 환경에서 screen.data 안전하게 처리
-                        if hasattr(screen_data_raw, "to_py"):
-                            screen_data_flat_py = screen_data_raw.to_py()
-                            screen_data_np = numpy.array(
-                                screen_data_flat_py, dtype=numpy.int32
-                            ).reshape(height, width)
-                        elif hasattr(screen_data_raw, "__iter__"):
-                            # 리스트나 배열인 경우
-                            screen_data_np = numpy.array(
-                                list(screen_data_raw), dtype=numpy.int32
-                            ).reshape(height, width)
-                        else:
-                            # 직접 numpy 변환 시도
-                            screen_data_np = numpy.asarray(
-                                screen_data_raw, dtype=numpy.int32
-                            ).reshape(height, width)
-                    else:
-                        # 데스크톱 환경
-                        screen_data_np = numpy.asarray(
-                            screen_data_raw, dtype=numpy.int32
-                        )
-                        # 필요시 reshape
-                        if screen_data_np.shape != (height, width):
-                            screen_data_np = screen_data_np.reshape(height, width)
-
-                    # 팔레트를 사용하여 RGB로 변환
-                    palette_hex = px.colors.to_list()
-                    palette_rgb = numpy.array(
-                        [
-                            ((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF)
-                            for c in palette_hex
-                        ],
-                        dtype=numpy.uint8,
-                    )
-
-                    rgb_array = palette_rgb[screen_data_np]
-                    pil_image = PILImage.fromarray(rgb_array, "RGB")
+                    # Pyxel screen 접근 방식 수정 - 픽셀별 접근으로 대체
+                    # px.screen.data는 존재하지 않으므로 pget을 사용한 방식으로 통일
+                    pass
                 except Exception as e:
-                    pil_image = None
+                    pass
 
-            # NumPy 실패 시 픽셀별 캡처 (폴백)
+            # 픽셀별 캡처 방식 사용 (안정적인 방법)
             if pil_image is None:
                 try:
                     pil_image = PILImage.new("RGB", (width, height))
                     palette_hex = px.colors.to_list()
 
-                    for y in range(height):
-                        for x in range(width):
-                            color_index = px.pget(x, y)
-                            if 0 <= color_index < len(palette_hex):
-                                rgb_hex = palette_hex[color_index]
-                                r = (rgb_hex >> 16) & 0xFF
-                                g = (rgb_hex >> 8) & 0xFF
-                                b = rgb_hex & 0xFF
-                                pil_image.putpixel((x, y), (r, g, b))
-                            else:
-                                pil_image.putpixel((x, y), (0, 0, 0))
+                    # NumPy가 있는 경우 더 효율적인 방식 시도
+                    if numpy:
+                        # RGB 배열 생성
+                        rgb_array = numpy.zeros((height, width, 3), dtype=numpy.uint8)
+                        palette_rgb = numpy.array(
+                            [
+                                ((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF)
+                                for c in palette_hex
+                            ],
+                            dtype=numpy.uint8,
+                        )
+
+                        # 픽셀별로 색상 인덱스 가져와서 RGB로 변환
+                        for y in range(height):
+                            for x in range(width):
+                                color_index = px.pget(x, y)
+                                if 0 <= color_index < len(palette_rgb):
+                                    rgb_array[y, x] = palette_rgb[color_index]
+                                else:
+                                    rgb_array[y, x] = [0, 0, 0]
+
+                        pil_image = PILImage.fromarray(rgb_array, "RGB")
+                    else:
+                        # NumPy 없는 경우 기존 방식
+                        for y in range(height):
+                            for x in range(width):
+                                color_index = px.pget(x, y)
+                                if 0 <= color_index < len(palette_hex):
+                                    rgb_hex = palette_hex[color_index]
+                                    r = (rgb_hex >> 16) & 0xFF
+                                    g = (rgb_hex >> 8) & 0xFF
+                                    b = rgb_hex & 0xFF
+                                    pil_image.putpixel((x, y), (r, g, b))
+                                else:
+                                    pil_image.putpixel((x, y), (0, 0, 0))
                 except Exception as e:
                     return None
 
@@ -595,19 +597,34 @@ class App:
                         yolo_data_row = f"{class_id} {x_center_norm:.6f} {y_center_norm:.6f} {width_norm:.6f} {height_norm:.6f}"
                         yolo_data_rows.append(yolo_data_row)
 
-                print(
-                    json.dumps(
-                        {
-                            "type": "event",
-                            "event": "yolo_objects_collected",
-                            "timestamp": time.time(),
-                            "data": {
-                                "objects_by_type": dict(object_counts),
-                                "total_labels": len(yolo_data_rows),
-                            },
-                        }
+                if IS_WEB and js:  # Type-safe js access
+                    js.console.log(  # type: ignore
+                        json.dumps(
+                            {
+                                "type": "event",
+                                "event": "yolo_objects_collected",
+                                "timestamp": time.time(),
+                                "data": {
+                                    "objects_by_type": dict(object_counts),
+                                    "total_labels": len(yolo_data_rows),
+                                },
+                            }
+                        )
                     )
-                )
+                else:
+                    print(
+                        json.dumps(
+                            {
+                                "type": "event",
+                                "event": "yolo_objects_collected",
+                                "timestamp": time.time(),
+                                "data": {
+                                    "objects_by_type": dict(object_counts),
+                                    "total_labels": len(yolo_data_rows),
+                                },
+                            }
+                        )
+                    )
 
             # 이미지를 base64로 인코딩
             image_png_base64 = None
@@ -634,8 +651,8 @@ class App:
             else:
                 return None
 
-            # yolo_labels 생성 (헤더 포함)
-            header = CLASS_MAP.get(-1, "entity_num x_center y_center width height")
+            # yolo_labels 생성 (헤더 포함) - YOLO_HEADER 상수 사용
+            header = YOLO_HEADER
             yolo_labels = [header] + yolo_data_rows
 
             # 프레임 데이터 생성 (서버 API 형식에 맞춤)
@@ -654,7 +671,7 @@ class App:
         except Exception as e:
             error_message = f"Error in _collect_current_frame_data: {type(e).__name__}: {e}\\n{traceback.format_exc()}"
             if IS_WEB and "js" in globals():
-                js.console.error(error_message)
+                js.console.error(error_message)  # type: ignore
             print(error_message, file=sys.stderr)
             return None
 
@@ -734,7 +751,7 @@ class App:
             document.body.removeChild(link);
             URL.revokeObjectURL(link.href);
             """
-            js.eval(js_code)
+            js.eval(js_code)  # type: ignore
             print(f"Starting download of '{file_name}'...")
             # 다운로드 후 데이터 클리어 여부는 정책에 따라 결정 (현재는 유지)
             # self.collected_data.clear()

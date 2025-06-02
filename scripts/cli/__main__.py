@@ -11,7 +11,7 @@ from pathlib import Path
 
 # EventLogger import 추가
 sys.path.append(str(Path(__file__).parent.parent.parent))
-from src.utils.event_logger import EventLogger, LogLevel, EventType, setup_logger
+from .utils.event_logger import EventLogger, LogLevel, EventType, setup_logger
 
 
 def main():

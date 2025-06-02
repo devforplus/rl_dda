@@ -1,8 +1,8 @@
 import pyxel as px
-
-from components.sprite import Sprite
-from config.sound import SoundType
-from audio import AudioManager
+import math
+from src.components.sprite import Sprite
+from src.config.sound import SoundType
+from src.audio import AudioManager
 
 # 폭발 애니메이션 프레임 정보
 FRAMES = ((0, 64), (16, 64), (32, 64))
@@ -11,6 +11,7 @@ FRAME_DELAY = 5  # 프레임 지연 시간
 
 # 오디오 매니저 인스턴스 생성
 audio_manager = AudioManager()
+
 
 class Explosion(Sprite):
     """
@@ -77,12 +78,12 @@ class Explosion(Sprite):
             return  # 지연 중에는 그리지 않음
 
         super().draw()  # 부모 클래스의 draw 호출
-        
+
     def collided_with(self, other):
         """
         다른 스프라이트와의 충돌 처리
         폭발은 충돌 처리가 필요 없으므로 아무 것도 하지 않음
-        
+
         Args:
             other: 충돌한 다른 스프라이트
         """

@@ -6,7 +6,6 @@ authors = [
     { name = "devforplus", email = "devforplus@gmail.com" }
 ]
 dependencies = [
-    "pyxel>=2.3.18",
     "pipe>=2.2",
     "toolz>=1.0.0",
     "ultralytics>=8.1.2",
@@ -28,6 +27,8 @@ dependencies = [
     "selenium>=4.24.0",
     "webdriver-manager>=4.0.2",
     "polars>=1.30.0",
+    "pyxel>=2.3.18",
+    "pystache>=0.6.8",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"
@@ -53,43 +54,53 @@ dev-dependencies = [
 # 🚀 자주 사용하는 명령어 (EventLogger 통합)
 collect-quick = { cmd = "python -m scripts.cli --url http://0.0.0.0:5176/ --namespace quick-test --duration 30 --headless --verbose", env = { PYTHONPATH = "." } }
 collect-full = { cmd = "python -m scripts.cli --url http://0.0.0.0:5176/ --namespace full-test --duration 60 --headless --collect-all --save-raw --verbose", env = { PYTHONPATH = "." } }
-dev = { cmd = "python scripts/dev.py", env = { PYTHONPATH = "." } }
-test = { cmd = "python -m pytest", env = { PYTHONPATH = "src" } }
-help = { cmd = "rye run --list", env = { PYTHONPATH = "." } }
+dev = { call = "scripts.dev" }
+test = { call = "pytest" }
+help = { cmd = "rye run --list" }
 
 # 🎮 Pyxel 데이터 수집 (EventLogger 통합)
-collect = { cmd = "python -m scripts.cli", env = { PYTHONPATH = "." } }
+collect = { call = "scripts.cli" }
 collect-demo = { cmd = "python -m scripts.cli --url http://0.0.0.0:5176/ --namespace demo --duration 30 --headless --verbose", env = { PYTHONPATH = "." } }
 collect-game = { cmd = "python -m scripts.cli --url http://0.0.0.0:5176/ --namespace gameplay --duration 120 --headless --collect-all --save-raw --verbose", env = { PYTHONPATH = "." } }
 collect-infinite = { cmd = "python -m scripts.cli --url http://0.0.0.0:5176/ --namespace infinite --headless --collect-all --save-raw --verbose", env = { PYTHONPATH = "." } }
 
 # 🧪 테스트 및 예제
-test-event-logger = { cmd = "python examples/event_logger_example.py", env = { PYTHONPATH = "." } }
+test-event-logger = { call = "examples.event_logger_example" }
 test-collector = { cmd = "python -m scripts.cli --url http://0.0.0.0:5176/ --namespace test --duration 10 --headless --verbose", env = { PYTHONPATH = "." } }
 
-# 🌐 서버
-serve-game = { cmd = "python -m http.server 5176 -d web/agentic-game", env = { PYTHONPATH = "." } }
-serve-simple = { cmd = "python -m http.server 5175 -d web/game", env = { PYTHONPATH = "." } }
-serve-test = { cmd = "python -m http.server 8000", env = { PYTHONPATH = "." } }
+# 🌐 서버 (http.server는 표준 라이브러리이므로 기존 방식 유지)
+serve = { cmd = "python -m http.server 5175 -d web/game" }
+serve-agent = { cmd = "python -m http.server 5176 -d web/agentic-game" }
+serve-test = { cmd = "python -m http.server 8000" }
 
 # 🏗️ 빌드
-build = { cmd = "python scripts/build.py", env = { PYTHONPATH = "." } }
-build-agent = { cmd = "python scripts/build_agent.py", env = { PYTHONPATH = "." } }
-clean = { cmd = "python scripts/clean.py", env = { PYTHONPATH = "." } }
+build = { call = "scripts.build" }
+build-agent = { call = "scripts.build_agent" }
+clean = { call = "scripts.clean" }
 
 # 🔄 워크플로우
 dev-setup = { chain = ["clean", "build", "test"] }
-game-workflow = { chain = ["serve-game", "collect-demo"] }
-full-workflow = { chain = ["clean", "build", "serve-game", "collect-full"] }
+game-workflow = { chain = ["serve-agent", "collect-demo"] }
+full-workflow = { chain = ["clean", "build", "serve-agent", "collect-full"] }
 
 # 🛠️ 기타
 check-deps = { cmd = "python -c \"from scripts.cli.simple_pyxel_collector import check_selenium_dependency, check_websockets_dependency; print('✅ 모든 의존성 확인됨' if check_selenium_dependency() and check_websockets_dependency() else '❌ 의존성 오류')\"", env = { PYTHONPATH = "." } }
 
 # 🔧 고급 명령어
-extract-config = { cmd = "python scripts/extract_config.py", env = { PYTHONPATH = "." } }
+extract-config = { call = "scripts.extract_config" }
 build-all = { chain = ["build", "build-agent"] }
-cleanup-config = { cmd = "python scripts/cleanup_config.py", env = { PYTHONPATH = "." } }
-upload_data = { cmd = "python src/upload_game_data.py", env = { PYTHONPATH = "." } }
+cleanup-config = { call = "scripts.cleanup_config" }
+upload_data = { call = "src.upload_game_data" }
+
+# 웹 빌드 스크립트
+build-web-manual = { cmd = "python scripts/build_web.py manual_game web/manual-game --copy-assets" }
+build-web-agent = { cmd = "python scripts/build_web.py agent_game web/agentic-game --copy-assets" }
+build-web-dev = { cmd = "python scripts/build_web.py development web/development --copy-assets" }
+build-web-all = { chain = ["build-web-manual", "build-web-agent", "build-web-dev"] }
+
+# 웹 서버 실행 (빌드된 파일 기준)
+serve-manual = { cmd = "python -m http.server 8000 --bind 127.0.0.1", cwd = "web/manual-game" }
+serve-dev = { cmd = "python -m http.server 8002 --bind 127.0.0.1", cwd = "web/development" }
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

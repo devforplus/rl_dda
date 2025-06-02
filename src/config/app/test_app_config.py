@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 import pytest
 
-from .app import (
+from .config.app.app import (
     APP_NAME,
     APP_VERSION,
     load_app_config,
@@ -28,7 +28,7 @@ def test_load_app_config_with_valid_json():
         temp_path = f.name
 
     try:
-        with patch("src.config.app.app.Path") as mock_path:
+        with patch(".config.app.app.Path") as mock_path:
             mock_path.return_value = Path(temp_path)
 
             app_name, app_version = load_app_config()
@@ -40,7 +40,7 @@ def test_load_app_config_with_valid_json():
 
 def test_load_app_config_file_not_found():
     """JSON 파일이 없을 때 기본값을 반환하는지 테스트"""
-    with patch("src.config.app.app.Path") as mock_path:
+    with patch(".config.app.app.Path") as mock_path:
         mock_path.return_value = Path("/nonexistent/file.json")
 
         app_name, app_version = load_app_config()
@@ -60,7 +60,7 @@ def test_load_app_config_partial_data():
         temp_path = f.name
 
     try:
-        with patch("src.config.app.app.Path") as mock_path:
+        with patch(".config.app.app.Path") as mock_path:
             mock_path.return_value = Path(temp_path)
 
             app_name, app_version = load_app_config()
@@ -77,7 +77,7 @@ def test_load_app_config_invalid_json():
         temp_path = f.name
 
     try:
-        with patch("src.config.app.app.Path") as mock_path:
+        with patch(".config.app.app.Path") as mock_path:
             mock_path.return_value = Path(temp_path)
 
             app_name, app_version = load_app_config()

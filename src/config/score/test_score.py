@@ -1,5 +1,10 @@
 import unittest
-from .score_config import MAX_SCORE, ENEMY_SCORE_NORMAL, ENEMY_SCORE_BOSS
+from .config.score.score_config import (
+    MAX_SCORE,
+    ENEMY_SCORE_NORMAL,
+    ENEMY_SCORE_BOSS,
+)
+
 
 class TestScoreConfig(unittest.TestCase):
     def test_max_score(self):
@@ -20,15 +25,18 @@ class TestScoreConfig(unittest.TestCase):
         self.assertEqual(ENEMY_SCORE_BOSS, 5000)
         self.assertIsInstance(ENEMY_SCORE_BOSS, int)
         self.assertGreater(ENEMY_SCORE_BOSS, 0)
-        self.assertGreater(ENEMY_SCORE_BOSS, ENEMY_SCORE_NORMAL)  # 보스 점수가 일반 적 점수보다 높은지 확인
+        self.assertGreater(
+            ENEMY_SCORE_BOSS, ENEMY_SCORE_NORMAL
+        )  # 보스 점수가 일반 적 점수보다 높은지 확인
 
     def test_score_relationships(self):
         """점수들 간의 관계가 올바른지 테스트"""
         # 보스 처치 점수가 일반 적 처치 점수의 50배인지 확인
         self.assertEqual(ENEMY_SCORE_BOSS, ENEMY_SCORE_NORMAL * 50)
-        
+
         # 최대 점수가 보스 처치 점수의 199배 이상인지 확인 (999999 / 5000 ≈ 199.9998)
         self.assertGreaterEqual(MAX_SCORE, ENEMY_SCORE_BOSS * 199)
 
-if __name__ == '__main__':
-    unittest.main() 
+
+if __name__ == "__main__":
+    unittest.main()

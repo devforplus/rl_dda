@@ -1,8 +1,9 @@
 import pyxel as px
 
-from src.config.app.app import APP_WIDTH, APP_HEIGHT
-from components.entity_types import EntityType
-from components.sprite import Sprite
+from .config.app.constants import APP_WIDTH, APP_HEIGHT
+from .components.entity_types import EntityType
+from .components.sprite import Sprite
+from .config.enemy.enemy_config import EnemyConfig
 
 # 적의 발사체 크기 정의
 SIZE = 4

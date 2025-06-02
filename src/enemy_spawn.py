@@ -1,21 +1,29 @@
+"""
+적 생성 시스템
+
+다양한 적들을 생성하고 관리하는 시스템입니다.
+게임 이벤트 로거를 사용하여 적 생성 이벤트를 기록합니다.
+"""
+
 import time
 import json
-from enemy_a import EnemyA
-from enemy_b import EnemyB
-from enemy_c import EnemyC
-from enemy_d import EnemyD
-from enemy_e import EnemyE
-from enemy_f import EnemyF
-from enemy_g import EnemyG
-from enemy_h import EnemyH
-from enemy_i import EnemyI
-from enemy_j import EnemyJ  # Defence Turret for Boss
-from enemy_k import EnemyK  # Boss 1 circle
-from enemy_l import EnemyL  # Boss 2: big leaves
-from enemy_m import EnemyM  # Boss 3: eye
-from enemy_n import EnemyN
-from enemy_o import EnemyO
-from enemy_p import EnemyP
+from src.enemy_a import EnemyA
+from src.enemy_b import EnemyB
+from src.enemy_c import EnemyC
+from src.enemy_d import EnemyD
+from src.enemy_e import EnemyE
+from src.enemy_f import EnemyF
+from src.enemy_g import EnemyG
+from src.enemy_h import EnemyH
+from src.enemy_i import EnemyI
+from src.enemy_j import EnemyJ  # Defence Turret for Boss
+from src.enemy_k import EnemyK  # Boss 1 circle
+from src.enemy_l import EnemyL  # Boss 2: big leaves
+from src.enemy_m import EnemyM  # Boss 3: eye
+from src.enemy_n import EnemyN
+from src.enemy_o import EnemyO
+from src.enemy_p import EnemyP
+from .utils.game_event_logger import log_entity_created, Position
 
 ENEMY_SPAWN_TILE_X = {
     0: EnemyA,
@@ -58,28 +66,10 @@ def create(state, tile_x, x, y):
         enemy = f(state, x, y)
         state.add_boss(enemy)  # 보스 적 추가
         boss_type = f.__name__  # 클래스 이름 사용
-        print(
-            json.dumps(
-                {
-                    "type": "entity",
-                    "event": "boss_created",
-                    "timestamp": current_time,
-                    "data": {"entity_type": boss_type, "position": {"x": x, "y": y}},
-                }
-            )
-        )
+        log_entity_created(boss_type, Position(x, y), is_boss=True)
     elif tile_x in ENEMY_SPAWN_TILE_X:
         f = ENEMY_SPAWN_TILE_X[tile_x]
         enemy = f(state, x, y)
         state.add_enemy(enemy)  # 일반 적 추가
         enemy_type = f.__name__  # 클래스 이름 사용
-        print(
-            json.dumps(
-                {
-                    "type": "entity",
-                    "event": "enemy_created",
-                    "timestamp": current_time,
-                    "data": {"entity_type": enemy_type, "position": {"x": x, "y": y}},
-                }
-            )
-        )
+        log_entity_created(enemy_type, Position(x, y), is_boss=False)

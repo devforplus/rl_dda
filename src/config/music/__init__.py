@@ -9,4 +9,4 @@ music_config = MusicConfig()
 stage_music_mapping = music_config.stage_music_mapping
 special_music_files = music_config.special_music_files
 
-__all__ = ["MusicConfig", "special_music_files"]
+__all__ = ["MusicConfig", "music_config"]

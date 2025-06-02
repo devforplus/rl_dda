@@ -1,10 +1,10 @@
 import pyxel as px
-
-from enemy_spawn import ENEMY_SPAWN_TILE_INDEX_Y
-import enemy_spawn
-from components.entity_types import EntityType
-from config.sound import SoundConfig
-from audio import AudioManager
+import math
+from src.enemy_spawn import ENEMY_SPAWN_TILE_INDEX_Y
+import src.enemy_spawn
+from src.components.entity_types import EntityType
+from src.config.sound import SoundConfig
+from src.audio import AudioManager
 
 # 오디오 매니저 인스턴스 생성
 audio_manager = AudioManager()
@@ -66,7 +66,7 @@ class StageBackground:
             for row in range(MAP_HEIGHT_TILES):
                 tile = px.tilemaps[ENEMIES_TM_INDEX].pget(col, row)
                 if tile[1] == ENEMY_SPAWN_TILE_INDEX_Y:
-                    enemy_spawn.create(
+                    src.enemy_spawn.create(
                         self.state_stage,
                         tile[0] << 3,
                         col * 8 - self.scroll_x,

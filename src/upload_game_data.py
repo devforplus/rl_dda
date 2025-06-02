@@ -15,8 +15,8 @@ from typing import Dict, Optional
 # 상대 경로 import를 위한 경로 설정
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from dataset_collector import DatasetCollector
-from server_client import GameDataServerClient
+from src.dataset_collector import DatasetCollector
+from src.server_client import GameDataServerClient
 
 
 def create_sample_detections():

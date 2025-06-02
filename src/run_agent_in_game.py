@@ -3,8 +3,15 @@ import platform
 import traceback
 import sys  # For stderr
 
-from main import App
-from rl.agents import RandomAgent
+try:
+    from src.main import App
+    from src.rl.agents import RandomAgent
+except ImportError as e:
+    error_message = (
+        f"Error importing modules: {type(e).__name__}: {e}\n{traceback.format_exc()}"
+    )
+    print(error_message, file=sys.stderr)
+    sys.exit(1)
 
 # from config.app.constants import APP_FPS # Example: if needed, ensure path is correct
 

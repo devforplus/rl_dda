@@ -2,8 +2,8 @@ import os
 import time
 import platform
 import numpy as np
-from screen_capture import ScreenCapture
-from label_generator import LabelGenerator
+from src.data_collection.screen_capture import ScreenCapture
+from src.data_collection.label_generator import LabelGenerator
 
 # OpenCV 대체를 위한 설정
 IS_WEB = platform.system() == "Emscripten"

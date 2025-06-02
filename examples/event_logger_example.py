@@ -1,7 +1,8 @@
 """
 EventLogger 사용 예제
 
-다양한 로깅 기능과 이벤트 처리 방법을 보여주는 예제입니다.
+게임 개발에서 실제로 사용되는 다양한 로깅 패턴을 보여주는 예제입니다.
+성능 측정, 오류 추적, 디버깅 정보 등을 구조화된 방식으로 기록합니다.
 """
 
 import sys
@@ -9,9 +10,10 @@ import time
 import json
 from pathlib import Path
 
-# EventLogger import
+# src 모듈들을 import하기 위한 경로 설정
 sys.path.append(str(Path(__file__).parent.parent))
-from src.utils.event_logger import (
+
+from .utils.event_logger import (
     EventLogger,
     LogLevel,
     EventType,

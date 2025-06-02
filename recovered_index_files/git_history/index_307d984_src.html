@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-f8">
+    <title>Pyxel RL Agent</title>
+    <script src="https://cdn.jsdelivr.net/gh/kitao/pyxel/wasm/pyxel.js"></script>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        /* Optional: If you want to control the screen size via div */
+        /* #pyxel-screen { width: 320px; height: 240px; } */
+    </style>
+</head>
+<body>
+    <!-- 
+      root="." indicates that the .pyxapp file is in the same directory as this HTML file.
+      name="game.pyxapp" is the Pyxel application file to run.
+      packages="tomli,toolz" are still needed if the packaged app uses them internally.
+    -->
+    <pyxel-play root="." name="game.pyxapp" packages="tomli,toolz,numpy,Pillow"></pyxel-play>
+    
+    <!-- 
+      If your game needs specific packages available in Pyodide, you can add them:
+      <pyxel-run root="." name="run_agent_in_game.py" packages="numpy,pandas"></pyxel-run>
+      For now, we assume no extra packages are needed beyond what Pyxel provides.
+    -->
+
+    <!-- 
+      The Pyxel screen will be embedded here. If you want specific placement or sizing,
+      you can add a div with id="pyxel-screen" and style it.
+      <div id="pyxel-screen"></div> 
+    -->
+</body>
+</html> 

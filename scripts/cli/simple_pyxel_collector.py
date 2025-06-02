@@ -19,7 +19,7 @@ import tempfile
 
 # EventLogger import 추가
 sys.path.append(str(Path(__file__).parent.parent.parent))
-from src.utils.event_logger import EventLogger, LogLevel, EventType
+from .utils.event_logger import EventLogger, LogLevel, EventType
 
 
 def check_selenium_dependency() -> bool:
@@ -101,23 +101,20 @@ class SimplePyxelCollector:
         self._register_signal_handlers()
 
     def _setup_realtime_files(self):
-        """실시간 저장을 위한 디렉토리 준비 (단순한 구조)"""
+        """실시간 저장을 위한 디렉토리 준비 (완전 동적 생성)"""
         try:
             # 기본 출력 디렉토리만 생성
             self.output_dir = Path(f"data/{self.namespace}")
             self.output_dir.mkdir(parents=True, exist_ok=True)
 
-            # 파일 경로 딕셔너리 (동적 생성을 위해 준비만)
+            # 파일 경로 딕셔너리 - 빈 딕셔너리로 시작 (동적 생성)
             self.file_paths = {}
-            for console_type in self.active_console_types:
-                # events_{console_type}.log 형태로 설정
-                file_path = self.output_dir / f"events_{console_type}.log"
-                self.file_paths[console_type] = file_path
 
             # 생성된 파일 추적을 위한 집합
             self.created_files = set()
 
             self.logger.info(f"📁 출력 디렉토리 준비 완료: {self.output_dir}")
+            self.logger.info("📝 파일들은 실제 데이터가 있을 때만 동적 생성됩니다")
 
         except Exception as e:
             self.logger.error(f"❌ 실시간 파일 준비 오류: {e}")
@@ -125,10 +122,15 @@ class SimplePyxelCollector:
     def _save_console_data_realtime(
         self, console_type: str, message_text: str, raw_data: dict
     ):
-        """콘솔 데이터를 실시간으로 파일에 저장 (데이터가 있을 때만 동적 생성)"""
+        """콘솔 데이터를 실시간으로 파일에 저장 (완전 동적 생성)"""
         try:
+            # 실제 데이터가 있을 때만 파일 경로 생성
             if console_type not in self.file_paths:
-                return
+                if self.output_dir is None:
+                    self.logger.error("출력 디렉토리가 초기화되지 않았습니다")
+                    return
+                file_path = self.output_dir / f"events_{console_type}.log"
+                self.file_paths[console_type] = file_path
 
             file_path = self.file_paths[console_type]
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[
@@ -154,6 +156,11 @@ class SimplePyxelCollector:
                 f.write(f"[{timestamp}] {str(message_text).strip()}\n")
 
             # 통계 업데이트를 위한 정보 저장
+            if console_type not in self.console_data:
+                self.console_data[console_type] = []
+            if console_type not in self.console_raw_data:
+                self.console_raw_data[console_type] = []
+
             self.console_data[console_type].append(message_text)
             self.console_raw_data[console_type].append(raw_data)
 

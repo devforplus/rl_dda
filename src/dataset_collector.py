@@ -4,7 +4,7 @@ import platform
 import numpy as np
 from datetime import datetime
 from typing import Optional, Dict
-from server_client import GameDataServerClient
+from src.server_client import GameDataServerClient
 
 # OpenCV 대체를 위한 라이브러리들
 try:

@@ -219,3 +219,122 @@ python examples/event_logger_example.py
 
 ## License
 [MIT license](http://en.wikipedia.org/wiki/MIT_License)
+
+# Reinforcement Learning DDA (Dynamic Difficulty Adjustment)
+
+A reinforcement learning project that dynamically adjusts game difficulty based on player performance.
+
+---
+
+강화학습을 사용하여 플레이어 성능에 따라 게임 난이도를 동적으로 조정하는 프로젝트입니다.
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Python 3.10+
+- A modern web browser
+
+### Web Game Setup
+
+1. **Update Web Files** (Required after any changes to `pyxel_web_lib`)
+   ```bash
+   python scripts/update_web_files.py
+   ```
+
+2. **Start Web Server**
+   ```bash
+   cd web
+   python -m http.server 8000
+   ```
+
+3. **Access Games**
+   - General Game: `http://localhost:8000/game/`
+   - RL Agent Game: `http://localhost:8000/agentic-game/`
+
+## 📁 Project Structure
+
+```
+├── pyxel_web_lib/              # Pyxel web resources (source)
+│   ├── pyxel.js               # Main Pyxel web library
+│   ├── pyxel.css              # Pyxel styling
+│   ├── import_hook.py         # Python import hook
+│   ├── pyxel-1.7.2-py3-none-any.whl  # Pyxel WASM package
+│   └── images/                # UI images
+├── web/                       # Web deployment directory
+│   ├── game/                  # General game
+│   └── agentic-game/          # RL agent game
+├── scripts/                   # Build and utility scripts
+│   └── update_web_files.py    # Web files synchronization
+└── game.py                    # Main game logic
+```
+
+## 🔧 Development Workflow
+
+### Web Files Update Process
+
+When you modify files in `pyxel_web_lib/`, you must run the update script:
+
+```bash
+python scripts/update_web_files.py
+```
+
+This script:
+- Copies all Pyxel web resources from `pyxel_web_lib/` to `web/game/` and `web/agentic-game/`
+- Ensures both game versions have the latest resources
+- Maintains proper file structure and dependencies
+
+### Build Process
+
+1. **Modify** files in `pyxel_web_lib/` (source directory)
+2. **Update** web files using the script
+3. **Test** in browser at `http://localhost:8000`
+4. **Commit** changes to git
+
+## 🎮 Game Features
+
+- **Dynamic Difficulty**: AI-powered difficulty adjustment
+- **Web-based**: Play directly in browser
+- **Mobile Support**: Touch controls and responsive design  
+- **Virtual Gamepad**: Mobile-friendly controls
+
+## 📝 Technical Details
+
+### Pyxel Web Integration
+
+- **Pyxel Version**: 1.7.2
+- **Pyodide Version**: 0.26.2
+- **Image Format**: PNG (optimized for web)
+- **Mobile Support**: Touch events and virtual gamepad
+
+### File Management
+
+The project uses a two-directory approach:
+- `pyxel_web_lib/`: Source files for development
+- `web/`: Deployment files for serving
+
+This separation ensures clean development workflow and proper version control.
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+1. **404 Errors for Resources**
+   - Run `python scripts/update_web_files.py`
+   - Restart web server
+
+2. **Version Mismatches** 
+   - Check `pyxel.js` constants match actual files
+   - Verify `.whl` file exists in both game directories
+
+3. **Mobile Controls Not Working**
+   - Ensure images are properly copied
+   - Check browser console for loading errors
+
+## 🤝 Contributing
+
+When contributing:
+1. Make changes in `pyxel_web_lib/` directory
+2. Run update script before testing
+3. Follow commit conventions in `docs/developer/git-commit-rule.md`
+4. Document any new build requirements

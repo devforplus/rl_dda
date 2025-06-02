@@ -1,5 +1,5 @@
-from components.enemy import Enemy
-from components.entity_types import EntityType
+from .components.enemy import Enemy
+from .components.entity_types import EntityType
 
 BULLET_SPEED = 2
 

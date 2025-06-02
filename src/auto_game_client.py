@@ -14,7 +14,7 @@ from dataclasses import dataclass, asdict
 import numpy as np
 
 try:
-    from .server_client import GameDataServerClient, IS_WEB
+    from src.server_client import GameDataServerClient, IS_WEB
 except ImportError:
     # 패키지 외부에서 실행되는 경우
     from server_client import GameDataServerClient, IS_WEB
@@ -540,7 +540,10 @@ class RLDDAAutoClient:
         return current_stats
 
     async def upload_legacy_data(
-        self, game_screen_base64: str, labeling_code: str, metadata: Dict = None
+        self,
+        game_screen_base64: str,
+        labeling_code: str,
+        metadata: Optional[Dict] = None,
     ) -> Optional[str]:
         """
         레거시 형식으로 데이터 업로드 (기존 코드와 호환)

@@ -1,0 +1,59 @@
+{
+    "defaults": {
+        "pyxel_js_url": "https://cdn.jsdelivr.net/gh/kitao/pyxel/wasm/pyxel.js",
+        "background_color": "#222",
+        "text_color": "#fff",
+        "border_color": "#888",
+        "loading_enabled": true,
+        "loading_font_size": "18px",
+        "loading_timeout": 3000,
+        "filter_console_errors": true,
+        "filtered_errors": ["frozen", "_hashlib", "ssl"],
+        "comments": true
+    },
+    "presets": {
+        "manual_game": {
+            "title": "RL DDA Pyxel Game",
+            "pyxel_element": "pyxel-run",
+            "root": ".",
+            "name": "src/main.py",
+            "gamepad": "disabled",
+            "packages": "toolz,numpy,Pillow",
+            "loading_enabled": false,
+            "root_description": "HTML 파일이 있는 위치(게임 디렉토리)를 기준으로 파일 경로를 해석합니다.",
+            "name_description": "실행할 메인 파이썬 스크립트입니다.",
+            "gamepad_description": "가상 게임패드를 사용하지 않습니다. 필요시 'enabled'로 변경.",
+            "packages_description": "필요한 패키지들을 로드합니다."
+        },
+        "agent_game": {
+            "title": "RL DDA Agent Game",
+            "pyxel_element": "pyxel-play",
+            "root": ".",
+            "name": "game.pyxapp",
+            "gamepad": "disabled",
+            "packages": "toolz,numpy,Pillow",
+            "loading_message": "Loading Pyxel Game...",
+            "font_family": "'Courier New', monospace",
+            "root_description": "HTML 파일이 있는 위치(에이전트 게임 디렉토리)를 기준으로 파일 경로를 해석합니다.",
+            "name_description": "실행할 Pyxel 앱 파일입니다.",
+            "gamepad_description": "가상 게임패드를 사용하지 않습니다. 에이전트가 자동으로 플레이하므로 불필요.",
+            "packages_description": "필요한 패키지들을 로드합니다."
+        },
+        "development": {
+            "title": "RL DDA Development",
+            "pyxel_element": "pyxel-run",
+            "root": ".",
+            "name": "src/main.py",
+            "gamepad": "enabled",
+            "packages": "toolz,numpy,Pillow,matplotlib",
+            "loading_message": "Loading Development Environment...",
+            "background_color": "#111",
+            "border_color": "#0a84ff",
+            "filter_console_errors": false,
+            "root_description": "개발 환경을 위한 루트 디렉토리입니다.",
+            "name_description": "개발용 메인 스크립트입니다.",
+            "gamepad_description": "개발 중이므로 게임패드를 활성화합니다.",
+            "packages_description": "개발에 필요한 모든 패키지를 로드합니다."
+        }
+    }
+} 

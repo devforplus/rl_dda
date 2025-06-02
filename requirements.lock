@@ -173,6 +173,8 @@ pyscreeze==1.0.1
     # via pyautogui
 pysocks==1.7.1
     # via urllib3
+pystache==0.6.8
+    # via rl-dda-game
 pytest==8.3.5
     # via pytest-base-url
     # via pytest-playwright

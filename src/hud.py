@@ -1,6 +1,6 @@
 import pyxel as px
-
-from config.player import max_weapons, max_weapon_level, weapon_names
+import math
+from src.config.player import max_weapons, max_weapon_level, weapon_names
 
 
 class Hud:

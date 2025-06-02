@@ -4,9 +4,9 @@ import pyxel as px
 # It provides an easy-to-use API for graphics, sound, and input.
 
 import input as input
-from hud import Hud
-from config.app import APP_VERSION
-from audio import AudioManager
+from src.hud import Hud
+from src.config.app import APP_VERSION
+from src.audio import AudioManager
 
 # 화면 너비 (픽셀 단위)
 VIEW_WIDTH = 256
@@ -25,6 +25,7 @@ FG_TM_INDEX = 1
 
 # 오디오 매니저 인스턴스 생성
 audio_manager = AudioManager()
+
 
 class GameStateTitles:
     """
