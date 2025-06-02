@@ -8,10 +8,50 @@ import argparse
 import subprocess
 import sys
 from pathlib import Path
+from loguru import logger
 
-# EventLogger import 추가
+# 기존 EventLogger import 제거
 sys.path.append(str(Path(__file__).parent.parent.parent))
-from .utils.event_logger import EventLogger, LogLevel, EventType, setup_logger
+
+
+# Loguru 설정
+def setup_logging(namespace: str, verbose: bool = False):
+    """Loguru 기반 로깅 설정
+
+    Args:
+        namespace: 로그 파일 네임스페이스
+        verbose: 상세 로그 여부
+
+    ---
+
+    Loguru 기반의 로깅을 설정합니다.
+    """
+    # 기본 핸들러 제거
+    logger.remove()
+
+    # 콘솔 로그 설정
+    log_level = "DEBUG" if verbose else "INFO"
+    logger.add(
+        sys.stderr,
+        level=log_level,
+        format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{extra[source]}</cyan> | <level>{message}</level>",
+        colorize=True,
+    )
+
+    # 파일 로그 설정
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+
+    logger.add(
+        log_dir / f"{namespace}.log",
+        level="DEBUG",
+        format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[source]} | {message}",
+        rotation="10 MB",
+        retention="7 days",
+        encoding="utf-8",
+    )
+
+    return logger.bind(source="cli")
 
 
 def main():
@@ -76,22 +116,15 @@ def main():
     args = parser.parse_args()
 
     # 로거 설정
-    logger = setup_logger(
-        namespace=f"cli-{args.namespace}",
-        log_level=LogLevel.DEBUG if args.verbose else LogLevel.INFO,
-        enable_console=True,
-        enable_file=True,
+    cli_logger = setup_logging(
+        namespace=f"cli-{args.namespace}", verbose=args.verbose or args.debug
     )
 
     # 출력 디렉토리 생성 (data/{namespace}/ 구조)
     output_dir = Path(f"data/{args.namespace}")
     if not output_dir.exists():
         output_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(
-            f"📁 출력 디렉토리 생성: {output_dir}",
-            source="cli",
-            event_type=EventType.SYSTEM,
-        )
+        cli_logger.info(f"📁 출력 디렉토리 생성: {output_dir}")
 
     # 수집기 실행을 위한 명령 구성
     command = [
@@ -116,94 +149,40 @@ def main():
     if args.collect_all:
         command.append("--collect-all")
 
-    logger.info(
-        f"🎮 Pyxel 데이터 수집 시작...", source="cli", event_type=EventType.SYSTEM
-    )
-    logger.info(f"   URL: {args.url}", source="cli", event_type=EventType.SYSTEM)
-    logger.info(
-        f"   네임스페이스: {args.namespace}", source="cli", event_type=EventType.SYSTEM
-    )
-    logger.info(
-        f"   출력 디렉토리: data/{args.namespace}/",
-        source="cli",
-        event_type=EventType.SYSTEM,
-    )
+    cli_logger.info("🎮 Pyxel 데이터 수집 시작...")
+    cli_logger.info(f"   URL: {args.url}")
+    cli_logger.info(f"   네임스페이스: {args.namespace}")
+    cli_logger.info(f"   출력 디렉토리: data/{args.namespace}/")
     if args.duration is not None:
-        logger.info(
-            f"   수집 시간: {args.duration}초",
-            source="cli",
-            event_type=EventType.SYSTEM,
-        )
+        cli_logger.info(f"   수집 시간: {args.duration}초")
     else:
-        logger.info(
-            f"   수집 시간: 무한 (Ctrl+C로 종료)",
-            source="cli",
-            event_type=EventType.SYSTEM,
-        )
-    logger.info(
-        f"   헤드리스 모드: {'ON' if args.headless else 'OFF'}",
-        source="cli",
-        event_type=EventType.SYSTEM,
-    )
-    logger.info(
-        f"   상세 로그: {'ON' if args.verbose else 'OFF'}",
-        source="cli",
-        event_type=EventType.SYSTEM,
-    )
-    logger.info(
-        f"   Raw 데이터 저장: {'ON' if args.save_raw else 'OFF'}",
-        source="cli",
-        event_type=EventType.SYSTEM,
-    )
-    logger.info(
-        f"   모든 console.* 수집: {'ON' if args.collect_all else 'OFF'}",
-        source="cli",
-        event_type=EventType.SYSTEM,
-    )
+        cli_logger.info("   수집 시간: 무한 (Ctrl+C로 종료)")
+    cli_logger.info(f"   헤드리스 모드: {'ON' if args.headless else 'OFF'}")
+    cli_logger.info(f"   상세 로그: {'ON' if args.verbose else 'OFF'}")
+    cli_logger.info(f"   Raw 데이터 저장: {'ON' if args.save_raw else 'OFF'}")
+    cli_logger.info(f"   모든 console.* 수집: {'ON' if args.collect_all else 'OFF'}")
     print()
 
     try:
         # Simple Pyxel Collector 실행
         result = subprocess.run(command, check=True)
-        logger.info(
-            f"\n✅ 데이터 수집이 완료되었습니다: data/{args.namespace}/",
-            source="cli",
-            event_type=EventType.SYSTEM,
-        )
+        cli_logger.info(f"\n✅ 데이터 수집이 완료되었습니다: data/{args.namespace}/")
         return result.returncode
 
     except subprocess.CalledProcessError as e:
-        logger.error(
-            f"\n❌ 데이터 수집 중 오류가 발생했습니다: {e}",
-            source="cli",
-            event_type=EventType.SYSTEM,
-        )
+        cli_logger.error(f"\n❌ 데이터 수집 중 오류가 발생했습니다: {e}")
         return e.returncode
 
     except FileNotFoundError:
-        logger.error(
-            f"\n❌ Simple Pyxel Collector를 찾을 수 없습니다.",
-            source="cli",
-            event_type=EventType.SYSTEM,
-        )
-        logger.error(
-            "scripts/cli/simple_pyxel_collector.py 파일이 존재하는지 확인해주세요.",
-            source="cli",
-            event_type=EventType.SYSTEM,
+        cli_logger.error("\n❌ Simple Pyxel Collector를 찾을 수 없습니다.")
+        cli_logger.error(
+            "scripts/cli/simple_pyxel_collector.py 파일이 존재하는지 확인해주세요."
         )
         return 1
 
     except KeyboardInterrupt:
-        logger.warning(
-            f"\n⚠️ 사용자에 의해 중단되었습니다.",
-            source="cli",
-            event_type=EventType.SYSTEM,
-        )
+        cli_logger.warning("\n⚠️ 사용자에 의해 중단되었습니다.")
         return 130
-
-    finally:
-        # 로거 정리
-        logger.cleanup()
 
 
 if __name__ == "__main__":

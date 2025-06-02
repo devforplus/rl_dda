@@ -1,33 +1,119 @@
 #!/usr/bin/env python3
 """
-간단하고 직관적인 Pyxel 게임 데이터 수집기
-Selenium을 사용하여 Helium과 유사한 직관적 API 제공
+Simple Pyxel Collector: 직관적인 Pyxel 게임 데이터 수집기
+
+🎮 Design Philosophy (설계 철학)
+=================================
+이 모듈은 Helium의 직관적인 API 철학과 Selenium의 강력한 브라우저 제어 기능을 결합하여,
+Pyxel 게임에서 발생하는 console 데이터를 쉽고 안정적으로 수집할 수 있도록 설계되었습니다.
+
+🔧 Technical Stack (기술 스택)
+==============================
+- **Core Engine**: Selenium WebDriver (안정적인 브라우저 제어)
+- **API Style**: Helium-inspired (직관적이고 간단한 메서드 이름)
+- **Data Collection**: Chrome DevTools Protocol (실시간 console 청취)
+- **Logging**: Loguru (컬러풀하고 구조화된 로그)
+- **Async Support**: WebSockets + aiohttp (비동기 console 메시지 처리)
+
+🎯 Key Features (주요 기능)
+===========================
+1. **브라우저 자동화**: ChromeDriver 자동 설치 및 설정
+2. **실시간 데이터 수집**: console.log, console.info 등 실시간 캡처
+3. **동적 파일 생성**: 실제 데이터가 있을 때만 파일 생성
+4. **다양한 출력 형식**: 텍스트 로그 + JSON Raw 데이터
+5. **신호 처리**: Ctrl+C 시에도 수집된 데이터 안전 저장
+6. **네임스페이스 지원**: 여러 실험을 구분하여 데이터 관리
+
+📊 Data Collection Types (수집 데이터 타입)
+===========================================
+- **log**: 일반적인 로그 메시지 (Pyxel 로딩 감지 포함)
+- **info**: 게임 상태 및 정보성 메시지
+- **warn**: 경고 메시지
+- **error**: 오류 메시지
+- **debug**: 디버그 메시지
+
+🚀 Usage Philosophy (사용 철학)
+===============================
+복잡한 Selenium 코드를 작성할 필요 없이, 몇 줄의 간단한 코드로
+Pyxel 게임의 데이터를 수집할 수 있도록 하는 것이 목표입니다.
+
+Example:
+    collector = SimplePyxelCollector(namespace="my-experiment")
+    collector.collect_game_data(
+        url="http://localhost:5176/",
+        duration=60,
+        collect_all=True,
+        save_raw=True
+    )
+
+---
+
+간단하지만 강력한, 직관적이지만 완전한 Pyxel 게임 데이터 수집 도구
 """
 
 import time
 import sys
 import asyncio
 import json
-import subprocess
 import threading
 import queue
 import signal
-from typing import Optional, List, Union, Any, Dict
+from typing import Optional, List, Dict
 from datetime import datetime
 from pathlib import Path
 import tempfile
+from loguru import logger
 
-# EventLogger import 추가
+# 기존 EventLogger import 제거
 sys.path.append(str(Path(__file__).parent.parent.parent))
-from .utils.event_logger import EventLogger, LogLevel, EventType
+
+
+def setup_logging(namespace: str, verbose: bool = False):
+    """Loguru 기반 로깅 설정
+
+    Args:
+        namespace: 로그 파일 네임스페이스
+        verbose: 상세 로그 여부
+
+    ---
+
+    Loguru 기반의 로깅을 설정합니다.
+    """
+    # 기본 핸들러 제거
+    logger.remove()
+
+    # 콘솔 로그 설정
+    log_level = "DEBUG" if verbose else "INFO"
+    logger.add(
+        sys.stderr,
+        level=log_level,
+        format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{extra[source]}</cyan> | <level>{message}</level>",
+        colorize=True,
+    )
+
+    # 파일 로그 설정
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+
+    logger.add(
+        log_dir / f"{namespace}.log",
+        level="DEBUG",
+        format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[source]} | {message}",
+        rotation="10 MB",
+        retention="7 days",
+        encoding="utf-8",
+    )
+
+    return logger.bind(source="collector")
 
 
 def check_selenium_dependency() -> bool:
     """Selenium 의존성 확인"""
     try:
-        import selenium
-        from selenium import webdriver
-        from webdriver_manager.chrome import ChromeDriverManager
+        # 의존성 확인을 위한 import들 (사용하지 않아도 체크용)
+        import selenium  # noqa: F401
+        from selenium import webdriver  # noqa: F401
+        from webdriver_manager.chrome import ChromeDriverManager  # noqa: F401
 
         return True
     except ImportError:
@@ -39,8 +125,8 @@ def check_selenium_dependency() -> bool:
 def check_websockets_dependency() -> bool:
     """WebSockets 및 aiohttp 의존성 확인"""
     try:
-        import websockets
-        import aiohttp
+        import websockets  # noqa: F401
+        import aiohttp  # noqa: F401
 
         return True
     except ImportError:
@@ -73,14 +159,8 @@ class SimplePyxelCollector:
         self.file_paths: Dict[str, Path] = {}
         self.created_files: set = set()
 
-        # EventLogger 초기화 - data collector용으로 설정 (다른 초기화 전에 먼저 수행)
-        self.logger = EventLogger(
-            namespace=namespace,
-            log_level=LogLevel.DEBUG if verbose else LogLevel.INFO,
-            enable_console=verbose,
-            enable_file=True,
-            output_dir=f"data/{namespace}",
-        )
+        # Loguru 로거 초기화
+        self.logger = setup_logging(namespace=namespace, verbose=verbose)
 
         # 실제로 사용되는 console 타입들만 정의 (단순화)
         self.active_console_types = ["log", "info", "warn", "error", "debug"]
@@ -262,7 +342,6 @@ class SimplePyxelCollector:
         from selenium.webdriver.common.by import By
         from selenium.webdriver.support.ui import WebDriverWait
         from selenium.webdriver.support import expected_conditions as EC
-        from selenium import webdriver
 
         self.logger.info(f"'{text}' 텍스트를 기다리는 중...")
         try:
@@ -518,6 +597,7 @@ class SimplePyxelCollector:
 
         except Exception as e:
             self.logger.error(f"콘솔 연결 실패: {e}")
+            return
 
     def collect_game_data(
         self,
@@ -762,7 +842,7 @@ class SimplePyxelCollector:
             try:
                 getattr(self.driver, "quit")()
                 self.logger.info("🧹 브라우저 정리 완료")
-            except:
+            except Exception:
                 pass
 
     # 기존 save 메서드들은 호환성을 위해 유지하되 deprecated 처리
