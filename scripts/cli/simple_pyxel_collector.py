@@ -612,6 +612,7 @@ class SimplePyxelCollector:
         if not check_selenium_dependency() or not check_websockets_dependency():
             return False
 
+        success = False
         try:
             self.is_collecting = True
 
@@ -716,7 +717,7 @@ class SimplePyxelCollector:
             # 데이터 저장
             self.save_all_console_data(collect_all=collect_all, save_raw=save_raw)
 
-            return True
+            success = True
 
         except KeyboardInterrupt:
             self.logger.info("\n⏹ 사용자가 수집을 중단했습니다")
@@ -729,13 +730,15 @@ class SimplePyxelCollector:
                 )
                 self.save_all_console_data(collect_all=collect_all, save_raw=save_raw)
 
-            return True
+            success = True
 
         except Exception as e:
             self.logger.error(f"❌ 수집 중 오류: {e}")
-            return False
+            success = False
         finally:
             self.cleanup()
+
+        return success
 
     def save_all_console_data(
         self, collect_all: bool = False, save_raw: bool = False
