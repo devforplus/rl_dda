@@ -30,6 +30,7 @@ dependencies = [
     "pyxel>=2.3.18",
     "pystache>=0.6.8",
     "loguru>=0.7.3",
+    "python-dotenv>=1.1.0",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"
