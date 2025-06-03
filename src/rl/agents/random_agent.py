@@ -11,7 +11,7 @@ if not IS_WEB:
         # print("Warning: PyTorch (torch) not found. Some features might be unavailable if torchrl is intended.")
         pass  # 웹 환경이 아니지만 torch가 없는 경우, 일단 진행
 
-from .rl.agents.base_agent import BaseAgent
+from .base_agent import BaseAgent
 
 
 class RandomAgent(BaseAgent):

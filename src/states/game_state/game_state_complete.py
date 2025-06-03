@@ -1,9 +1,9 @@
 import pyxel as px
 
 import input as input
-from src.hud import Hud
-from src.config.music import special_music_files
-from src.audio import AudioManager
+from hud import Hud
+from config.music import special_music_files
+from audio import AudioManager
 
 # 화면 너비
 VIEW_WIDTH = 256

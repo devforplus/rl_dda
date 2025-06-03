@@ -2,12 +2,12 @@ from enum import IntEnum, auto
 from math import pi
 import random
 import pyxel as px
-from src.components.sprite import Sprite
-from src.components.entity_types import EntityType
-from src.config.colors.constants import MAX_COLOURS
-from src.config.player import max_weapons
-from src.config.sound import SoundType
-from src.audio import AudioManager
+from components.sprite import Sprite
+from components.entity_types import EntityType
+from config.colors.constants import MAX_COLOURS
+from config.player import max_weapons
+from config.sound import SoundType
+from audio import AudioManager
 
 SPEED = 1
 

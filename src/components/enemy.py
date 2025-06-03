@@ -1,87 +1,18 @@
-"""
-적 캐릭터 시스템 모듈
-"""
-
+import pyxel as px
 import time
 import json
 
-try:
-    import pyxel
-except ImportError:
-    pyxel = None
+from components.sprite import Sprite
+from components.entity_types import EntityType
+from config.enemy.enemy_config import EnemyConfig
+from config.score.score_config import ENEMY_SCORE_NORMAL
+from components.enemy_shot import EnemyShot
+import powerup
+from config.sound import SoundType
+from audio import AudioManager
 
-from .sprite import Sprite
-from .entity_types import EntityType
-
-# 안전한 import - 기존 구조 유지
-try:
-    from .player import Player
-except ImportError:
-    Player = None
-
-try:
-    from .enemy_shot import EnemyShot
-except ImportError:
-    EnemyShot = None
-
-# config에서 enemy_config import (수정된 경로)
-try:
-    from config import enemy_config
-except ImportError:
-    # 기본값 설정
-    class DefaultEnemyConfig:
-        def __init__(self):
-            self.base_hp = 10
-            self.base_damage = 5
-            self.base_score = 100
-            self.speed = 1.0
-            self.shot_interval = 60
-            self.shot_speed = 2.0
-            self.hit_invincibility_frames = 5
-
-    enemy_config = DefaultEnemyConfig()
-
-# 나머지 import들도 안전하게 처리
-try:
-    from components import powerup
-except ImportError:
-    powerup = None
-
-try:
-    from sound import audio_manager
-    from sound.sound_type import SoundType
-except ImportError:
-
-    class AudioManager:
-        @staticmethod
-        def play_sound(*args, **kwargs):
-            pass
-
-    audio_manager = AudioManager()
-
-    class SoundType:
-        ENEMY_EXPLOSION = "enemy_explosion"
-
-
-try:
-    from config.score.score_config import ENEMY_SCORE_NORMAL
-except ImportError:
-    ENEMY_SCORE_NORMAL = 100
-
-# GameEventLogger import
-try:
-    from utils.game_event_logger import log_entity_destroyed, Position
-except ImportError:
-
-    def log_entity_destroyed(entity_type, position, reason):
-        if pyxel is not None:
-            print(f"Entity destroyed: {entity_type} at {position}, reason: {reason}")
-
-    class Position:
-        def __init__(self, x=0, y=0):
-            self.x = x
-            self.y = y
-
+# 적 설정 인스턴스 생성
+enemy_config = EnemyConfig()
 
 # 적중 시 무적 프레임 수
 HIT_FRAMES: int = 5
@@ -178,8 +109,19 @@ class Enemy(Sprite):
         # 적 제거 로그 출력
         current_time = time.time()
         entity_type = type(self).__name__
-        log_entity_destroyed(
-            entity_type, Position(x=self.x, y=self.y), reason=self.removal_reason
+        print(
+            json.dumps(
+                {
+                    "type": "entity",
+                    "event": "enemy_destroyed",
+                    "timestamp": current_time,
+                    "data": {
+                        "entity_type": entity_type,
+                        "position": {"x": self.x, "y": self.y},
+                        "reason": self.removal_reason,
+                    },
+                }
+            )
         )
 
     def hit(self, dmg: int) -> None:
@@ -235,10 +177,10 @@ class Enemy(Sprite):
         """
         s = EnemyShot(
             self.game_state,
-            self.x + (self.w / 2) + offset_x,
-            self.y + (self.h / 2) + offset_y,
-            pyxel.cos(degrees) * speed,
-            pyxel.sin(degrees) * speed,
+            int(self.x + (self.w / 2) + offset_x),
+            int(self.y + (self.h / 2) + offset_y),
+            px.cos(degrees) * speed,
+            px.sin(degrees) * speed,
             delay,
         )
         self.game_state.add_enemy_shot(s)  # 게임 상태에 총알 추가
@@ -253,9 +195,7 @@ class Enemy(Sprite):
         """
         target_x = self.game_state.player.x + 8
         target_y = self.game_state.player.y + 4
-        a = pyxel.atan2(
-            target_y - (self.y + self.h / 2), target_x - (self.x + self.w / 2)
-        )
+        a = px.atan2(target_y - (self.y + self.h / 2), target_x - (self.x + self.w / 2))
         self.shoot_at_angle(speed, a, delay)  # 플레이어 방향으로 발사
 
     def update(self) -> None:
@@ -268,9 +208,9 @@ class Enemy(Sprite):
         """적 그리기."""
         if self.hit_frames > 0:
             # 피격 시 색상 변경
-            pyxel.pal(self.colour, 15)
+            px.pal(self.colour, 15)
             super().draw()
-            pyxel.pal()  # 색상 원래대로 복원
+            px.pal()  # 색상 원래대로 복원
         else:
             super().draw()  # 일반 상태로 그리기
 
@@ -288,6 +228,17 @@ class Enemy(Sprite):
             # 적 제거 로그 출력
             current_time = time.time()
             entity_type = type(self).__name__
-            log_entity_destroyed(
-                entity_type, Position(x=self.x, y=self.y), reason=self.removal_reason
+            print(
+                json.dumps(
+                    {
+                        "type": "entity",
+                        "event": "enemy_destroyed",
+                        "timestamp": current_time,
+                        "data": {
+                            "entity_type": entity_type,
+                            "position": {"x": self.x, "y": self.y},
+                            "reason": self.removal_reason,
+                        },
+                    }
+                )
             )

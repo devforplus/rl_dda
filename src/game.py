@@ -2,30 +2,19 @@ import platform
 from enum import Enum, auto  # GameState를 위해 필요
 import sys  # sys 모듈 임포트
 
-from src.states.game_state.game_state_stage import GameStateStage
+from states.game_state.game_state_stage import GameStateStage
 
-# from src.states.game_state.game_state_titles import GameStateTitles # 필요시 주석 해제
-# from src.states.game_state.game_state_complete import GameStateComplete # 필요시 주석 해제
-from src.game_vars import GameVars
+# from states.game_state.game_state_titles import GameStateTitles # 필요시 주석 해제
+# from states.game_state.game_state_complete import GameStateComplete # 필요시 주석 해제
+from game_vars import GameVars
 
-# from src.utils.transform_utils import transform_game_to_image_coords # 데이터 수집 시 필요
-# from src.data_collection.screen_capture import ScreenCapture # 데이터 수집 시 필요
-# from src.data_collection.label_generator import LabelGenerator # 데이터 수집 시 필요
 import os
 import time
-from src.config.game_config import (
+from config.game_config import (
     CLASS_MAP,
 )  # 데이터 수집 시 필요. CLASS_MAP이 정의되어 있어야 함.
 
-# Web environment detection and JS setup
-IS_WEB = False
-js = None
-try:
-    import js  # type: ignore
-
-    IS_WEB = True
-except ImportError:
-    pass
+IS_WEB = platform.system() == "Emscripten"
 
 
 # GameState Enum 정의 (이전에 주석 처리됨)
@@ -52,12 +41,11 @@ class Game:
         try:
             self.state = GameStateStage(self)
         except Exception as e:
-            if IS_WEB and js is not None:
-                js.console.error(  # type: ignore
+            if IS_WEB and "js" in globals():
+                js.console.error(
                     f"Error initializing GameStateStage in start_new_game: {e}"
-                )
-            else:
-                print(f"Error initializing GameStateStage in start_new_game: {e}")
+                )  # type: ignore
+            self.state = None
 
     def restart_game(self):
         """현재 게임을 첫 스테이지부터 다시 시작합니다."""

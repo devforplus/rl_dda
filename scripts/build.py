@@ -1,90 +1,65 @@
 #!/usr/bin/env python3
 """
-게임을 빌드하는 스크립트
+Pyxel 웹 게임 빌드 스크립트 (수동 게임용)
+
+Mustache 템플릿을 사용하여 manual_game 프리셋으로 HTML을 생성합니다.
 """
 
-import subprocess
-import sys
 import os
 import shutil
+import subprocess
+from pathlib import Path
+
+# 웹 빌드 유틸리티 import
+from scripts.web_build_utils import build_html_with_preset, copy_assets
 
 
 def run_command(cmd, description):
-    """명령어를 실행하고 결과를 확인합니다."""
+    """명령어 실행"""
     print(f"실행 중: {description}")
-    result = subprocess.run(cmd, shell=True)
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
     if result.returncode != 0:
         print(f"오류: {description} 실패")
-        sys.exit(result.returncode)
+        print(f"stderr: {result.stderr}")
+        raise Exception(f"{description} 실패")
+    print(f"완료: {description}")
 
 
 def ensure_directory(path):
-    """디렉토리가 없으면 생성합니다."""
+    """디렉토리 생성"""
     os.makedirs(path, exist_ok=True)
-    print(f"디렉토리 확인: {path}")
+    print(f"디렉토리 생성: {path}")
 
 
 def move_file(src, dst):
-    """파일을 이동합니다."""
+    """파일 이동"""
     if os.path.exists(src):
         shutil.move(src, dst)
         print(f"파일 이동: {src} -> {dst}")
     else:
-        print(f"경고: 파일을 찾을 수 없습니다: {src}")
+        print(f"경고: 이동할 파일이 없습니다: {src}")
 
 
 def copy_file(src, dst):
-    """파일을 복사합니다."""
+    """파일 복사"""
     if os.path.exists(src):
         shutil.copy2(src, dst)
         print(f"파일 복사: {src} -> {dst}")
     else:
-        print(f"경고: 파일을 찾을 수 없습니다: {src}")
+        print(f"경고: 복사할 파일이 없습니다: {src}")
 
 
 def copy_pyxel_web_lib(target_dir):
-    """pyxel_web_lib의 파일들을 대상 디렉토리로 복사합니다."""
-    web_lib_dir = "pyxel_web_lib"
-    if not os.path.exists(web_lib_dir):
-        print(f"경고: {web_lib_dir} 디렉토리를 찾을 수 없습니다.")
-        return
+    """pyxel_web_lib 파일들을 대상 디렉토리로 복사"""
+    src_dir = Path("pyxel_web_lib")
+    dest_dir = Path(target_dir)
 
-    # CSS, JS 파일 복사
-    for file_name in ["pyxel.css", "pyxel.js"]:
-        src_path = os.path.join(web_lib_dir, file_name)
-        dst_path = os.path.join(target_dir, file_name)
-        copy_file(src_path, dst_path)
-
-    # images 디렉토리가 있다면 복사
-    images_src = os.path.join(web_lib_dir, "images")
-    if os.path.exists(images_src):
-        images_dst = os.path.join(target_dir, "images")
-        if os.path.exists(images_dst):
-            shutil.rmtree(images_dst)
-        shutil.copytree(images_src, images_dst)
-        print(f"디렉토리 복사: {images_src} -> {images_dst}")
-
-
-def create_html_from_template(
-    template_path, output_path, title="VORTEXION - Pyxel Web Game"
-):
-    """템플릿에서 HTML 파일을 생성합니다."""
-    if not os.path.exists(template_path):
-        print(f"경고: 템플릿 파일을 찾을 수 없습니다: {template_path}")
-        return
-
-    # 템플릿 파일 읽기
-    with open(template_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    # 제목 교체
-    content = content.replace("VORTEXION - Pyxel Web Game", title)
-
-    # 출력 파일에 쓰기
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(content)
-
-    print(f"HTML 파일 생성: {output_path} (템플릿: {template_path})")
+    # 에셋 복사 (mustache, json, html 파일 제외)
+    copy_assets(
+        src_dir,
+        dest_dir,
+        exclude_patterns=["*.mustache", "*.json", "*.html", "__pycache__"],
+    )
 
 
 def main():
@@ -105,11 +80,9 @@ def main():
         # 5. 빌드된 파일 이동 (실제 생성되는 파일명 사용)
         move_file("src.pyxapp", "web/game/game.pyxapp")
 
-        # 6. 템플릿에서 HTML 파일 생성
-        create_html_from_template(
-            "pyxel_web_lib/index.html",
-            "web/game/index.html",
-            "VORTEXION - Pyxel Web Game",
+        # 6. Mustache 템플릿으로 HTML 파일 생성
+        build_html_with_preset(
+            preset_name="manual_game", output_path=Path("web/game/index.html")
         )
 
     finally:

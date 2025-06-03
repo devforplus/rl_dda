@@ -1,15 +1,12 @@
 import pyxel as px
-import time
 from math import pi
 
-from .components.enemy import Enemy
-from .components.entity_types import EntityType
+from components.enemy import Enemy
+from components.entity_types import EntityType
 
 SPEED = 1.5
 
 BULLET_SPEED = 2
-
-SHOT_DELAY = 10
 
 
 class EnemyB(Enemy):
@@ -20,7 +17,6 @@ class EnemyB(Enemy):
         self.u = 16
         self.v = 80
         self.hp = 2  # 체력을 2로 설정
-        self.shot_delay = 0
 
     def update(self):
         super().update()  # hit frames
@@ -30,10 +26,7 @@ class EnemyB(Enemy):
             self.remove_out_of_bounds("moved_off_screen_left")
             return
 
-        self.y += px.sin(self.lifetime * pi)
+        self.y += int(px.sin(self.lifetime * pi))
 
-        if self.shot_delay == 0:
-            self.shot_delay = SHOT_DELAY
-            self.shoot_at_angle(BULLET_SPEED, 225)
-        else:
-            self.shot_delay -= 1
+        if self.lifetime == 20:
+            self.shoot_at_player(BULLET_SPEED)

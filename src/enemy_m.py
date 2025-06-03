@@ -1,7 +1,7 @@
 import pyxel as px
-import math
-from src.components.enemy import Enemy
-from src.config.score.score_config import ENEMY_SCORE_BOSS
+
+from components.enemy import Enemy
+from config.score.score_config import ENEMY_SCORE_BOSS
 
 BULLET_SPEED = 1.5
 

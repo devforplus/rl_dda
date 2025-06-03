@@ -1,19 +1,22 @@
 from enum import Enum, auto
-from src.config.stage.stage_num import FINAL_STAGE
-from src.config.music import special_music_files, stage_music_mapping
-from src.components.player import Player
-from src.components.sprite import (
+
+import pyxel as px
+
+from config.stage.stage_num import FINAL_STAGE
+from config.music import special_music_files, stage_music_mapping
+from components.player import Player
+from components.sprite import (
     sprites_update,
     sprites_draw,
     sprite_lists_collide,
     sprite_collide_list,
 )
-from src.hud import Hud
-from src.explosion import Explosion
-from src.powerup import Powerup
-from src.stage_background import StageBackground
-import src.input as input
-from src.audio import AudioManager
+from hud import Hud
+from explosion import Explosion
+from powerup import Powerup
+from stage_background import StageBackground
+import input as input
+from audio import AudioManager
 
 # 오디오 매니저 인스턴스 생성
 audio_manager = AudioManager()
