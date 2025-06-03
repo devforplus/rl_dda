@@ -194,32 +194,16 @@ class FastCapture:
     def _get_screen_data_fast(self, px) -> Optional[np.ndarray]:
         """최적화된 화면 데이터 획득"""
         try:
-            screen_data_raw = px.screen.data
+            # 화면 데이터를 px.pget()으로 획득 (픽셀별 읽기)
+            screen_data = np.zeros((self.height, self.width), dtype=np.int32)
 
-            # 웹 환경 처리
-            if hasattr(screen_data_raw, "to_py"):
-                # PyScript/Pyodide 환경
-                screen_data_flat = screen_data_raw.to_py()
-                if PREALLOCATE_BUFFERS:
-                    # 사전 할당된 버퍼 재사용
-                    flat_array = np.array(screen_data_flat, dtype=np.int32)
-                    return flat_array.reshape(self.height, self.width)
-                else:
-                    return np.array(screen_data_flat, dtype=np.int32).reshape(
-                        self.height, self.width
-                    )
+            # 모든 픽셀을 읽어서 배열에 저장
+            for y in range(self.height):
+                for x in range(self.width):
+                    color_index = px.pget(x, y)
+                    screen_data[y, x] = color_index
 
-            elif hasattr(screen_data_raw, "__iter__"):
-                # 리스트/배열인 경우
-                return np.array(list(screen_data_raw), dtype=np.int32).reshape(
-                    self.height, self.width
-                )
-            else:
-                # 직접 변환
-                screen_data = np.asarray(screen_data_raw, dtype=np.int32)
-                if screen_data.shape != (self.height, self.width):
-                    screen_data = screen_data.reshape(self.height, self.width)
-                return screen_data
+            return screen_data
 
         except Exception as e:
             if ENABLE_PERFORMANCE_LOGGING:

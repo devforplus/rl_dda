@@ -5,32 +5,59 @@ import traceback
 import time  # For timestamping (optional)
 import json
 import os
-from typing import Optional
+from typing import Optional, Dict, Any, List
 
-# 환경 변수 설정 로드 (가장 먼저)
+# src 디렉토리에서 실행할 때 현재 디렉토리를 패키지 경로에 추가
+if "." not in sys.path:
+    sys.path.insert(0, ".")
+
+# 적응형 환경 설정 로드 (가장 먼저)
+# Adaptive configuration loading (first priority)
 try:
-    from config.env_config import (
-        ENABLE_FAST_CAPTURE,
-        CAPTURE_INTERVAL as ENV_CAPTURE_INTERVAL,
-        ENABLE_PERFORMANCE_LOGGING,
-        AUTO_COLLECT_DATA,
-        MAX_COLLECTED_FRAMES,
-        DEBUG_MODE,
-        FORCE_WEB_MODE,
-        ENABLE_AI_AGENT,
-        GAME_WIDTH as ENV_GAME_WIDTH,
-        GAME_HEIGHT as ENV_GAME_HEIGHT,
-        GAME_FPS as ENV_GAME_FPS,
-        DISPLAY_SCALE as ENV_DISPLAY_SCALE,
-    )
+    from config.adaptive_config import get_config, get_setting, print_environment_info
 
-    print("✅ 환경 변수 설정 로드됨")
-except ImportError as e:
-    if "DEBUG_MODE" not in locals():
-        DEBUG_MODE = False
+    # Load configuration based on environment
+    # 환경에 따라 설정 로드
+    config = get_config()
+
+    # Extract settings from config
+    # 설정에서 값 추출
+    ENABLE_FAST_CAPTURE = config.get("ENABLE_FAST_CAPTURE", True)
+    ENV_CAPTURE_INTERVAL = config.get("CAPTURE_INTERVAL", 5)
+    ENABLE_PERFORMANCE_LOGGING = config.get("ENABLE_PERFORMANCE_LOGGING", True)
+    AUTO_COLLECT_DATA = config.get("AUTO_COLLECT_DATA", False)
+    MAX_COLLECTED_FRAMES = config.get("MAX_COLLECTED_FRAMES", 1000)
+    DEBUG_MODE = config.get("DEBUG_MODE", False)
+    FORCE_WEB_MODE = config.get("FORCE_WEB_MODE", False)
+    ENABLE_AI_AGENT = config.get("ENABLE_AI_AGENT", False)
+    ENV_GAME_WIDTH = config.get("GAME_WIDTH", 256)
+    ENV_GAME_HEIGHT = config.get("GAME_HEIGHT", 192)
+    ENV_GAME_FPS = config.get("GAME_FPS", 60)
+    ENV_DISPLAY_SCALE = config.get("DISPLAY_SCALE", 3)
+
+    print("✅ 적응형 환경 설정 로드 완료")
+
+    # 로드된 환경 변수들을 출력
+    print("📋 로드된 환경 변수:")
+    print(f"  🚀 ENABLE_FAST_CAPTURE: {ENABLE_FAST_CAPTURE}")
+    print(f"  📊 ENABLE_PERFORMANCE_LOGGING: {ENABLE_PERFORMANCE_LOGGING}")
+    print(f"  🎮 GAME_SIZE: {ENV_GAME_WIDTH}x{ENV_GAME_HEIGHT}")
+    print(f"  🔧 DEBUG_MODE: {DEBUG_MODE}")
+    print(f"  🌐 FORCE_WEB_MODE: {FORCE_WEB_MODE}")
+    print(f"  🤖 ENABLE_AI_AGENT: {ENABLE_AI_AGENT}")
+    print(f"  📸 CAPTURE_INTERVAL: {ENV_CAPTURE_INTERVAL}")
+    print(f"  📈 MAX_COLLECTED_FRAMES: {MAX_COLLECTED_FRAMES}")
+    print(f"  📺 DISPLAY_SCALE: {ENV_DISPLAY_SCALE}")
+    print(f"  🎯 GAME_FPS: {ENV_GAME_FPS}")
+    print(f"  💾 AUTO_COLLECT_DATA: {AUTO_COLLECT_DATA}")
+
     if DEBUG_MODE:
-        print(f"⚠️  환경 변수 설정 로드 실패, 기본값 사용: {e}")
-    # 기본값 설정
+        print_environment_info()
+
+except ImportError as e:
+    print(f"⚠️  적응형 설정 로드 실패, 기본값 사용: {e}")
+    # Fallback to hardcoded defaults
+    # 하드코딩된 기본값으로 fallback
     ENABLE_FAST_CAPTURE = True
     ENV_CAPTURE_INTERVAL = 5
     ENABLE_PERFORMANCE_LOGGING = True
@@ -44,12 +71,33 @@ except ImportError as e:
     ENV_GAME_FPS = 60
     ENV_DISPLAY_SCALE = 3
 
+    # 기본값들도 출력
+    print("📋 기본 환경 변수 (fallback):")
+    print(f"  🚀 ENABLE_FAST_CAPTURE: {ENABLE_FAST_CAPTURE}")
+    print(f"  📊 ENABLE_PERFORMANCE_LOGGING: {ENABLE_PERFORMANCE_LOGGING}")
+    print(f"  🎮 GAME_SIZE: {ENV_GAME_WIDTH}x{ENV_GAME_HEIGHT}")
+    print(f"  🔧 DEBUG_MODE: {DEBUG_MODE}")
+    print(f"  🌐 FORCE_WEB_MODE: {FORCE_WEB_MODE}")
+    print(f"  🤖 ENABLE_AI_AGENT: {ENABLE_AI_AGENT}")
+    print(f"  📸 CAPTURE_INTERVAL: {ENV_CAPTURE_INTERVAL}")
+    print(f"  📈 MAX_COLLECTED_FRAMES: {MAX_COLLECTED_FRAMES}")
+    print(f"  📺 DISPLAY_SCALE: {ENV_DISPLAY_SCALE}")
+    print(f"  🎯 GAME_FPS: {ENV_GAME_FPS}")
+    print(f"  💾 AUTO_COLLECT_DATA: {AUTO_COLLECT_DATA}")
+
 # 웹 환경 감지 (환경 변수로 강제 설정 가능)
 IS_WEB = FORCE_WEB_MODE or platform.system() == "Emscripten"
+print(
+    f"🌐 웹 환경 감지: {IS_WEB} (FORCE_WEB_MODE: {FORCE_WEB_MODE}, Platform: {platform.system()})"
+)
+
 if IS_WEB:
     try:
-        import js
+        import js  # type: ignore
+
+        print("✅ js 모듈 로드됨 (웹 환경)")
     except ImportError:
+        print("❌ js 모듈 로드 실패 (웹 환경 아님)")
         if DEBUG_MODE:
             print("⚠️  js 모듈을 임포트할 수 없습니다 (웹 환경이 아닐 수 있음)")
 
@@ -60,20 +108,26 @@ try:
     import base64
 
     HAS_PERFORMANCE_LIBS = True
+    print("✅ 성능 라이브러리 로드됨 (PIL, io, base64)")
 except ImportError as e:
     PILImage = None
     io = None
     base64 = None
     HAS_PERFORMANCE_LIBS = False
+    print(f"❌ 성능 라이브러리 로드 실패: {e}")
 
 # numpy는 별도로 처리 (웹 환경에서 문제가 될 수 있음)
 try:
     import numpy
     import numpy as np
+
+    print("✅ NumPy 로드됨")
 except ImportError as e:
     numpy = None
+    print(f"❌ NumPy 로드 실패: {e}")
 except Exception as e:
     numpy = None
+    print(f"❌ NumPy 로드 중 예외 발생: {e}")
 
 from game import Game
 import input as input_module
@@ -89,15 +143,18 @@ from config.paths import ASSETS_DIR
 from config.colors import PALETTE
 from monospace_bitmap_font import MonospaceBitmapFont
 
+print("✅ 게임 모듈들 로드됨")
+
 # 고성능 캡쳐를 위한 FastCapture import
 try:
     from utils.fast_capture import FastCapture
 
     FAST_CAPTURE_AVAILABLE = True
+    print("✅ FastCapture 모듈 로드됨")
     if DEBUG_MODE:
         print("✅ FastCapture 모듈 import 성공")
 except ImportError as e:
-    print(f"⚠️  FastCapture을 임포트할 수 없습니다: {e}")
+    print(f"❌ FastCapture 로드 실패: {e}")
     FAST_CAPTURE_AVAILABLE = False
 
 
@@ -278,7 +335,15 @@ class App:
                             self.collected_data.append(frame_data)
 
                             # 데이터 수집 완료 로그 출력 (플레이어 정보는 참고용으로만 출력)
-                            frame_data_log = {
+                            yolo_labels = frame_data.get("yolo_labels", [])
+                            yolo_count = (
+                                len(yolo_labels) - 1
+                                if isinstance(yolo_labels, list)
+                                and len(yolo_labels) > 0
+                                else 0
+                            )
+
+                            frame_data_log: Dict[str, Any] = {
                                 "type": "event",
                                 "event": "frame_collected",
                                 "timestamp": time.time(),
@@ -286,10 +351,7 @@ class App:
                                     "image_size_chars": len(
                                         str(frame_data.get("image_png_base64", ""))
                                     ),
-                                    "yolo_objects_count": len(
-                                        frame_data.get("yolo_labels", [])
-                                    )
-                                    - 1,  # -1 for header
+                                    "yolo_objects_count": yolo_count,
                                 },
                             }
 
@@ -299,7 +361,7 @@ class App:
                                 score = getattr(self.game.game_vars, "score", "N/A")
                                 stage = getattr(self.game.game_vars, "stage_num", "N/A")
 
-                                # frame_data_log["data"]["player"]가 dict인지 확인
+                                # frame_data_log["data"]가 dict인지 확인하고 플레이어 정보 추가
                                 if isinstance(frame_data_log["data"], dict):
                                     frame_data_log["data"]["player"] = {
                                         "lives": lives,
