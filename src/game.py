@@ -8,9 +8,6 @@ from states.game_state.game_state_stage import GameStateStage
 # from states.game_state.game_state_complete import GameStateComplete # 필요시 주석 해제
 from game_vars import GameVars
 
-# from utils.transform_utils import transform_game_to_image_coords # 데이터 수집 시 필요
-# from data_collection.screen_capture import ScreenCapture # 데이터 수집 시 필요
-# from data_collection.label_generator import LabelGenerator # 데이터 수집 시 필요
 import os
 import time
 from config.game_config import (
