@@ -1,76 +1,69 @@
 #!/usr/bin/env python3
 """
-에이전트 게임을 빌드하는 스크립트
+Pyxel 에이전트 게임 빌드 스크립트
+
+Mustache 템플릿을 사용하여 agent_game 프리셋으로 HTML을 생성합니다.
 """
 
-import subprocess
-import sys
 import os
 import shutil
+import subprocess
+from pathlib import Path
+
+# 웹 빌드 유틸리티 import
+from scripts.web_build_utils import build_html_with_preset, copy_assets
 
 
 def run_command(cmd, description):
-    """명령어를 실행하고 결과를 확인합니다."""
+    """명령어 실행"""
     print(f"실행 중: {description}")
-    result = subprocess.run(cmd, shell=True)
+    result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
     if result.returncode != 0:
         print(f"오류: {description} 실패")
-        sys.exit(result.returncode)
+        print(f"stderr: {result.stderr}")
+        raise Exception(f"{description} 실패")
+    print(f"완료: {description}")
 
 
 def ensure_directory(path):
-    """디렉토리가 없으면 생성합니다."""
+    """디렉토리 생성"""
     os.makedirs(path, exist_ok=True)
-    print(f"디렉토리 확인: {path}")
+    print(f"디렉토리 생성: {path}")
 
 
 def move_file(src, dst):
-    """파일을 이동합니다."""
+    """파일 이동"""
     if os.path.exists(src):
         shutil.move(src, dst)
         print(f"파일 이동: {src} -> {dst}")
     else:
-        print(f"경고: 파일을 찾을 수 없습니다: {src}")
+        print(f"경고: 이동할 파일이 없습니다: {src}")
 
 
 def copy_file(src, dst):
-    """파일을 복사합니다."""
+    """파일 복사"""
     if os.path.exists(src):
         shutil.copy2(src, dst)
         print(f"파일 복사: {src} -> {dst}")
     else:
-        print(f"경고: 파일을 찾을 수 없습니다: {src}")
+        print(f"경고: 복사할 파일이 없습니다: {src}")
 
 
 def copy_pyxel_web_lib(target_dir):
-    """pyxel_web_lib의 파일들을 대상 디렉토리로 복사합니다."""
-    run_command("python scripts/update_web_files.py", "pyxel_web_lib 파일 업데이트")
+    """pyxel_web_lib 파일들을 대상 디렉토리로 복사"""
+    src_dir = Path("pyxel_web_lib")
+    dest_dir = Path(target_dir)
 
-
-def create_html_from_template(
-    template_path, output_path, title="VORTEXION - RL Agent Game"
-):
-    """템플릿에서 HTML 파일을 생성합니다."""
-    if not os.path.exists(template_path):
-        print(f"경고: 템플릿 파일을 찾을 수 없습니다: {template_path}")
-        return
-
-    # 템플릿 파일 읽기
-    with open(template_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    # 제목 교체 (기본 제목을 에이전트 게임 제목으로 변경)
-    content = content.replace("VORTEXION - Pyxel Web Game", title)
-
-    # 출력 파일에 쓰기
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(content)
-
-    print(f"HTML 파일 생성: {output_path} (템플릿: {template_path})")
+    # 에셋 복사 (mustache, json, html 파일 제외)
+    copy_assets(
+        src_dir,
+        dest_dir,
+        exclude_patterns=["*.mustache", "*.json", "*.html", "__pycache__"],
+    )
 
 
 def main():
-    """에이전트 빌드 메인 함수"""
+    """에이전트 게임 빌드 메인 함수"""
     try:
         # 1. 설정 파일 추출
         run_command("python scripts/extract_config.py", "설정 파일 추출")
@@ -81,7 +74,7 @@ def main():
         # 3. pyxel_web_lib 파일들 복사
         copy_pyxel_web_lib("web/agentic-game")
 
-        # 4. Pyxel 패키징 (에이전트용)
+        # 4. 에이전트 Pyxel 패키징
         run_command(
             "python -m pyxel package src src/run_agent_in_game.py",
             "에이전트 Pyxel 패키징",
@@ -90,11 +83,9 @@ def main():
         # 5. 빌드된 파일 이동 (실제 생성되는 파일명 사용)
         move_file("src.pyxapp", "web/agentic-game/game.pyxapp")
 
-        # 6. 템플릿에서 HTML 파일 생성
-        create_html_from_template(
-            "pyxel_web_lib/index_agent.html",
-            "web/agentic-game/index.html",
-            "VORTEXION - RL Agent Game",
+        # 6. Mustache 템플릿으로 HTML 파일 생성
+        build_html_with_preset(
+            preset_name="agent_game", output_path=Path("web/agentic-game/index.html")
         )
 
     finally:
