@@ -60,7 +60,12 @@ test = { call = "pytest" }
 help = { cmd = "rye run --list" }
 
 # 📊 JSON 로그 추출 도구 (JSON Log Extraction)
-extract-from = { cmd = "python scripts/cli/extract_json_logs.py -i", env = { PYTHONPATH = "." } }
+# 사용법: rye run extract-from <입력파일> <출력파일> [옵션]
+# 예시:
+#   rye run extract-from data/infinite/events_log.log test_output/extracted.ndjson
+#   rye run extract-from logs/game.log output.ndjson --verbose
+#   rye run extract-from /path/to/logfile.log /path/to/output.ndjson --metadata
+extract-from = { cmd = "python scripts/cli/extract_json_logs.py", env = { PYTHONPATH = "." } }
 
 # 🎮 Pyxel 데이터 수집 (EventLogger 통합)
 collect = { call = "scripts.cli" }
