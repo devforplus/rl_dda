@@ -177,8 +177,8 @@ class Enemy(Sprite):
         """
         s = EnemyShot(
             self.game_state,
-            self.x + (self.w / 2) + offset_x,
-            self.y + (self.h / 2) + offset_y,
+            int(self.x + (self.w / 2) + offset_x),
+            int(self.y + (self.h / 2) + offset_y),
             px.cos(degrees) * speed,
             px.sin(degrees) * speed,
             delay,
