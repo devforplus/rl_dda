@@ -31,22 +31,59 @@ try:
 except ImportError:
     HAS_CV2 = False
 
-from src.config.performance.capture_config import (
-    CAPTURE_INTERVAL_FAST,
-    CAPTURE_INTERVAL_NORMAL,
-    CAPTURE_INTERVAL_SLOW,
-    CAPTURE_TIME_THRESHOLD_FAST,
-    CAPTURE_TIME_THRESHOLD_NORMAL,
-    PNG_COMPRESSION_LEVEL,
-    JPEG_QUALITY,
-    PREALLOCATE_BUFFERS,
-    BUFFER_POOL_SIZE,
-    SKIP_IDENTICAL_FRAMES,
-    FRAME_SIMILARITY_THRESHOLD,
-    ENABLE_PERFORMANCE_LOGGING,
-    LOG_SLOW_CAPTURES,
-    PERFORMANCE_SAMPLE_RATE,
-)
+# 설정 import 경로 수정 - 상대 경로와 절대 경로 모두 시도
+try:
+    from config.performance.capture_config import (
+        CAPTURE_INTERVAL_FAST,
+        CAPTURE_INTERVAL_NORMAL,
+        CAPTURE_INTERVAL_SLOW,
+        CAPTURE_TIME_THRESHOLD_FAST,
+        CAPTURE_TIME_THRESHOLD_NORMAL,
+        PNG_COMPRESSION_LEVEL,
+        JPEG_QUALITY,
+        PREALLOCATE_BUFFERS,
+        BUFFER_POOL_SIZE,
+        SKIP_IDENTICAL_FRAMES,
+        FRAME_SIMILARITY_THRESHOLD,
+        ENABLE_PERFORMANCE_LOGGING,
+        LOG_SLOW_CAPTURES,
+        PERFORMANCE_SAMPLE_RATE,
+    )
+except ImportError:
+    try:
+        from src.config.performance.capture_config import (
+            CAPTURE_INTERVAL_FAST,
+            CAPTURE_INTERVAL_NORMAL,
+            CAPTURE_INTERVAL_SLOW,
+            CAPTURE_TIME_THRESHOLD_FAST,
+            CAPTURE_TIME_THRESHOLD_NORMAL,
+            PNG_COMPRESSION_LEVEL,
+            JPEG_QUALITY,
+            PREALLOCATE_BUFFERS,
+            BUFFER_POOL_SIZE,
+            SKIP_IDENTICAL_FRAMES,
+            FRAME_SIMILARITY_THRESHOLD,
+            ENABLE_PERFORMANCE_LOGGING,
+            LOG_SLOW_CAPTURES,
+            PERFORMANCE_SAMPLE_RATE,
+        )
+    except ImportError:
+        # 기본값 설정 (설정 파일이 없는 경우)
+        CAPTURE_INTERVAL_FAST = 3
+        CAPTURE_INTERVAL_NORMAL = 5
+        CAPTURE_INTERVAL_SLOW = 10
+        CAPTURE_TIME_THRESHOLD_FAST = 5.0
+        CAPTURE_TIME_THRESHOLD_NORMAL = 15.0
+        PNG_COMPRESSION_LEVEL = 1
+        JPEG_QUALITY = 85
+        PREALLOCATE_BUFFERS = True
+        BUFFER_POOL_SIZE = 3
+        SKIP_IDENTICAL_FRAMES = True
+        FRAME_SIMILARITY_THRESHOLD = 0.95
+        ENABLE_PERFORMANCE_LOGGING = True
+        LOG_SLOW_CAPTURES = True
+        PERFORMANCE_SAMPLE_RATE = 0.1
+        print("⚠️  capture_config.py를 찾을 수 없어 기본값을 사용합니다.")
 
 
 class FastCapture:
@@ -77,6 +114,9 @@ class FastCapture:
 
         # 압축 버퍼 (재사용)
         self.compression_buffer = io.BytesIO()
+
+        if ENABLE_PERFORMANCE_LOGGING:
+            print("🚀 FastCapture 초기화 완료")
 
     def _initialize_buffers(self):
         """성능 향상을 위한 버퍼 사전 할당"""

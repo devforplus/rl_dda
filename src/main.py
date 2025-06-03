@@ -94,6 +94,8 @@ try:
     from utils.fast_capture import FastCapture
 
     FAST_CAPTURE_AVAILABLE = True
+    if DEBUG_MODE:
+        print("✅ FastCapture 모듈 import 성공")
 except ImportError as e:
     print(f"⚠️  FastCapture을 임포트할 수 없습니다: {e}")
     FAST_CAPTURE_AVAILABLE = False
@@ -109,17 +111,45 @@ class App:
             self.capture_interval = ENV_CAPTURE_INTERVAL  # 환경 변수로 설정
             self.frames_since_last_capture = 0
 
+            # FastCapture 초기화 전 조건 확인
+            if DEBUG_MODE:
+                print(f"🔍 FastCapture 조건 확인:")
+                print(f"  - FAST_CAPTURE_AVAILABLE: {FAST_CAPTURE_AVAILABLE}")
+                print(f"  - HAS_PERFORMANCE_LIBS: {HAS_PERFORMANCE_LIBS}")
+                print(f"  - ENABLE_FAST_CAPTURE: {ENABLE_FAST_CAPTURE}")
+                print(f"  - numpy 가용성: {numpy is not None}")
+
             # 성능 최적화 - FastCapture 초기화
             self.fast_capture: Optional[FastCapture] = None
-            if FAST_CAPTURE_AVAILABLE and HAS_PERFORMANCE_LIBS and ENABLE_FAST_CAPTURE:
-                self.fast_capture = FastCapture(ENV_GAME_WIDTH, ENV_GAME_HEIGHT)
-                self.use_fast_capture = True
-                if ENABLE_PERFORMANCE_LOGGING:
-                    print("🚀 고성능 캡쳐 모드 활성화")
+            if (
+                FAST_CAPTURE_AVAILABLE
+                and HAS_PERFORMANCE_LIBS
+                and ENABLE_FAST_CAPTURE
+                and numpy is not None
+            ):
+                try:
+                    self.fast_capture = FastCapture(ENV_GAME_WIDTH, ENV_GAME_HEIGHT)
+                    self.use_fast_capture = True
+                    if ENABLE_PERFORMANCE_LOGGING:
+                        print("🚀 고성능 캡쳐 모드 활성화")
+                except Exception as e:
+                    print(f"❌ FastCapture 초기화 실패: {e}")
+                    self.use_fast_capture = False
+                    if ENABLE_PERFORMANCE_LOGGING:
+                        print("📸 일반 캡쳐 모드로 fallback")
             else:
                 self.use_fast_capture = False
                 if ENABLE_PERFORMANCE_LOGGING:
-                    print("📸 일반 캡쳐 모드 사용")
+                    reasons = []
+                    if not FAST_CAPTURE_AVAILABLE:
+                        reasons.append("FastCapture 모듈 없음")
+                    if not HAS_PERFORMANCE_LIBS:
+                        reasons.append("PIL/io/base64 라이브러리 없음")
+                    if not ENABLE_FAST_CAPTURE:
+                        reasons.append("환경 변수로 비활성화")
+                    if numpy is None:
+                        reasons.append("NumPy 없음")
+                    print(f"📸 일반 캡쳐 모드 사용 (이유: {', '.join(reasons)})")
 
             # 에이전트가 있거나 환경 변수로 설정된 경우 데이터 수집 자동 활성화
             if self.agent is not None or ENABLE_AI_AGENT:
