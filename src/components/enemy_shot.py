@@ -62,8 +62,8 @@ class EnemyShot(Sprite):
             self.delay -= 1
             return
 
-        self.x += self.dx
-        self.y += self.dy
+        self.x = int(self.x + self.dx)
+        self.y = int(self.y + self.dy)
 
         # 색상 변경 (10프레임마다)
         if px.frame_count % 10 == 0:
