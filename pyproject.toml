@@ -59,6 +59,9 @@ dev = { call = "scripts.dev" }
 test = { call = "pytest" }
 help = { cmd = "rye run --list" }
 
+# 📊 JSON 로그 추출 도구 (JSON Log Extraction)
+extract-from = { cmd = "python scripts/cli/extract_json_logs.py -i", env = { PYTHONPATH = "." } }
+
 # 🎮 Pyxel 데이터 수집 (EventLogger 통합)
 collect = { call = "scripts.cli" }
 collect-demo = { cmd = "python -m scripts.cli --url http://0.0.0.0:5176/ --namespace demo --duration 30 --headless --verbose", env = { PYTHONPATH = "." } }

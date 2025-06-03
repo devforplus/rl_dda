@@ -49,38 +49,156 @@ import json
 import re
 import argparse
 import sys
+import ast
 from pathlib import Path
-from typing import List, Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Optional
 from datetime import datetime
 
 
-def extract_timestamp_and_message(line: str) -> Tuple[str, str]:
+def extract_timestamp_and_message(line: str) -> Tuple[Optional[str], str]:
     """Extract timestamp and message from log line
 
-    Args:
-        line: Log line with format '[YYYY-MM-DD HH:MM:SS.mmm] message'
+    타임스탬프와 메시지를 로그 라인에서 추출합니다.
 
-    Returns:
-        Tuple of (timestamp, message)
-
-    ---
-
-    로그 라인에서 타임스탬프와 메시지를 분리하여 추출합니다.
+    Supports multiple timestamp formats:
+    - [YYYY-MM-DD HH:MM:SS.mmm] message
+    - [HH:MM:SS.mmm] message
+    - YYYY-MM-DD HH:MM:SS message
+    - Or just return the whole line as message if no timestamp found
     """
-    # 타임스탬프 패턴: [YYYY-MM-DD HH:MM:SS.mmm] 또는 [YYYY-MM-DD HH:MM:SS]
-    timestamp_pattern = (
-        r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d{3})?)\]\s*(.*)$"
-    )
-    match = re.match(timestamp_pattern, line)
 
+    # Pattern 1: [YYYY-MM-DD HH:MM:SS.mmm] format
+    pattern1 = r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\]\s*(.*)$"
+    match = re.match(pattern1, line.strip())
     if match:
         return match.group(1), match.group(2)
-    else:
-        # 타임스탬프가 없는 경우 전체를 메시지로 처리
-        return "", line.strip()
+
+    # Pattern 2: [HH:MM:SS.mmm] format
+    pattern2 = r"^\[(\d{2}:\d{2}:\d{2}\.\d{3})\]\s*(.*)$"
+    match = re.match(pattern2, line.strip())
+    if match:
+        return match.group(1), match.group(2)
+
+    # Pattern 3: YYYY-MM-DD HH:MM:SS format (no brackets)
+    pattern3 = r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+(.*)$"
+    match = re.match(pattern3, line.strip())
+    if match:
+        return match.group(1), match.group(2)
+
+    # No timestamp found, return whole line as message
+    return None, line.strip()
 
 
-def is_valid_json(text: str) -> Tuple[bool, Dict[str, Any]]:
+def extract_json_from_message(message: str) -> Tuple[bool, Optional[str], Any]:
+    """Extract JSON from various message patterns
+
+    다양한 메시지 패턴에서 JSON을 추출합니다.
+
+    Supported patterns:
+    1. Direct JSON: {"key": "value"}
+    2. ServerClient Payload: [ServerClient] Payload: {"key": "value"}
+    3. Module prefix: [Module] JSON content
+    4. Simple prefix: Some text: {"key": "value"}
+    5. Mixed content with JSON somewhere in the line
+
+    Returns:
+        Tuple of (found_json, json_text, parsed_json)
+    """
+
+    if not message:
+        return False, None, {}
+
+    # Pattern 1: Direct JSON (starts with { or [)
+    message_stripped = message.strip()
+    if message_stripped.startswith(("{", "[")):
+        is_valid, parsed = is_valid_json(message_stripped)
+        if is_valid:
+            return True, message_stripped, parsed
+
+    # Pattern 2: ServerClient Payload pattern
+    # [ServerClient] Payload: {"key": "value"}
+    payload_pattern = r"\[.*?\]\s+Payload:\s*(.+)$"
+    match = re.search(payload_pattern, message)
+    if match:
+        json_candidate = match.group(1).strip()
+        is_valid, parsed = is_valid_json(json_candidate)
+        if is_valid:
+            return True, json_candidate, parsed
+
+    # Pattern 3: Module prefix pattern
+    # [Module] {"key": "value"} or [Module] Some text {"key": "value"}
+    module_pattern = r"\[.*?\]\s*(.*)$"
+    match = re.search(module_pattern, message)
+    if match:
+        content = match.group(1).strip()
+        # Try direct JSON first
+        if content.startswith(("{", "[")):
+            is_valid, parsed = is_valid_json(content)
+            if is_valid:
+                return True, content, parsed
+
+        # Look for JSON in the content
+        json_in_content = extract_json_from_text(content)
+        if json_in_content[0]:
+            return json_in_content
+
+    # Pattern 4: Colon-separated prefix
+    # "Some text: {"key": "value"}"
+    colon_pattern = r"^[^{]*?:\s*(.+)$"
+    match = re.search(colon_pattern, message)
+    if match:
+        json_candidate = match.group(1).strip()
+        is_valid, parsed = is_valid_json(json_candidate)
+        if is_valid:
+            return True, json_candidate, parsed
+
+    # Pattern 5: Find JSON anywhere in the message
+    return extract_json_from_text(message)
+
+
+def extract_json_from_text(text: str) -> Tuple[bool, Optional[str], Any]:
+    """Find and extract JSON from anywhere in the text
+
+    텍스트 내 어디든 JSON이 있으면 추출합니다.
+    """
+
+    # Look for JSON objects starting with {
+    brace_start = text.find("{")
+    if brace_start != -1:
+        # Find matching closing brace
+        brace_count = 0
+        for i, char in enumerate(text[brace_start:], brace_start):
+            if char == "{":
+                brace_count += 1
+            elif char == "}":
+                brace_count -= 1
+                if brace_count == 0:
+                    json_candidate = text[brace_start : i + 1]
+                    is_valid, parsed = is_valid_json(json_candidate)
+                    if is_valid:
+                        return True, json_candidate, parsed
+                    break
+
+    # Look for JSON arrays starting with [
+    bracket_start = text.find("[")
+    if bracket_start != -1:
+        bracket_count = 0
+        for i, char in enumerate(text[bracket_start:], bracket_start):
+            if char == "[":
+                bracket_count += 1
+            elif char == "]":
+                bracket_count -= 1
+                if bracket_count == 0:
+                    json_candidate = text[bracket_start : i + 1]
+                    is_valid, parsed = is_valid_json(json_candidate)
+                    if is_valid:
+                        return True, json_candidate, parsed
+                    break
+
+    return False, None, {}
+
+
+def is_valid_json(text: str) -> Tuple[bool, Any]:
     """Check if text is valid JSON and return parsed object
 
     Args:
@@ -88,8 +206,6 @@ def is_valid_json(text: str) -> Tuple[bool, Dict[str, Any]]:
 
     Returns:
         Tuple of (is_valid, parsed_json_or_empty_dict)
-
-    ---
 
     텍스트가 유효한 JSON인지 확인하고 파싱된 객체를 반환합니다.
     """
@@ -101,95 +217,151 @@ def is_valid_json(text: str) -> Tuple[bool, Dict[str, Any]]:
 
 
 def extract_json_logs_from_file(
-    input_file: Path, output_file: Path, verbose: bool = False
-) -> Dict[str, int]:
-    """Extract JSON logs from input file and save as NDJSON
-
-    Args:
-        input_file: Path to input log file
-        output_file: Path to output NDJSON file
-        verbose: Enable verbose logging
-
-    Returns:
-        Dictionary with extraction statistics
-
-    ---
-
-    입력 로그 파일에서 JSON 로그를 추출하여 NDJSON으로 저장합니다.
-    """
+    input_file, output_file, include_metadata=False, verbose=False
+):
+    """Extract JSON logs from a file and save to NDJSON format."""
     stats = {"total_lines": 0, "json_lines": 0, "invalid_lines": 0, "empty_lines": 0}
 
-    extracted_jsons: List[Dict[str, Any]] = []
+    with open(input_file, "r", encoding="utf-8") as f:
+        lines = f.readlines()
 
-    try:
-        with open(input_file, "r", encoding="utf-8") as f:
-            for line_num, line in enumerate(f, 1):
-                stats["total_lines"] += 1
-                line = line.strip()
+    with open(output_file, "w", encoding="utf-8") as out_f:
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            stats["total_lines"] += 1
 
-                # 빈 라인 건너뛰기
-                if not line or line.startswith("#"):
-                    stats["empty_lines"] += 1
+            if not line:
+                stats["empty_lines"] += 1
+                i += 1
+                continue
+
+            # 타임스탬프 패턴 확인 (일반 JSON 로그)
+            timestamp_match = re.match(
+                r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\]", line
+            )
+            # ServerClient Payload 패턴 확인
+            serverclient_match = re.match(
+                r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\] \[ServerClient\] Payload:",
+                line,
+            )
+
+            if timestamp_match or serverclient_match:
+                if serverclient_match:
+                    timestamp = serverclient_match.group(1)
+                elif timestamp_match:
+                    timestamp = timestamp_match.group(1)
+                else:
+                    # 이 경우는 발생하지 않아야 하지만 안전을 위해
+                    stats["invalid_lines"] += 1
+                    i += 1
                     continue
 
-                # 타임스탬프와 메시지 분리
-                timestamp, message = extract_timestamp_and_message(line)
+                if serverclient_match:
+                    # ServerClient Payload 처리
+                    # "Payload: " 이후의 내용부터 JSON 시작
+                    payload_start = line.find("Payload: ") + len("Payload: ")
+                    json_content = line[payload_start:]
 
-                if not message:
-                    stats["empty_lines"] += 1
-                    continue
+                    # 다음 라인들을 수집하여 완전한 JSON 구성
+                    j = i + 1
+                    while j < len(lines):
+                        next_line = lines[j].strip()
+                        # 다음 타임스탬프 라인이 나오면 중단
+                        if re.match(
+                            r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\]",
+                            next_line,
+                        ):
+                            break
+                        json_content += next_line
+                        j += 1
 
-                # JSON 유효성 검사
-                is_json, parsed_json = is_valid_json(message)
+                    # JSON 유효성 검사 및 저장
+                    try:
+                        # ServerClient Payload는 Python 딕셔너리 형식이므로 ast.literal_eval 사용
+                        parsed_json = ast.literal_eval(json_content)
+                        stats["json_lines"] += 1
 
-                if is_json:
-                    # 메타데이터 추가 (선택사항)
-                    json_with_meta = {
-                        "extracted_timestamp": timestamp if timestamp else None,
-                        "line_number": line_num,
-                        **parsed_json,
-                    }
+                        if include_metadata:
+                            output_obj = {
+                                "line_number": i + 1,
+                                "timestamp": timestamp,
+                                "source_type": "ServerClient_Payload",
+                                "data": parsed_json,
+                            }
+                        else:
+                            output_obj = parsed_json
 
-                    extracted_jsons.append(json_with_meta)
-                    stats["json_lines"] += 1
+                        out_f.write(json.dumps(output_obj, ensure_ascii=False) + "\n")
 
-                    if verbose:
-                        print(
-                            f"✓ Line {line_num}: JSON extracted ({len(str(parsed_json))} chars)"
-                        )
+                        if verbose:
+                            print(f"✓ ServerClient Payload extracted from line {i + 1}")
+                    except (ValueError, SyntaxError) as e:
+                        stats["invalid_lines"] += 1
+                        if verbose:
+                            print(
+                                f"✗ Invalid ServerClient Payload at line {i + 1}: {e}"
+                            )
+
+                    i = j  # 다음 처리할 라인으로 이동
 
                 else:
-                    stats["invalid_lines"] += 1
-                    if verbose:
-                        print(f"- Line {line_num}: Not JSON - {message[:50]}...")
+                    # 일반 JSON 로그 처리
+                    # 첫 번째 '{' 찾기
+                    json_start = line.find("{")
+                    if json_start != -1:
+                        json_content = line[json_start:]
 
-    except FileNotFoundError:
-        print(f"❌ Error: Input file not found: {input_file}", file=sys.stderr)
-        return stats
-    except Exception as e:
-        print(f"❌ Error reading input file: {e}", file=sys.stderr)
-        return stats
+                        # 다음 라인들을 수집하여 완전한 JSON 구성
+                        j = i + 1
+                        while j < len(lines):
+                            next_line = lines[j].strip()
+                            # 다음 타임스탬프 라인이 나오면 중단
+                            if re.match(
+                                r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\]",
+                                next_line,
+                            ):
+                                break
+                            json_content += next_line
+                            j += 1
 
-    # NDJSON 파일로 저장
-    try:
-        # 출력 디렉토리 생성
-        output_file.parent.mkdir(parents=True, exist_ok=True)
+                        # JSON 유효성 검사 및 저장
+                        try:
+                            parsed_json = json.loads(json_content)
+                            stats["json_lines"] += 1
 
-        with open(output_file, "w", encoding="utf-8") as f:
-            for json_obj in extracted_jsons:
-                # 메타데이터 제거하고 원본 JSON만 저장하는 옵션
-                # original_json = {k: v for k, v in json_obj.items()
-                #                  if k not in ['extracted_timestamp', 'line_number']}
-                # f.write(json.dumps(original_json, ensure_ascii=False) + '\n')
+                            if include_metadata:
+                                output_obj = {
+                                    "line_number": i + 1,
+                                    "timestamp": timestamp,
+                                    "source_type": "JSON_Log",
+                                    "data": parsed_json,
+                                }
+                            else:
+                                output_obj = parsed_json
 
-                # 메타데이터 포함해서 저장
-                f.write(json.dumps(json_obj, ensure_ascii=False) + "\n")
+                            out_f.write(
+                                json.dumps(output_obj, ensure_ascii=False) + "\n"
+                            )
 
-        print(f"✅ NDJSON file saved: {output_file}")
+                            if verbose:
+                                print(f"✓ JSON extracted from line {i + 1}")
+                        except json.JSONDecodeError as e:
+                            stats["invalid_lines"] += 1
+                            if verbose:
+                                print(f"✗ Invalid JSON at line {i + 1}: {e}")
 
-    except Exception as e:
-        print(f"❌ Error writing output file: {e}", file=sys.stderr)
-        return stats
+                        i = j  # 다음 처리할 라인으로 이동
+                    else:
+                        stats["invalid_lines"] += 1
+                        if verbose:
+                            print(f"✗ No JSON found at line {i + 1}")
+                        i += 1
+            else:
+                stats["invalid_lines"] += 1
+                if verbose:
+                    print(f"✗ No timestamp found at line {i + 1}")
+                i += 1
 
     return stats
 
@@ -277,37 +449,36 @@ Supported input formats:
     args = parser.parse_args()
 
     # 파일 경로 처리
-    input_file = Path(args.input)
-    output_file = Path(args.output)
+    input_file = args.input
+    output_file = args.output
 
     # 입력 파일 존재 확인
-    if not input_file.exists():
-        print(f"❌ Error: Input file does not exist: {input_file}", file=sys.stderr)
-        sys.exit(1)
-
-    if not input_file.is_file():
-        print(f"❌ Error: Input path is not a file: {input_file}", file=sys.stderr)
+    if not input_file or not output_file:
+        print("❌ Error: Input and output file paths are required", file=sys.stderr)
         sys.exit(1)
 
     # 시작 메시지
-    print(f"🚀 Starting JSON log extraction...")
+    print("🚀 Starting JSON log extraction...")
     print(f"📁 Input:  {input_file}")
     print(f"📁 Output: {output_file}")
 
     if args.verbose:
-        print(f"🔧 Verbose mode enabled")
+        print("🔧 Verbose mode enabled")
 
-    print(f"⏳ Processing...")
+    print("⏳ Processing...")
 
     # JSON 로그 추출 실행
     start_time = datetime.now()
     stats = extract_json_logs_from_file(
-        input_file=input_file, output_file=output_file, verbose=args.verbose
+        input_file=input_file,
+        output_file=output_file,
+        verbose=args.verbose,
+        include_metadata=not args.no_meta,
     )
     end_time = datetime.now()
 
     # 결과 요약 출력
-    print_extraction_summary(stats, input_file, output_file)
+    print_extraction_summary(stats, Path(input_file), Path(output_file))
 
     # 처리 시간 출력
     processing_time = (end_time - start_time).total_seconds()
@@ -315,12 +486,12 @@ Supported input formats:
 
     # 성공/실패 판정
     if stats["json_lines"] > 0:
-        print(f"🎉 Extraction completed successfully!")
+        print("🎉 Extraction completed successfully!")
         print(f"📝 {stats['json_lines']} JSON objects extracted to {output_file}")
         sys.exit(0)
     else:
-        print(f"⚠️  No JSON logs found in input file")
-        print(f"💡 Make sure the input file contains JSON-formatted console logs")
+        print("⚠️  No JSON logs found in input file")
+        print("💡 Make sure the input file contains JSON-formatted console logs")
         sys.exit(1)
 
 

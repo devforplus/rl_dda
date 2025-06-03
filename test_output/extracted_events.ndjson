@@ -1,8 +1,0 @@
-{"extracted_timestamp": "2025-01-27 12:34:56.456", "line_number": 5, "type": "entity", "category": "player", "x": 100, "y": 200, "health": 100}
-{"extracted_timestamp": "2025-01-27 12:34:57.123", "line_number": 6, "type": "entity", "category": "enemy", "x": 300, "y": 150, "health": 50, "enemy_type": "basic"}
-{"extracted_timestamp": "2025-01-27 12:34:58.012", "line_number": 8, "event": "frame_data", "frame": 1, "player": {"x": 102, "y": 200, "health": 100}, "enemies": [{"x": 298, "y": 150, "health": 50}]}
-{"extracted_timestamp": "2025-01-27 12:34:58.678", "line_number": 10, "type": "action", "action": "move", "entity": "player", "from": {"x": 100, "y": 200}, "to": {"x": 102, "y": 200}}
-{"extracted_timestamp": "2025-01-27 12:34:59.012", "line_number": 11, "event": "collision", "entity1": {"type": "player", "x": 102, "y": 200}, "entity2": {"type": "shot", "x": 102, "y": 195}}
-{"extracted_timestamp": "2025-01-27 12:34:59.678", "line_number": 13, "type": "entity", "category": "explosion", "x": 102, "y": 200, "duration": 500}
-{"extracted_timestamp": "2025-01-27 12:35:00.012", "line_number": 14, "event": "score_update", "player_id": 1, "old_score": 0, "new_score": 100, "reason": "enemy_destroyed"}
-{"extracted_timestamp": "2025-01-27 12:35:00.678", "line_number": 16, "type": "game_state", "level": 1, "score": 100, "lives": 3, "time_elapsed": 4.555}
