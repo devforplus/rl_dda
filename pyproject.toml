@@ -30,6 +30,8 @@ dependencies = [
     "pyxel>=2.3.18",
     "pystache>=0.6.8",
     "loguru>=0.7.3",
+    "numpy>=2.2.6",
+    "pip>=25.1.1",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"
@@ -53,21 +55,21 @@ dev-dependencies = [
 [tool.rye.scripts]
 
 # 🚀 자주 사용하는 명령어 (EventLogger 통합)
-collect-quick = { cmd = "python -m scripts.cli --url http://0.0.0.0:5176/ --namespace quick-test --duration 30 --headless --verbose", env = { PYTHONPATH = "." } }
-collect-full = { cmd = "python -m scripts.cli --url http://0.0.0.0:5176/ --namespace full-test --duration 60 --headless --collect-all --save-raw --verbose", env = { PYTHONPATH = "." } }
+collect-quick = { cmd = "python -m scripts.cli --url http://localhost:5176/ --namespace quick-test --duration 30 --headless --verbose", env = { PYTHONPATH = "." } }
+collect-full = { cmd = "python -m scripts.cli --url http://localhost:5176/ --namespace full-test --duration 60 --headless --collect-all --save-raw --verbose", env = { PYTHONPATH = "." } }
 dev = { call = "scripts.dev" }
 test = { call = "pytest" }
 help = { cmd = "rye run --list" }
 
 # 🎮 Pyxel 데이터 수집 (EventLogger 통합)
 collect = { call = "scripts.cli" }
-collect-demo = { cmd = "python -m scripts.cli --url http://0.0.0.0:5176/ --namespace demo --duration 30 --headless --verbose", env = { PYTHONPATH = "." } }
-collect-game = { cmd = "python -m scripts.cli --url http://0.0.0.0:5176/ --namespace gameplay --duration 120 --headless --collect-all --save-raw --verbose", env = { PYTHONPATH = "." } }
-collect-infinite = { cmd = "python -m scripts.cli --url http://0.0.0.0:5176/ --namespace infinite --headless --collect-all --save-raw --verbose", env = { PYTHONPATH = "." } }
+collect-demo = { cmd = "python -m scripts.cli --url http://localhost:5176/ --namespace demo --duration 30 --headless --verbose", env = { PYTHONPATH = "." } }
+collect-game = { cmd = "python -m scripts.cli --url http://localhost:5176/ --namespace gameplay --duration 120 --headless --collect-all --save-raw --verbose", env = { PYTHONPATH = "." } }
+collect-infinite = { cmd = "python -m scripts.cli --url http://localhost:5176/ --namespace infinite --headless --collect-all --save-raw --verbose", env = { PYTHONPATH = "." } }
 
 # 🧪 테스트 및 예제
 test-event-logger = { call = "examples.event_logger_example" }
-test-collector = { cmd = "python -m scripts.cli --url http://0.0.0.0:5176/ --namespace test --duration 10 --headless --verbose", env = { PYTHONPATH = "." } }
+test-collector = { cmd = "python -m scripts.cli --url http://localhost:5176/ --namespace test --duration 10 --headless --verbose", env = { PYTHONPATH = "." } }
 
 # 🌐 서버 (http.server는 표준 라이브러리이므로 기존 방식 유지)
 serve = { cmd = "python -m http.server 5175 -d web/game" }

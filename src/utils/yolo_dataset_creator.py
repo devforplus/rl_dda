@@ -147,8 +147,9 @@ class PayloadLogParser:
         if not isinstance(yolo_labels, list) or len(yolo_labels) == 0:
             return False
 
-        # First element should be header
-        if not yolo_labels[0].startswith("class_id"):
+        # First element should be header (accept both "class_id" and "entity_num" formats)
+        header = yolo_labels[0]
+        if not (header.startswith("class_id") or header.startswith("entity_num")):
             return False
 
         return True
