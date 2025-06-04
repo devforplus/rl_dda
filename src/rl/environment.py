@@ -63,6 +63,7 @@ class GameState:
         score: 현재 점수
         survival_time: 생존 시간
         kills: 적 처치 수
+        lives: 남은 목숨 수
 
     ---
 
@@ -76,6 +77,7 @@ class GameState:
     score: int
     survival_time: int
     kills: int
+    lives: int
 
 
 class GameEnvironment:
@@ -190,6 +192,16 @@ class GameEnvironment:
         생존, 공격, 일관성 지표를 종합하여 총 보상을 계산
         """
         total_reward = 0.0
+
+        # 0. 목숨 잃을 때 큰 패널티 (Death Penalty)
+        if self.previous_state is not None:
+            lives_lost = self.previous_state.lives - current_state.lives
+            if lives_lost > 0:
+                death_penalty = lives_lost * -50.0  # 목숨 하나당 -50점 패널티
+                total_reward += death_penalty
+                print(
+                    f"💀 Death Penalty Applied: {death_penalty} (Lives Lost: {lives_lost})"
+                )
 
         # 1. 생존 지표 (Survival Metric)
         survival_reward = self._calculate_survival_reward(current_state)

@@ -53,6 +53,7 @@ class GameStateAdapter:
         score = 0
         survival_time = 0
         kills = 0
+        lives = 3  # 기본값
 
         # 게임 상태 확인
         if hasattr(game_instance, "game") and game_instance.game:
@@ -85,9 +86,11 @@ class GameStateAdapter:
                     self._extract_entities_from_objects(game_state, player_pos)
                 )
 
-            # 게임 변수에서 점수와 생존 시간 추출
+            # 게임 변수에서 점수, 생존 시간, 목숨 추출
             if game_vars:
                 score = getattr(game_vars, "score", 0)
+                lives = getattr(game_vars, "lives", 3)  # 목숨 정보 추출
+
                 # 생존 시간은 스테이지 상태에서 추출
                 if game_state and hasattr(game_state, "state_time"):
                     survival_time = game_state.state_time
@@ -114,6 +117,7 @@ class GameStateAdapter:
             score=score,
             survival_time=survival_time,
             kills=kills,
+            lives=lives,
         )
 
     def _extract_entities_from_objects(
