@@ -2,11 +2,11 @@ import pyxel as px
 import time
 import json
 
-from components.sprite import Sprite
-from components.entity_types import EntityType
+from .sprite import Sprite
+from .entity_types import EntityType
 from config.enemy.enemy_config import EnemyConfig
 from config.score.score_config import ENEMY_SCORE_NORMAL
-from components.enemy_shot import EnemyShot
+from .enemy_shot import EnemyShot
 import powerup
 from config.sound import SoundType
 from audio import AudioManager

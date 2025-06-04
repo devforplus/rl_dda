@@ -1,7 +1,6 @@
 import pyxel as px
-
-from components.sprite import Sprite
-from components.entity_types import EntityType
+from .sprite import Sprite
+from .entity_types import EntityType
 from config.enemy.enemy_config import EnemyConfig
 
 # 적 설정 인스턴스 생성
