@@ -5,33 +5,132 @@ import traceback
 import time  # For timestamping (optional)
 import json
 import os
-import asyncio
+from typing import Optional, Dict, Any, List
 
-# 웹 환경에서만 Pillow, io, base64, numpy를 import 시도 -> 전역으로 변경
-IS_WEB = platform.system() == "Emscripten"
+# src 디렉토리에서 실행할 때 현재 디렉토리를 패키지 경로에 추가
+if "." not in sys.path:
+    sys.path.insert(0, ".")
+
+# 적응형 환경 설정 로드 (가장 먼저)
+# Adaptive configuration loading (first priority)
+try:
+    from config.adaptive_config import get_config, get_setting, print_environment_info
+
+    # Load configuration based on environment
+    # 환경에 따라 설정 로드
+    config = get_config()
+
+    # Extract settings from config
+    # 설정에서 값 추출
+    ENABLE_FAST_CAPTURE = config.get("ENABLE_FAST_CAPTURE", True)
+    ENV_CAPTURE_INTERVAL = config.get("CAPTURE_INTERVAL", 5)
+    ENABLE_PERFORMANCE_LOGGING = config.get("ENABLE_PERFORMANCE_LOGGING", True)
+    AUTO_COLLECT_DATA = config.get("AUTO_COLLECT_DATA", False)
+    MAX_COLLECTED_FRAMES = config.get("MAX_COLLECTED_FRAMES", 1000)
+    DEBUG_MODE = config.get("DEBUG_MODE", False)
+    FORCE_WEB_MODE = config.get("FORCE_WEB_MODE", False)
+    ENABLE_AI_AGENT = config.get("ENABLE_AI_AGENT", False)
+    ENV_GAME_WIDTH = config.get("GAME_WIDTH", 256)
+    ENV_GAME_HEIGHT = config.get("GAME_HEIGHT", 192)
+    ENV_GAME_FPS = config.get("GAME_FPS", 60)
+    ENV_DISPLAY_SCALE = config.get("DISPLAY_SCALE", 3)
+
+    print("✅ 적응형 환경 설정 로드 완료")
+
+    # 로드된 환경 변수들을 출력
+    print("📋 로드된 환경 변수:")
+    print(f"  🚀 ENABLE_FAST_CAPTURE: {ENABLE_FAST_CAPTURE}")
+    print(f"  📊 ENABLE_PERFORMANCE_LOGGING: {ENABLE_PERFORMANCE_LOGGING}")
+    print(f"  🎮 GAME_SIZE: {ENV_GAME_WIDTH}x{ENV_GAME_HEIGHT}")
+    print(f"  🔧 DEBUG_MODE: {DEBUG_MODE}")
+    print(f"  🌐 FORCE_WEB_MODE: {FORCE_WEB_MODE}")
+    print(f"  🤖 ENABLE_AI_AGENT: {ENABLE_AI_AGENT}")
+    print(f"  📸 CAPTURE_INTERVAL: {ENV_CAPTURE_INTERVAL}")
+    print(f"  📈 MAX_COLLECTED_FRAMES: {MAX_COLLECTED_FRAMES}")
+    print(f"  📺 DISPLAY_SCALE: {ENV_DISPLAY_SCALE}")
+    print(f"  🎯 GAME_FPS: {ENV_GAME_FPS}")
+    print(f"  💾 AUTO_COLLECT_DATA: {AUTO_COLLECT_DATA}")
+
+    if DEBUG_MODE:
+        print_environment_info()
+
+except ImportError as e:
+    print(f"⚠️  적응형 설정 로드 실패, 기본값 사용: {e}")
+    # Fallback to hardcoded defaults
+    # 하드코딩된 기본값으로 fallback
+    ENABLE_FAST_CAPTURE = True
+    ENV_CAPTURE_INTERVAL = 5
+    ENABLE_PERFORMANCE_LOGGING = True
+    AUTO_COLLECT_DATA = False
+    MAX_COLLECTED_FRAMES = 1000
+    DEBUG_MODE = False
+    FORCE_WEB_MODE = False
+    ENABLE_AI_AGENT = False
+    ENV_GAME_WIDTH = 256
+    ENV_GAME_HEIGHT = 192
+    ENV_GAME_FPS = 60
+    ENV_DISPLAY_SCALE = 3
+
+    # 기본값들도 출력
+    print("📋 기본 환경 변수 (fallback):")
+    print(f"  🚀 ENABLE_FAST_CAPTURE: {ENABLE_FAST_CAPTURE}")
+    print(f"  📊 ENABLE_PERFORMANCE_LOGGING: {ENABLE_PERFORMANCE_LOGGING}")
+    print(f"  🎮 GAME_SIZE: {ENV_GAME_WIDTH}x{ENV_GAME_HEIGHT}")
+    print(f"  🔧 DEBUG_MODE: {DEBUG_MODE}")
+    print(f"  🌐 FORCE_WEB_MODE: {FORCE_WEB_MODE}")
+    print(f"  🤖 ENABLE_AI_AGENT: {ENABLE_AI_AGENT}")
+    print(f"  📸 CAPTURE_INTERVAL: {ENV_CAPTURE_INTERVAL}")
+    print(f"  📈 MAX_COLLECTED_FRAMES: {MAX_COLLECTED_FRAMES}")
+    print(f"  📺 DISPLAY_SCALE: {ENV_DISPLAY_SCALE}")
+    print(f"  🎯 GAME_FPS: {ENV_GAME_FPS}")
+    print(f"  💾 AUTO_COLLECT_DATA: {AUTO_COLLECT_DATA}")
+
+# 웹 환경 감지 (환경 변수로 강제 설정 가능)
+IS_WEB = FORCE_WEB_MODE or platform.system() == "Emscripten"
+print(
+    f"🌐 웹 환경 감지: {IS_WEB} (FORCE_WEB_MODE: {FORCE_WEB_MODE}, Platform: {platform.system()})"
+)
+
 if IS_WEB:
-    import js
-    # json은 이미 위에서 import
+    try:
+        import js  # type: ignore
+
+        print("✅ js 모듈 로드됨 (웹 환경)")
+    except ImportError:
+        print("❌ js 모듈 로드 실패 (웹 환경 아님)")
+        if DEBUG_MODE:
+            print("⚠️  js 모듈을 임포트할 수 없습니다 (웹 환경이 아닐 수 있음)")
 
 # Pillow, io, base64, numpy를 공통으로 import 시도
 try:
     from PIL import Image as PILImage
     import io
     import base64
+
+    HAS_PERFORMANCE_LIBS = True
+    print("✅ 성능 라이브러리 로드됨 (PIL, io, base64)")
 except ImportError as e:
     PILImage = None
     io = None
     base64 = None
+    HAS_PERFORMANCE_LIBS = False
+    print(f"❌ 성능 라이브러리 로드 실패: {e}")
 
 # numpy는 별도로 처리 (웹 환경에서 문제가 될 수 있음)
 try:
     import numpy
+    import numpy as np
+
+    print("✅ NumPy 로드됨")
 except ImportError as e:
     numpy = None
+    print(f"❌ NumPy 로드 실패: {e}")
 except Exception as e:
     numpy = None
+    print(f"❌ NumPy 로드 중 예외 발생: {e}")
 
 from game import Game
+import input as input_module
 from config.app.constants import (
     APP_WIDTH,
     APP_HEIGHT,
@@ -42,24 +141,21 @@ from config.app.constants import (
 )
 from config.paths import ASSETS_DIR
 from config.colors import PALETTE
-from config.game_config import CLASS_MAP  # YOLO 라벨링용
 from monospace_bitmap_font import MonospaceBitmapFont
-import input as input_module  # 수정된 방식
 
-# 서버 업로드 기능 import (웹/데스크톱 모두 지원)
-SERVER_CLIENT_AVAILABLE = False
+print("✅ 게임 모듈들 로드됨")
+
+# 고성능 캡쳐를 위한 FastCapture import
 try:
-    from server_client import (
-        NewServerClient,
-    )  # 변경: GameDataServerClient -> NewServerClient
+    from utils.fast_capture import FastCapture
 
-    SERVER_CLIENT_AVAILABLE = True
+    FAST_CAPTURE_AVAILABLE = True
+    print("✅ FastCapture 모듈 로드됨")
+    if DEBUG_MODE:
+        print("✅ FastCapture 모듈 import 성공")
 except ImportError as e:
-    pass
-except Exception as e:
-    pass
-
-# 자동 업로드 관련 import 및 변수 삭제됨
+    print(f"❌ FastCapture 로드 실패: {e}")
+    FAST_CAPTURE_AVAILABLE = False
 
 
 class App:
@@ -67,72 +163,70 @@ class App:
         try:
             self.agent = agent
             # Data collection variables
-            self.collecting_data = (
-                False  # 데이터 수집 활성화 여부 (C키로 토글 가능하도록 설정)
-            )
+            self.collecting_data = AUTO_COLLECT_DATA  # 환경 변수로 설정
             self.collected_data = []
-            self.capture_interval = (
-                5  # 캡처 간격 (프레임) - 에이전트 학습용 고해상도 데이터 수집
-            )
+            self.capture_interval = ENV_CAPTURE_INTERVAL  # 환경 변수로 설정
             self.frames_since_last_capture = 0
 
-            # 에이전트가 있을 때는 데이터 수집 자동 활성화 (AI 학습용 데이터 수집)
-            if self.agent is not None:
-                self.collecting_data = True
+            # FastCapture 초기화 전 조건 확인
+            if DEBUG_MODE:
+                print(f"🔍 FastCapture 조건 확인:")
+                print(f"  - FAST_CAPTURE_AVAILABLE: {FAST_CAPTURE_AVAILABLE}")
+                print(f"  - HAS_PERFORMANCE_LIBS: {HAS_PERFORMANCE_LIBS}")
+                print(f"  - ENABLE_FAST_CAPTURE: {ENABLE_FAST_CAPTURE}")
+                print(f"  - numpy 가용성: {numpy is not None}")
 
-            # 서버 업로드 관련 변수 (웹/데스크톱 모두 지원)
-            self.server_upload_enabled = False
-            self.server_client = None
-            # self.auto_uploader = None 삭제됨
-
-            # 서버 클라이언트 초기화 시도
-            if SERVER_CLIENT_AVAILABLE:
-                # 환경 변수나 설정 파일에서 서버 URL을 가져올 수 있음
-                # 웹 환경에서는 현재 호스트를 기본으로 사용
-                if IS_WEB:
-                    default_server_url = os.getenv(
-                        "PUBLIC_WORKER_URL",
-                        "https://rl-dda-server.ijihyeon164.workers.dev",
-                    )  # 웹 환경 기본값 - Cloudflare Workers 배포 주소
-                else:
-                    default_server_url = "https://rl-dda-server.ijihyeon164.workers.dev"  # 데스크톱 환경 기본값 - Cloudflare Workers 배포 주소
-                server_url = os.getenv("GAME_SERVER_URL", default_server_url)
-                api_key = os.getenv("GAME_API_KEY", None)  # API 키 추가
+            # 성능 최적화 - FastCapture 초기화
+            self.fast_capture: Optional[FastCapture] = None
+            if (
+                FAST_CAPTURE_AVAILABLE
+                and HAS_PERFORMANCE_LIBS
+                and ENABLE_FAST_CAPTURE
+                and numpy is not None
+            ):
                 try:
-                    self.server_client = NewServerClient(
-                        server_url, api_key
-                    )  # 변경: NewServerClient 사용
-                    self.server_upload_enabled = (
-                        True  # 상태 확인 로직 제거하고 기본 활성화 (필요시 조정)
-                    )
-
-                    # 에이전트가 있을 때는 서버 업로드도 자동 활성화 (AI 학습 데이터 자동 업로드)
-                    if self.agent is not None:
-                        self.server_upload_enabled = True
-
-                except Exception as e:  # NewServerClient 초기화 실패 시
-                    self.server_client = None
-                    self.server_upload_enabled = False
+                    self.fast_capture = FastCapture(ENV_GAME_WIDTH, ENV_GAME_HEIGHT)
+                    self.use_fast_capture = True
+                    if ENABLE_PERFORMANCE_LOGGING:
+                        print("🚀 고성능 캡쳐 모드 활성화")
+                except Exception as e:
+                    print(f"❌ FastCapture 초기화 실패: {e}")
+                    self.use_fast_capture = False
+                    if ENABLE_PERFORMANCE_LOGGING:
+                        print("📸 일반 캡쳐 모드로 fallback")
             else:
-                # SERVER_CLIENT_AVAILABLE 자체가 False인 경우
-                self.server_client = None
-                self.server_upload_enabled = False
+                self.use_fast_capture = False
+                if ENABLE_PERFORMANCE_LOGGING:
+                    reasons = []
+                    if not FAST_CAPTURE_AVAILABLE:
+                        reasons.append("FastCapture 모듈 없음")
+                    if not HAS_PERFORMANCE_LIBS:
+                        reasons.append("PIL/io/base64 라이브러리 없음")
+                    if not ENABLE_FAST_CAPTURE:
+                        reasons.append("환경 변수로 비활성화")
+                    if numpy is None:
+                        reasons.append("NumPy 없음")
+                    print(f"📸 일반 캡쳐 모드 사용 (이유: {', '.join(reasons)})")
+
+            # 에이전트가 있거나 환경 변수로 설정된 경우 데이터 수집 자동 활성화
+            if self.agent is not None or ENABLE_AI_AGENT:
+                self.collecting_data = True
 
             if IS_WEB:
                 px.init(
-                    APP_WIDTH,
-                    APP_HEIGHT,
+                    ENV_GAME_WIDTH,
+                    ENV_GAME_HEIGHT,
                     title=APP_NAME,
-                    fps=APP_FPS,
-                    display_scale=APP_DISPLAY_SCALE,
+                    fps=ENV_GAME_FPS,
+                    display_scale=ENV_DISPLAY_SCALE,
                 )
             else:
                 px.init(
-                    APP_WIDTH,
-                    APP_HEIGHT,
+                    ENV_GAME_WIDTH,
+                    ENV_GAME_HEIGHT,
                     title=APP_NAME,
-                    fps=APP_FPS,
-                    display_scale=APP_DISPLAY_SCALE,
+                    fps=ENV_GAME_FPS,
+                    display_scale=ENV_DISPLAY_SCALE,
                     capture_scale=APP_CAPTURE_SCALE,
                 )
 
@@ -181,32 +275,6 @@ class App:
             if IS_WEB and self.collected_data:
                 pass
 
-    def toggle_server_upload(self):
-        """서버 업로드 상태를 토글합니다 (웹/데스크톱 모두 지원)."""
-        if not SERVER_CLIENT_AVAILABLE:
-            return
-
-        if not self.server_client:
-            return
-
-        # 에이전트 사용 중일 때는 서버 업로드 비활성화 방지 (AI 학습 데이터 업로드 보호)
-        if self.agent is not None and self.server_upload_enabled:
-            return
-
-        self.server_upload_enabled = not self.server_upload_enabled
-        if self.server_upload_enabled:
-            # 서버 연결 재확인
-            # NewServerClient에는 check_server_status_sync가 없으므로, 단순 토글로 변경
-            # 또는 비동기 상태 확인 후 콜백으로 UI 업데이트 등의 복잡한 처리 필요
-            pass
-            # if self.server_client.check_server_status_sync(): # 해당 메서드 없음
-            #     print("[APP_INFO] 서버 업로드 활성화됨")
-            # else:
-            #     print("[APP_WARNING] 서버에 연결할 수 없어 업로드를 비활성화합니다.")
-            #     self.server_upload_enabled = False
-        else:
-            pass
-
     def apply_agent_action(self, action_id):
         self.input.left_pressed = False
         self.input.right_pressed = False
@@ -249,10 +317,6 @@ class App:
             if self.input.has_tapped(input_module.COLLECT_DATA):
                 self.toggle_data_collection()  # App의 토글 메소드 호출
 
-            # 서버 업로드 토글 (U 키, 웹/데스크톱 모두 지원)
-            if px.btnp(px.KEY_U):
-                self.toggle_server_upload()
-
             self.game.update()
 
             # 데이터 수집 로직
@@ -260,25 +324,34 @@ class App:
                 self.frames_since_last_capture += 1
                 if self.frames_since_last_capture >= self.capture_interval:
                     self.frames_since_last_capture = 0
-                    collected_info = self._collect_current_frame_data(for_upload=False)
+                    collected_info = self._collect_current_frame_data()
                     if collected_info:
                         frame_data, pil_image, yolo_data_rows = collected_info
-                        if frame_data and frame_data.get("image_png_base64"):
+                        if (
+                            frame_data
+                            and isinstance(frame_data, dict)
+                            and frame_data.get("image_png_base64")
+                        ):
                             self.collected_data.append(frame_data)
 
                             # 데이터 수집 완료 로그 출력 (플레이어 정보는 참고용으로만 출력)
-                            frame_data_log = {
+                            yolo_labels = frame_data.get("yolo_labels", [])
+                            yolo_count = (
+                                len(yolo_labels) - 1
+                                if isinstance(yolo_labels, list)
+                                and len(yolo_labels) > 0
+                                else 0
+                            )
+
+                            frame_data_log: Dict[str, Any] = {
                                 "type": "event",
                                 "event": "frame_collected",
                                 "timestamp": time.time(),
                                 "data": {
                                     "image_size_chars": len(
-                                        frame_data.get("image_png_base64", "")
+                                        str(frame_data.get("image_png_base64", ""))
                                     ),
-                                    "yolo_objects_count": len(
-                                        frame_data.get("yolo_labels", [])
-                                    )
-                                    - 1,  # -1 for header
+                                    "yolo_objects_count": yolo_count,
                                 },
                             }
 
@@ -288,57 +361,33 @@ class App:
                                 score = getattr(self.game.game_vars, "score", "N/A")
                                 stage = getattr(self.game.game_vars, "stage_num", "N/A")
 
-                                frame_data_log["data"]["player"] = {
-                                    "lives": lives,
-                                    "score": score,
-                                    "stage": str(stage),
-                                }
-
-                                # 플레이어 체력 정보 추가 (콘솔 출력 전용)
-                                if (
-                                    hasattr(self.game, "state")
-                                    and self.game.state
-                                    and hasattr(self.game.state, "player")
-                                    and self.game.state.player
-                                ):
-                                    current_hp = getattr(
-                                        self.game.state.player, "current_hp", "N/A"
-                                    )
-                                    max_hp = getattr(
-                                        self.game.state.player, "max_hp", "N/A"
-                                    )
-                                    frame_data_log["data"]["player"]["hp"] = {
-                                        "current": current_hp,
-                                        "max": max_hp,
+                                # frame_data_log["data"]가 dict인지 확인하고 플레이어 정보 추가
+                                if isinstance(frame_data_log["data"], dict):
+                                    frame_data_log["data"]["player"] = {
+                                        "lives": lives,
+                                        "score": score,
+                                        "stage": str(stage),
                                     }
 
-                            print(json.dumps(frame_data_log))
-                        if (
-                            self.server_upload_enabled
-                            and self.server_client
-                            and pil_image
-                            and yolo_data_rows  # yolo_data_rows도 확인 (서버 업로드 시 필요)
-                        ):
-                            # 서버 업로드는 백그라운드에서 처리
-                            if IS_WEB:
-                                asyncio.ensure_future(
-                                    self._upload_frame_to_server(
-                                        pil_image, yolo_data_rows, frame_data
-                                    )
-                                )
-                            else:
-                                try:
-                                    loop = asyncio.get_event_loop()
-                                    if loop.is_running():
-                                        loop.create_task(
-                                            self._upload_frame_to_server(
-                                                pil_image, yolo_data_rows, frame_data
-                                            )
+                                    # 플레이어 체력 정보 추가 (콘솔 출력 전용)
+                                    if (
+                                        hasattr(self.game, "state")
+                                        and self.game.state
+                                        and hasattr(self.game.state, "player")
+                                        and self.game.state.player
+                                    ):
+                                        current_hp = getattr(
+                                            self.game.state.player, "current_hp", "N/A"
                                         )
-                                except RuntimeError:
-                                    pass
-                        else:
-                            pass
+                                        max_hp = getattr(
+                                            self.game.state.player, "max_hp", "N/A"
+                                        )
+                                        frame_data_log["data"]["player"]["hp"] = {
+                                            "current": current_hp,
+                                            "max": max_hp,
+                                        }
+
+                            print(json.dumps(frame_data_log))
 
             if not IS_WEB and self.input.has_tapped(input_module.BUTTON_2):
                 print("Local save triggered (not implemented).")
@@ -354,7 +403,7 @@ class App:
         try:
             self.game.draw()
 
-            # 데이터 수집 및 서버 업로드 상태 표시
+            # 데이터 수집 상태 표시
             self._draw_status_indicators()
         except Exception as e:
             error_message = (
@@ -365,7 +414,7 @@ class App:
             print(error_message, file=sys.stderr)
 
     def _draw_status_indicators(self):
-        """데이터 수집 및 서버 업로드 상태를 화면에 표시"""
+        """데이터 수집 상태를 화면에 표시"""
         y_offset = 5
 
         # 에이전트 상태 표시 (우선순위 최고)
@@ -380,15 +429,6 @@ class App:
         else:
             px.text(5, y_offset, "DATA: OFF", 5)  # 회색
 
-        # 서버 업로드 상태 표시 (웹/데스크톱 모두 지원)
-        if SERVER_CLIENT_AVAILABLE:  # server_client 존재 여부도 확인 가능
-            y_offset += 8
-            if self.server_upload_enabled:
-                status_text = "SERVER: AUTO" if self.agent is not None else "SERVER: ON"
-                px.text(5, y_offset, status_text, 11)  # 밝은 녹색
-            else:
-                px.text(5, y_offset, "SERVER: OFF", 5)  # 회색
-
         # 수집된 프레임 수 표시
         if self.collected_data:
             y_offset += 8
@@ -399,303 +439,182 @@ class App:
         if self.agent is not None:
             px.text(5, y_offset, "AUTO MODE", 6)  # 진한 회색
         else:
-            px.text(5, y_offset, "C:Data U:Server", 6)  # 진한 회색
+            px.text(5, y_offset, "C:Data", 6)  # 진한 회색
 
-    def _collect_current_frame_data(self, for_upload=False):
-        """현재 프레임의 이미지와 게임 객체 정보를 수집하여 YOLO 라벨을 생성합니다."""
+    def _collect_current_frame_data(self):
+        """
+        현재 프레임의 이미지 및 게임 오브젝트 정보를 수집합니다.
+        YOLO 라벨 생성을 위한 데이터를 생성합니다.
 
-        # Pillow, io, base64는 공통 임포트 시도됨. numpy도 마찬가지.
-        if not PILImage or not io or not base64:
-            if self.collecting_data:
-                self.collecting_data = False
-            return None
-
-        if not hasattr(self.game, "state") or not self.game.state:
-            return None
-
-        current_game_state = self.game.state
-        image_payload = None
-        image_shape_info = None
-        pil_image = None
-
+        Returns:
+            tuple: (frame_data, pil_image, yolo_data_rows) 또는 None
+        """
         try:
-            width = px.width  # Pyxel의 전역 화면 너비 사용
-            height = px.height  # Pyxel의 전역 화면 높이 사용
-            image_shape_info = (height, width)
+            start_time = time.time()
 
-            # NumPy를 사용한 빠른 화면 캡처 (가능한 경우)
-            pil_image = None
-            if numpy:
+            # 성능 최적화된 캡쳐 사용
+            if self.use_fast_capture and self.fast_capture:
                 try:
-                    screen_data_raw = px.screen.data
-
-                    if IS_WEB:
-                        # 웹 환경에서 screen.data 안전하게 처리
-                        if hasattr(screen_data_raw, "to_py"):
-                            screen_data_flat_py = screen_data_raw.to_py()
-                            screen_data_np = numpy.array(
-                                screen_data_flat_py, dtype=numpy.int32
-                            ).reshape(height, width)
-                        elif hasattr(screen_data_raw, "__iter__"):
-                            # 리스트나 배열인 경우
-                            screen_data_np = numpy.array(
-                                list(screen_data_raw), dtype=numpy.int32
-                            ).reshape(height, width)
-                        else:
-                            # 직접 numpy 변환 시도
-                            screen_data_np = numpy.asarray(
-                                screen_data_raw, dtype=numpy.int32
-                            ).reshape(height, width)
-                    else:
-                        # 데스크톱 환경
-                        screen_data_np = numpy.asarray(
-                            screen_data_raw, dtype=numpy.int32
-                        )
-                        # 필요시 reshape
-                        if screen_data_np.shape != (height, width):
-                            screen_data_np = screen_data_np.reshape(height, width)
-
-                    # 팔레트를 사용하여 RGB로 변환
-                    palette_hex = px.colors.to_list()
-                    palette_rgb = numpy.array(
-                        [
-                            ((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF)
-                            for c in palette_hex
-                        ],
-                        dtype=numpy.uint8,
-                    )
-
-                    rgb_array = palette_rgb[screen_data_np]
-                    pil_image = PILImage.fromarray(rgb_array, "RGB")
-                except Exception as e:
-                    pil_image = None
-
-            # NumPy 실패 시 픽셀별 캡처 (폴백)
-            if pil_image is None:
-                try:
-                    pil_image = PILImage.new("RGB", (width, height))
-                    palette_hex = px.colors.to_list()
-
-                    for y in range(height):
-                        for x in range(width):
-                            color_index = px.pget(x, y)
-                            if 0 <= color_index < len(palette_hex):
-                                rgb_hex = palette_hex[color_index]
-                                r = (rgb_hex >> 16) & 0xFF
-                                g = (rgb_hex >> 8) & 0xFF
-                                b = rgb_hex & 0xFF
-                                pil_image.putpixel((x, y), (r, g, b))
-                            else:
-                                pil_image.putpixel((x, y), (0, 0, 0))
-                except Exception as e:
-                    return None
-
-            # 게임 상태에서 YOLO 데이터 생성 (탄환 포함)
-            yolo_data_rows = []
-            if hasattr(self.game, "state") and self.game.state:
-                game_state = self.game.state
-
-                # 모든 게임 객체 수집
-                all_objects = []
-
-                # 플레이어 추가
-                if (
-                    hasattr(game_state, "player")
-                    and game_state.player
-                    and not getattr(game_state.player, "remove", False)
-                ):
-                    all_objects.append(("player", game_state.player))
-
-                # 플레이어 탄환 추가
-                if hasattr(game_state, "player_shots"):
-                    for shot in game_state.player_shots:
-                        if shot and not getattr(shot, "remove", False):
-                            all_objects.append(("player_shot", shot))
-
-                # 적 추가
-                if hasattr(game_state, "enemies"):
-                    for enemy in game_state.enemies:
-                        if enemy and not getattr(enemy, "remove", False):
-                            # EntityType을 사용하여 정확한 적 타입 식별
-                            enemy_type = getattr(enemy, "type", None)
-                            if enemy_type:
-                                if hasattr(enemy_type, "name"):
-                                    enemy_type_name = enemy_type.name.lower()
-                                else:
-                                    enemy_type_name = str(enemy_type).lower()
-                            else:
-                                enemy_type_name = "enemy_a"  # 기본값
-                            all_objects.append((enemy_type_name, enemy))
-
-                # 적 탄환 추가
-                if hasattr(game_state, "enemy_shots"):
-                    for shot in game_state.enemy_shots:
-                        if shot and not getattr(shot, "remove", False):
-                            all_objects.append(("enemy_shot", shot))
-
-                # 보스 추가
-                if hasattr(game_state, "bosses"):
-                    for boss in game_state.bosses:
-                        if boss and not getattr(boss, "remove", False):
-                            # 보스도 적 타입 확인
-                            boss_type = getattr(boss, "type", None)
-                            if boss_type:
-                                if hasattr(boss_type, "name"):
-                                    boss_type_name = boss_type.name.lower()
-                                else:
-                                    boss_type_name = str(boss_type).lower()
-                            else:
-                                boss_type_name = "enemy_k"  # 기본 보스 타입
-                            all_objects.append((boss_type_name, boss))
-
-                # 파워업 추가
-                if hasattr(game_state, "powerups"):
-                    for powerup in game_state.powerups:
-                        if powerup and not getattr(powerup, "remove", False):
-                            all_objects.append(("powerup", powerup))
-
-                # 폭발 추가 (선택적 - 짧은 지속시간)
-                if hasattr(game_state, "explosions"):
-                    for explosion in game_state.explosions:
-                        if explosion and not getattr(explosion, "remove", False):
-                            all_objects.append(("explosion", explosion))
-
-                # 수집된 객체 통계
-                object_counts = {}
-                for obj_type, obj in all_objects:
-                    object_counts[obj_type] = object_counts.get(obj_type, 0) + 1
-
-                # YOLO 라벨 생성
-                for obj_type, obj in all_objects:
-                    # CLASS_MAP에서 클래스 ID 찾기
-                    class_id = CLASS_MAP.get(obj_type, None)
-                    if class_id is None:
-                        continue
-
-                    # 객체 좌표와 크기 가져오기
-                    obj_x = getattr(obj, "x", 0)
-                    obj_y = getattr(obj, "y", 0)
-                    obj_w = getattr(obj, "w", 8)
-                    obj_h = getattr(obj, "h", 8)
-
-                    # 플레이어 탄환의 경우 YOLO 라벨 생성 시 X 좌표를 왼쪽으로 3px 이동
-                    if obj_type == "player_shot":
-                        obj_x -= 3
-
-                    # YOLO 정규화 좌표 계산
-                    x_center = obj_x + obj_w / 2
-                    y_center = obj_y + obj_h / 2
-                    x_center_norm = x_center / APP_WIDTH
-                    y_center_norm = y_center / APP_HEIGHT
-                    width_norm = obj_w / APP_WIDTH
-                    height_norm = obj_h / APP_HEIGHT
-
-                    # 좌표값이 유효한 범위 내에 있는지 확인 (0~1)
-                    if 0 <= x_center_norm <= 1 and 0 <= y_center_norm <= 1:
-                        yolo_data_row = f"{class_id} {x_center_norm:.6f} {y_center_norm:.6f} {width_norm:.6f} {height_norm:.6f}"
-                        yolo_data_rows.append(yolo_data_row)
-
-                print(
-                    json.dumps(
-                        {
-                            "type": "event",
-                            "event": "yolo_objects_collected",
-                            "timestamp": time.time(),
-                            "data": {
-                                "objects_by_type": dict(object_counts),
-                                "total_labels": len(yolo_data_rows),
-                            },
-                        }
-                    )
-                )
-
-            # 이미지를 base64로 인코딩
-            image_png_base64 = None
-            image_original_shape = None
-
-            if pil_image:
-                try:
-                    # image_original_shape 생성
-                    image_original_shape = [
-                        pil_image.height,
-                        pil_image.width,
-                        len(pil_image.getbands()),
+                    # FastCapture 사용 - palette_hex 정의
+                    palette_hex = [
+                        0x000000,
+                        0x2D1B69,
+                        0xC53031,
+                        0x9B59B6,
+                        0x2E8B57,
+                        0x8B4513,
+                        0xFF7F00,
+                        0xD3D3D3,
+                        0x696969,
+                        0x6495ED,
+                        0x4169E1,
+                        0x00FF00,
+                        0xFF00FF,
+                        0xA52A2A,
+                        0xFFFF00,
+                        0xFFFFFF,
                     ]
-
-                    # image_png_base64 생성
-                    buffered = io.BytesIO()
-                    pil_image.save(buffered, format="PNG")
-                    image_png_base64 = base64.b64encode(buffered.getvalue()).decode(
-                        "utf-8"
-                    )
-
+                    result = self.fast_capture.capture_optimized(px, palette_hex)
+                    if result is None:
+                        raise Exception("FastCapture 실패")
+                    image_data_b64, stats = result
+                    capture_method = "FastCapture"
                 except Exception as e:
-                    return None
+                    print(f"⚠️  FastCapture 실패, 기본 방법 사용: {e}")
+                    image_data_b64 = self._capture_frame_legacy()
+                    capture_method = "Legacy"
             else:
+                image_data_b64 = self._capture_frame_legacy()
+                capture_method = "Legacy"
+
+            # 이미지가 성공적으로 캡쳐되었는지 확인
+            if image_data_b64 is None:
+                print("❌ 이미지 캡쳐 실패")
                 return None
 
-            # yolo_labels 생성 (헤더 포함)
-            header = CLASS_MAP.get(-1, "entity_num x_center y_center width height")
-            yolo_labels = [header] + yolo_data_rows
+            # YOLO 데이터 생성 (기존 로직 유지)
+            yolo_data = self._generate_yolo_data()
 
-            # 프레임 데이터 생성 (서버 API 형식에 맞춤)
+            # 프레임 데이터 생성 (로컬 수집용)
             frame_data = {
                 "timestamp": time.time(),
-                "image_original_shape": image_original_shape,
-                "image_png_base64": image_png_base64,
-                "yolo_labels": yolo_labels,
+                "image_png_base64": image_data_b64,
+                "yolo_labels": ["header"]
+                + [f"{obj[0]} {obj[1].x} {obj[1].y}" for obj in yolo_data],
+                "game_state": {
+                    "score": getattr(self.game.game_vars, "score", 0)
+                    if hasattr(self.game, "game_vars")
+                    else 0,
+                    "stage": getattr(self.game.game_vars, "stage_num", 1)
+                    if hasattr(self.game, "game_vars")
+                    else 1,
+                },
             }
 
-            if for_upload:
-                return frame_data, pil_image, yolo_data_rows
-            else:
-                return frame_data, pil_image, yolo_data_rows
+            # PIL 이미지 생성 (호환성을 위해)
+            pil_image = None
+            if PILImage and image_data_b64 and io and base64:
+                try:
+                    img_data = base64.b64decode(image_data_b64)
+                    pil_image = PILImage.open(io.BytesIO(img_data))
+                except Exception as e:
+                    print(f"⚠️  PIL 이미지 생성 실패: {e}")
+
+            # YOLO 데이터 행 형태로 변환
+            yolo_data_rows = frame_data["yolo_labels"]
+
+            # 성능 통계 출력 (FastCapture의 performance stats 제거)
+            capture_time = time.time() - start_time
+            if (
+                ENABLE_PERFORMANCE_LOGGING and capture_time > 0.1
+            ):  # 100ms 이상일 때만 출력
+                print(f"📊 캡쳐 성능: {capture_time:.3f}s, 메서드: {capture_method}")
+
+            return (frame_data, pil_image, yolo_data_rows)
 
         except Exception as e:
-            error_message = f"Error in _collect_current_frame_data: {type(e).__name__}: {e}\\n{traceback.format_exc()}"
-            if IS_WEB and "js" in globals():
-                js.console.error(error_message)
-            print(error_message, file=sys.stderr)
+            print(f"❌ 프레임 데이터 수집 중 오류: {e}")
+            traceback.print_exc()
             return None
 
-    async def _upload_frame_to_server(self, pil_image, yolo_data_rows, frame_data):
-        """서버로 프레임 데이터 업로드 (비동기 작업을 스케줄링하는 동기 래퍼)"""
-        if not self.server_client or not self.server_upload_enabled:
-            return False
-
-        if not frame_data or not frame_data.get("image_png_base64"):
-            return False
-
+    def _capture_frame_legacy(self):
+        """기존 캡쳐 방법 (fallback) - 픽셀별 읽기만 사용"""
         try:
-            # frame_data에 이미 필요한 모든 정보가 포함되어 있음
-            dataset_entry = {
-                "timestamp": frame_data.get("timestamp", time.time()),
-                "image_original_shape": frame_data.get("image_original_shape"),
-                "image_png_base64": frame_data.get("image_png_base64"),
-                "yolo_labels": frame_data.get("yolo_labels", []),
-            }
+            if not PILImage or not io or not base64:
+                print("❌ 필요한 라이브러리가 없습니다 (PIL, io, base64)")
+                return None
 
-            # 필수 필드 검증
-            if not all(
-                [
-                    dataset_entry["timestamp"],
-                    dataset_entry["image_original_shape"],
-                    dataset_entry["image_png_base64"],
-                    isinstance(dataset_entry["yolo_labels"], list),
-                ]
-            ):
-                return False
+            # RGB 이미지 생성
+            image = PILImage.new("RGB", (APP_WIDTH, APP_HEIGHT))
 
-            # NewServerClient의 create_data는 list of dicts를 받음
-            upload_id = await self.server_client.create_data([dataset_entry])
+            # 팔레트 정의
+            palette = [
+                (0, 0, 0),
+                (45, 27, 105),
+                (197, 48, 49),
+                (155, 89, 182),
+                (46, 139, 87),
+                (139, 69, 19),
+                (255, 127, 0),
+                (211, 211, 211),
+                (105, 105, 105),
+                (100, 149, 237),
+                (65, 105, 225),
+                (0, 255, 0),
+                (255, 0, 255),
+                (165, 42, 42),
+                (255, 255, 0),
+                (255, 255, 255),
+            ]
 
-            if upload_id:
-                return True
-            else:
-                return False
+            # 픽셀별로 읽기 (pyxel pget 사용)
+            for y in range(APP_HEIGHT):
+                for x in range(APP_WIDTH):
+                    color_index = px.pget(x, y)
+                    if 0 <= color_index < len(palette):
+                        image.putpixel((x, y), palette[color_index])
+
+            # base64 인코딩
+            img_buffer = io.BytesIO()
+            image.save(img_buffer, format="PNG")
+            img_str = base64.b64encode(img_buffer.getvalue()).decode()
+            return img_str
+
         except Exception as e:
-            traceback.print_exc()
-            return False
+            print(f"❌ Legacy 캡쳐 실패: {e}")
+            return None
+
+    def _capture_frame_pixel_by_pixel(self):
+        """픽셀별 캡쳐 방법 - legacy와 동일"""
+        return self._capture_frame_legacy()
+
+    def _generate_yolo_data(self):
+        """YOLO 라벨 데이터 생성"""
+        yolo_objects = []
+
+        # 게임 상태에서 오브젝트들 가져오기
+        if hasattr(self.game, "state") and self.game.state:
+            # 플레이어 (클래스 0)
+            if hasattr(self.game.state, "player") and self.game.state.player:
+                player = self.game.state.player
+                yolo_objects.append(("player", player))
+
+            # 적들 (클래스 1)
+            if hasattr(self.game.state, "enemies"):
+                for enemy in self.game.state.enemies:
+                    yolo_objects.append(("enemy", enemy))
+
+            # 파워업들 (클래스 2)
+            if hasattr(self.game.state, "powerups"):
+                for powerup in self.game.state.powerups:
+                    yolo_objects.append(("powerup", powerup))
+
+            # 폭발들 (클래스 3)
+            if hasattr(self.game.state, "explosions"):
+                for explosion in self.game.state.explosions:
+                    yolo_objects.append(("explosion", explosion))
+
+        return yolo_objects
 
     def download_collected_data_web(self):
         if not IS_WEB or not self.collected_data:

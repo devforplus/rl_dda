@@ -171,6 +171,7 @@ python-dateutil==2.9.0.post0
     # via matplotlib
     # via pandas
 python-dotenv==1.1.0
+    # via rl-dda-game
     # via webdriver-manager
 python-slugify==8.0.4
     # via pytest-playwright
