@@ -247,6 +247,7 @@ class GamePPOAgent:
             score=self.step_count * 10,  # 임시 점수
             survival_time=self.step_count,
             kills=self.step_count // 100,
+            lives=3,  # 기본 목숨 수
         )
 
     def _is_episode_done(self, game_state) -> bool:

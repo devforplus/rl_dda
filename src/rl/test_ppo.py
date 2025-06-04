@@ -53,6 +53,7 @@ def test_environment():
         score=1000,
         survival_time=500,
         kills=5,
+        lives=3,  # 기본 목숨 수
     )
 
     # 상태 인코딩 테스트
@@ -138,6 +139,7 @@ def test_ppo_agent():
         score=500,
         survival_time=300,
         kills=2,
+        lives=3,  # 기본 목숨 수
     )
 
     # 액션 선택 테스트
@@ -168,6 +170,7 @@ def test_ppo_agent():
             score=500 + i * 10,
             survival_time=300 + i,
             kills=2,
+            lives=3,  # 기본 목숨 수
         )
 
         action, log_prob, value = agent.select_action_with_exploration(test_state)
@@ -300,6 +303,7 @@ def test_training_loop():
                 score=step * 10,
                 survival_time=step,
                 kills=step // 10,
+                lives=3,  # 기본 목숨 수
             )
 
             # 액션 선택

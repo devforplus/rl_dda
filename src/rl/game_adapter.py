@@ -497,4 +497,5 @@ def create_game_state_from_entities(
         score=0,
         survival_time=0,
         kills=0,
+        lives=3,  # 기본 목숨 수
     )
