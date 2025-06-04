@@ -53,33 +53,53 @@ def create(state, tile_x, x, y):
     """
     current_time = time.time()
 
+    # 에이전트가 학습 모드인지 확인
+    should_log = True
+    if (
+        hasattr(state, "game")
+        and hasattr(state.game, "app")
+        and hasattr(state.game.app, "agent")
+        and state.game.app.agent is not None
+        and hasattr(state.game.app.agent, "enable_learning")
+        and getattr(state.game.app.agent, "enable_learning", False)
+    ):
+        should_log = False  # 학습 모드일 때는 로그 억제
+
     if tile_x in ENEMY_BOSS_SPAWN_TILE_X:
         f = ENEMY_BOSS_SPAWN_TILE_X[tile_x]
         enemy = f(state, x, y)
         state.add_boss(enemy)  # 보스 적 추가
         boss_type = f.__name__  # 클래스 이름 사용
-        print(
-            json.dumps(
-                {
-                    "type": "entity",
-                    "event": "boss_created",
-                    "timestamp": current_time,
-                    "data": {"entity_type": boss_type, "position": {"x": x, "y": y}},
-                }
+        if should_log:
+            print(
+                json.dumps(
+                    {
+                        "type": "entity",
+                        "event": "boss_created",
+                        "timestamp": current_time,
+                        "data": {
+                            "entity_type": boss_type,
+                            "position": {"x": x, "y": y},
+                        },
+                    }
+                )
             )
-        )
     elif tile_x in ENEMY_SPAWN_TILE_X:
         f = ENEMY_SPAWN_TILE_X[tile_x]
         enemy = f(state, x, y)
         state.add_enemy(enemy)  # 일반 적 추가
         enemy_type = f.__name__  # 클래스 이름 사용
-        print(
-            json.dumps(
-                {
-                    "type": "entity",
-                    "event": "enemy_created",
-                    "timestamp": current_time,
-                    "data": {"entity_type": enemy_type, "position": {"x": x, "y": y}},
-                }
+        if should_log:
+            print(
+                json.dumps(
+                    {
+                        "type": "entity",
+                        "event": "enemy_created",
+                        "timestamp": current_time,
+                        "data": {
+                            "entity_type": enemy_type,
+                            "position": {"x": x, "y": y},
+                        },
+                    }
+                )
             )
-        )

@@ -419,9 +419,14 @@ def run_ppo_in_game(
     PPO 에이전트가 실제 게임을 플레이하도록 설정
     """
     try:
+        # 학습 모드 전역 플래그 설정 (로그 억제용)
+        sys._current_ppo_learning_mode = enable_learning
+
         print("🚀 Starting PPO Agent in Game Environment")
         print(f"📦 Model Path: {model_path if model_path else 'None (new model)'}")
         print(f"🧠 Learning Mode: {'Enabled' if enable_learning else 'Disabled'}")
+        if enable_learning:
+            print("🔇 Non-learning logs suppressed during training")
 
         # PPO 에이전트 생성
         ppo_agent = create_trained_ppo_agent(model_path)
@@ -449,6 +454,10 @@ def run_ppo_in_game(
         print(f"❌ Error running PPO in game: {e}", file=sys.stderr)
         print(traceback.format_exc(), file=sys.stderr)
         sys.exit(1)
+    finally:
+        # 전역 플래그 정리
+        if hasattr(sys, "_current_ppo_learning_mode"):
+            delattr(sys, "_current_ppo_learning_mode")
 
 
 def main():

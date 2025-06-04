@@ -91,6 +91,9 @@ class GameStateAdapter:
                 score = getattr(game_vars, "score", 0)
                 lives = getattr(game_vars, "lives", 3)  # 목숨 정보 추출
 
+                # 디버깅: 목숨 정보 확인
+                print(f"🔍 Adapter Debug: Extracted lives = {lives} from game_vars")
+
                 # 생존 시간은 스테이지 상태에서 추출
                 if game_state and hasattr(game_state, "state_time"):
                     survival_time = game_state.state_time
@@ -103,6 +106,10 @@ class GameStateAdapter:
                     kills = self.previous_kills + estimated_kills
                 else:
                     kills = self.previous_kills
+            else:
+                print(
+                    f"🔍 Adapter Debug: No game_vars found, using default lives = {lives}"
+                )
 
         # 상태 정보 업데이트
         self.previous_score = score

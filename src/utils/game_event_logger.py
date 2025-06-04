@@ -244,8 +244,22 @@ class GameEventLogger:
         # 이벤트 저장
         self.events.append(event_dict)
 
+        # 학습 모드 확인 - 전역적으로 PPO 에이전트가 학습 중인지 확인
+        should_output_console = self.enable_console
+        try:
+            # 전역에서 현재 실행 중인 에이전트 확인 (간접적 방법)
+            import sys
+
+            if (
+                hasattr(sys, "_current_ppo_learning_mode")
+                and sys._current_ppo_learning_mode
+            ):
+                should_output_console = False  # 학습 모드일 때는 콘솔 출력 억제
+        except:
+            pass  # 에러 시 기본 동작 유지
+
         # 콘솔 출력
-        if self.enable_console:
+        if should_output_console:
             print(json.dumps(event_dict, ensure_ascii=False))
 
         # 파일 출력

@@ -195,13 +195,28 @@ class GameEnvironment:
 
         # 0. 목숨 잃을 때 큰 패널티 (Death Penalty)
         if self.previous_state is not None:
-            lives_lost = self.previous_state.lives - current_state.lives
+            prev_lives = self.previous_state.lives
+            curr_lives = current_state.lives
+            lives_lost = prev_lives - curr_lives
+
+            # 디버깅 출력
+            print(
+                f"🔍 Debug Lives: prev={prev_lives}, curr={curr_lives}, lost={lives_lost}"
+            )
+
             if lives_lost > 0:
                 death_penalty = lives_lost * -50.0  # 목숨 하나당 -50점 패널티
                 total_reward += death_penalty
                 print(
                     f"💀 Death Penalty Applied: {death_penalty} (Lives Lost: {lives_lost})"
                 )
+            elif lives_lost < 0:
+                # 목숨이 증가한 경우 (1up)
+                print(
+                    f"❤️ Lives Gained: {-lives_lost} (prev: {prev_lives} -> curr: {curr_lives})"
+                )
+        else:
+            print(f"🔍 Debug: No previous state, current lives = {current_state.lives}")
 
         # 1. 생존 지표 (Survival Metric)
         survival_reward = self._calculate_survival_reward(current_state)
