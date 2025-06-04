@@ -415,31 +415,8 @@ class App:
 
     def _draw_status_indicators(self):
         """데이터 수집 상태를 화면에 표시"""
-        y_offset = 5
-
-        # 에이전트 상태 표시 (우선순위 최고)
-        if self.agent is not None:
-            px.text(5, y_offset, "AGENT: ACTIVE", 12)  # 파란색
-            y_offset += 8
-
-        # 데이터 수집 상태 표시
-        if self.collecting_data:
-            status_text = "DATA: AUTO" if self.agent is not None else "DATA: ON"
-            px.text(5, y_offset, status_text, 11)  # 밝은 녹색
-        else:
-            px.text(5, y_offset, "DATA: OFF", 5)  # 회색
-
-        # 수집된 프레임 수 표시
-        if self.collected_data:
-            y_offset += 8
-            px.text(5, y_offset, f"FRAMES: {len(self.collected_data)}", 7)  # 흰색
-
-        # 키 도움말 표시
-        y_offset += 8
-        if self.agent is not None:
-            px.text(5, y_offset, "AUTO MODE", 6)  # 진한 회색
-        else:
-            px.text(5, y_offset, "C:Data", 6)  # 진한 회색
+        # 화면 표시 텍스트 제거됨 - 깔끔한 게임 화면을 위해
+        pass
 
     def _collect_current_frame_data(self):
         """

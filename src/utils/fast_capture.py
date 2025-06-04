@@ -292,14 +292,6 @@ class FastCapture:
         self.capture_times.append(capture_time_ms)
         self.total_captures += 1
 
-        # 로깅 (샘플링)
-        if ENABLE_PERFORMANCE_LOGGING and np.random.random() < PERFORMANCE_SAMPLE_RATE:
-            print(f"📸 캡쳐 시간: {capture_time_ms:.2f}ms (모드: {self.current_mode})")
-
-        # 느린 캡쳐 경고
-        if LOG_SLOW_CAPTURES and capture_time_ms > 20.0:
-            print(f"⚠️ 느린 캡쳐 감지: {capture_time_ms:.2f}ms")
-
         # 적응형 모드 조정 (최근 10회 평균 기준)
         if len(self.capture_times) >= 10:
             avg_time = np.mean(list(self.capture_times)[-10:])
