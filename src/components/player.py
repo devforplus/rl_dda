@@ -1,6 +1,7 @@
 import pyxel as px
 from .entity_types import EntityType
 from .sprite import Sprite
+from config.app import APP_WIDTH, APP_HEIGHT
 import player_shot
 import input as input
 
@@ -100,18 +101,30 @@ class Player(Sprite):
         플레이어가 무적 상태인지 확인.
 
         초기 무적 상태, 강제 무적 상태, 또는 에이전트가 있을 때 True를 반환합니다.
-        에이전트 사용 시에는 항상 무적 모드로 동작하여 안전한 학습 환경을 제공합니다.
+        단, 에이전트가 학습 모드인 경우에는 무적 모드를 비활성화하여 적절한 학습이 가능하도록 합니다.
         """
         # 기본 무적 상태 확인 (초기 무적 또는 강제 무적)
         base_invincible = self.invincibility_frames > 0 or self.forced_invincible
 
-        # 에이전트가 있을 때는 항상 무적 상태 (랜덤 에이전트의 안전한 플레이를 위함)
-        agent_invincible = (
+        # 에이전트 관련 무적 상태 확인
+        agent_invincible = False
+        if (
             hasattr(self.game_state, "game")
             and hasattr(self.game_state.game, "app")
             and hasattr(self.game_state.game.app, "agent")
             and self.game_state.game.app.agent is not None
-        )
+        ):
+            # 에이전트가 있는 경우
+            agent = self.game_state.game.app.agent
+
+            # 에이전트가 학습 모드인지 확인
+            is_learning_mode = hasattr(agent, "enable_learning") and getattr(
+                agent, "enable_learning", False
+            )
+
+            # 학습 모드가 아닐 때만 무적 (평가/테스트 모드에서만 무적)
+            if not is_learning_mode:
+                agent_invincible = True
 
         return base_invincible or agent_invincible
 

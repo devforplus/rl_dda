@@ -4,6 +4,7 @@ import pyxel as px
 
 from config.stage.stage_num import FINAL_STAGE
 from config.music import special_music_files, stage_music_mapping
+from config.app import APP_WIDTH, APP_HEIGHT
 from components.player import Player
 from components.sprite import (
     sprites_update,
@@ -58,17 +59,29 @@ class GameStateStage:
         self.player = Player(self)
 
         # 에이전트가 있을 때는 플레이어를 무적 모드로 설정 (랜덤 에이전트 안전을 위함)
+        # 단, 학습 모드일 때는 무적 모드 비활성화하여 적절한 학습이 가능하도록 함
         if (
             hasattr(self.game, "app")
             and hasattr(self.game.app, "agent")
             and self.game.app.agent is not None
         ):
-            self.player.forced_invincible = (
-                True  # 에이전트 사용 시 항상 무적 모드 활성화
+            agent = self.game.app.agent
+
+            # 에이전트가 학습 모드인지 확인
+            is_learning_mode = hasattr(agent, "enable_learning") and getattr(
+                agent, "enable_learning", False
             )
-            print(
-                "[GAME_STATE_STAGE_INFO] Agent detected - Player set to invincible mode for agent safety"
-            )
+
+            # 학습 모드가 아닐 때만 무적 모드 활성화 (평가/테스트 모드에서만)
+            if not is_learning_mode:
+                self.player.forced_invincible = True
+                print(
+                    "[GAME_STATE_STAGE_INFO] Agent detected (non-learning mode) - Player set to invincible mode for agent safety"
+                )
+            else:
+                print(
+                    "[GAME_STATE_STAGE_INFO] Agent detected (learning mode) - Player invincibility disabled for proper training"
+                )
 
         self.player_shots = []
 
@@ -127,17 +140,29 @@ class GameStateStage:
         self.player = Player(self)
 
         # 에이전트가 있을 때는 플레이어를 무적 모드로 설정 (랜덤 에이전트 안전을 위함)
+        # 단, 학습 모드일 때는 무적 모드 비활성화하여 적절한 학습이 가능하도록 함
         if (
             hasattr(self.game, "app")
             and hasattr(self.game.app, "agent")
             and self.game.app.agent is not None
         ):
-            self.player.forced_invincible = (
-                True  # 에이전트 사용 시 항상 무적 모드 활성화
+            agent = self.game.app.agent
+
+            # 에이전트가 학습 모드인지 확인
+            is_learning_mode = hasattr(agent, "enable_learning") and getattr(
+                agent, "enable_learning", False
             )
-            print(
-                "[GAME_STATE_STAGE_INFO] Agent detected - Player set to invincible mode for agent safety"
-            )
+
+            # 학습 모드가 아닐 때만 무적 모드 활성화 (평가/테스트 모드에서만)
+            if not is_learning_mode:
+                self.player.forced_invincible = True
+                print(
+                    "[GAME_STATE_STAGE_INFO] Agent detected (non-learning mode) - Player set to invincible mode for agent safety"
+                )
+            else:
+                print(
+                    "[GAME_STATE_STAGE_INFO] Agent detected (learning mode) - Player invincibility disabled for proper training"
+                )
 
     def get_scroll_x_speed(self):
         return self.background.scroll_x_speed
