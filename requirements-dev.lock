@@ -74,6 +74,7 @@ loguru==0.7.3
 markupsafe==2.1.5
     # via jinja2
 matplotlib==3.10.3
+    # via rl-dda-game
     # via ultralytics
 micropip==0.1.0
     # via rl-dda-game
@@ -111,7 +112,8 @@ packaging==25.0
     # via pytest
     # via torchrl
     # via webdriver-manager
-pandas==2.0.3
+pandas==2.2.3
+    # via rl-dda-game
     # via ultralytics
 pillow==10.4.0
     # via matplotlib
@@ -171,7 +173,6 @@ python-dateutil==2.9.0.post0
     # via matplotlib
     # via pandas
 python-dotenv==1.1.0
-    # via rl-dda-game
     # via webdriver-manager
 python-slugify==8.0.4
     # via pytest-playwright
@@ -226,6 +227,7 @@ torchrl==0.5.0
 torchvision==0.19.1
     # via ultralytics
 tqdm==4.67.1
+    # via rl-dda-game
     # via ultralytics
 trio==0.30.0
     # via selenium

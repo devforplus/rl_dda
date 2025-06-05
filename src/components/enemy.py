@@ -109,20 +109,21 @@ class Enemy(Sprite):
         # 적 제거 로그 출력
         current_time = time.time()
         entity_type = type(self).__name__
-        print(
-            json.dumps(
-                {
-                    "type": "entity",
-                    "event": "enemy_destroyed",
-                    "timestamp": current_time,
-                    "data": {
-                        "entity_type": entity_type,
-                        "position": {"x": self.x, "y": self.y},
-                        "reason": self.removal_reason,
-                    },
-                }
-            )
-        )
+        # PPO 학습 시 로그 출력 비활성화
+        # print(
+        #     json.dumps(
+        #         {
+        #             "type": "entity",
+        #             "event": "enemy_destroyed",
+        #             "timestamp": current_time,
+        #             "data": {
+        #                 "entity_type": entity_type,
+        #                 "position": {"x": self.x, "y": self.y},
+        #                 "reason": self.removal_reason,
+        #             },
+        #         }
+        #     )
+        # )
 
     def hit(self, dmg: int) -> None:
         """
@@ -228,17 +229,18 @@ class Enemy(Sprite):
             # 적 제거 로그 출력
             current_time = time.time()
             entity_type = type(self).__name__
-            print(
-                json.dumps(
-                    {
-                        "type": "entity",
-                        "event": "enemy_destroyed",
-                        "timestamp": current_time,
-                        "data": {
-                            "entity_type": entity_type,
-                            "position": {"x": self.x, "y": self.y},
-                            "reason": self.removal_reason,
-                        },
-                    }
-                )
-            )
+            # PPO 학습 시 로그 출력 비활성화
+            # print(
+            #     json.dumps(
+            #         {
+            #             "type": "entity",
+            #             "event": "enemy_destroyed",
+            #             "timestamp": current_time,
+            #             "data": {
+            #                 "entity_type": entity_type,
+            #                 "position": {"x": self.x, "y": self.y},
+            #                 "reason": self.removal_reason,
+            #             },
+            #         }
+            #     )
+            # )

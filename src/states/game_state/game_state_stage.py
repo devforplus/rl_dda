@@ -75,13 +75,10 @@ class GameStateStage:
             # 학습 모드가 아닐 때만 무적 모드 활성화 (평가/테스트 모드에서만)
             if not is_learning_mode:
                 self.player.forced_invincible = True
-                print(
-                    "[GAME_STATE_STAGE_INFO] Agent detected (non-learning mode) - Player set to invincible mode for agent safety"
-                )
+                # 평가 모드에서만 필요시 출력
             else:
-                print(
-                    "[GAME_STATE_STAGE_INFO] Agent detected (learning mode) - Player invincibility disabled for proper training"
-                )
+                # 학습 모드에서는 로그 출력하지 않음
+                pass
 
         self.player_shots = []
 
@@ -156,13 +153,10 @@ class GameStateStage:
             # 학습 모드가 아닐 때만 무적 모드 활성화 (평가/테스트 모드에서만)
             if not is_learning_mode:
                 self.player.forced_invincible = True
-                print(
-                    "[GAME_STATE_STAGE_INFO] Agent detected (non-learning mode) - Player set to invincible mode for agent safety"
-                )
+                # 평가 모드에서만 필요시 출력
             else:
-                print(
-                    "[GAME_STATE_STAGE_INFO] Agent detected (learning mode) - Player invincibility disabled for proper training"
-                )
+                # 학습 모드에서는 로그 출력하지 않음
+                pass
 
     def get_scroll_x_speed(self):
         return self.background.scroll_x_speed

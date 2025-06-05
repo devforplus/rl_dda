@@ -71,7 +71,7 @@ class Player(Sprite):
         self.forced_invincible = False  # 강제 무적 상태는 아님
 
         # 체력 설정
-        self.max_hp = 3  # 기본 최대 체력
+        self.max_hp = 2  # 기본 최대 체력 (3에서 2로 변경)
         self.current_hp = self.max_hp  # 현재 체력
 
     def take_damage(self, damage: int) -> None:

@@ -50,10 +50,12 @@ class GameStateAdapter:
         """
         entities = []
         player_hp = 0
+        player_lives = 1  # 기본값 (3에서 1로 변경)
         score = 0
         survival_time = 0
         kills = 0
-        lives = 3  # 기본값
+        current_stage = 1  # 기본값
+        game_cleared = False  # 기본값
 
         # 게임 상태 확인
         if hasattr(game_instance, "game") and game_instance.game:
@@ -86,13 +88,19 @@ class GameStateAdapter:
                     self._extract_entities_from_objects(game_state, player_pos)
                 )
 
-            # 게임 변수에서 점수, 생존 시간, 목숨 추출
+            # 게임 변수에서 점수, 목숨, 스테이지 정보 추출
             if game_vars:
                 score = getattr(game_vars, "score", 0)
-                lives = getattr(game_vars, "lives", 3)  # 목숨 정보 추출
+                player_lives = getattr(
+                    game_vars, "lives", 1
+                )  # 목숨 정보 추출 (기본값 3에서 1로 변경)
+                current_stage = getattr(game_vars, "stage_num", 1)  # 현재 스테이지
 
-                # 디버깅: 목숨 정보 확인
-                print(f"🔍 Adapter Debug: Extracted lives = {lives} from game_vars")
+                # 게임 클리어 여부 확인 (최종 스테이지 완료 시)
+                from config.stage.stage_num import FINAL_STAGE
+
+                if current_stage > FINAL_STAGE:
+                    game_cleared = True
 
                 # 생존 시간은 스테이지 상태에서 추출
                 if game_state and hasattr(game_state, "state_time"):
@@ -106,10 +114,6 @@ class GameStateAdapter:
                     kills = self.previous_kills + estimated_kills
                 else:
                     kills = self.previous_kills
-            else:
-                print(
-                    f"🔍 Adapter Debug: No game_vars found, using default lives = {lives}"
-                )
 
         # 상태 정보 업데이트
         self.previous_score = score
@@ -121,10 +125,12 @@ class GameStateAdapter:
             skill_level=skill_level,
             personality=personality,
             player_hp=player_hp,
+            player_lives=player_lives,  # 목숨 정보 포함
             score=score,
             survival_time=survival_time,
             kills=kills,
-            lives=lives,
+            current_stage=current_stage,  # 현재 스테이지 포함
+            game_cleared=game_cleared,  # 게임 클리어 여부 포함
         )
 
     def _extract_entities_from_objects(
@@ -500,9 +506,8 @@ def create_game_state_from_entities(
         entities=entity_data_list,
         skill_level=skill_level,
         personality=personality,
-        player_hp=10,  # 기본값
+        player_hp=2,  # 기본값 (10에서 2로 변경)
         score=0,
         survival_time=0,
         kills=0,
-        lives=3,  # 기본 목숨 수
     )

@@ -247,31 +247,48 @@ class PPOAgent(BaseAgent):
 
         return action.item(), log_prob.item(), value.item()
 
-    def store_experience(
-        self,
-        state: GameState,
-        action: int,
-        reward: float,
-        log_prob: float,
-        value: float,
-        done: bool,
-    ):
-        """경험 저장
+    def store_experience(self, state, action, reward, log_prob, value, done):
+        """경험을 버퍼에 저장 (state는 GameState 또는 이미 인코딩된 Tensor일 수 있음)
 
         Args:
-            state: 상태
-            action: 액션
-            reward: 보상
-            log_prob: 로그 확률
-            value: 상태 가치
-            done: 에피소드 종료 여부
-
-        ---
-
-        한 스텝의 경험을 버퍼에 저장
+            state: 게임 상태 (GameState 객체 또는 이미 인코딩된 Tensor)
+            action: 수행한 액션 (int 또는 Tensor)
+            reward: 받은 보상 (float)
+            log_prob: 액션의 로그 확률 (Tensor)
+            value: 상태 가치 (Tensor)
+            done: 에피소드 종료 여부 (bool)
         """
-        state_tensor = self.env.encode_state(state).to(self.device)
-        self.buffer.add(state_tensor, action, reward, log_prob, value, done)
+        # state 처리: Tensor가 아니면 GameState로 간주하고 인코딩, Tensor이면 그대로 사용
+        if not isinstance(state, torch.Tensor):
+            state_tensor = self.env.encode_state(state).to(self.device)
+        else:
+            state_tensor = state.to(self.device)  # 이미 Tensor인 경우 device만 맞춰줌
+
+        # action 처리: int이면 Tensor로 변환, Tensor이면 device만 맞춰줌
+        if not isinstance(action, torch.Tensor):
+            action_tensor = torch.tensor([action], device=self.device, dtype=torch.long)
+        else:
+            action_tensor = action.to(self.device)
+
+        # reward, log_prob, value, done은 각각 적절한 Tensor 형태로 변환 또는 device 이동
+        reward_tensor = torch.tensor([reward], device=self.device, dtype=torch.float32)
+
+        # log_prob와 value는 이미 Tensor로 전달된다고 가정 (select_action_with_exploration 반환값)
+        log_prob_tensor = torch.tensor(
+            [log_prob], device=self.device, dtype=torch.float32
+        )
+        value_tensor = torch.tensor([value], device=self.device, dtype=torch.float32)
+
+        done_tensor = torch.tensor([done], device=self.device, dtype=torch.bool)
+
+        self.buffer.add(
+            state_tensor,
+            action_tensor,
+            reward_tensor,
+            log_prob_tensor,
+            value_tensor,
+            done_tensor,
+        )
 
         # 에피소드 통계 업데이트
         self.current_episode_reward += reward
@@ -490,26 +507,6 @@ class PPOAgent(BaseAgent):
         """
         self.network.train()
 
-    def update_reward_weights(
-        self, survival_weight: float, combat_weight: float, consistency_weight: float
-    ):
-        """보상 가중치 업데이트
-
-        Args:
-            survival_weight: 생존 지표 가중치
-            combat_weight: 공격 지표 가중치
-            consistency_weight: 일관성 지표 가중치
-
-        ---
-
-        학습 도중에 보상 함수의 가중치를 동적으로 조정
-        """
-        self.env.reward_weights = {
-            "survival": survival_weight,
-            "combat": combat_weight,
-            "consistency": consistency_weight,
-        }
-
 
 # 유틸리티 함수
 def create_ppo_agent(
@@ -530,7 +527,7 @@ def create_ppo_agent(
 
     간편하게 PPO 에이전트를 생성하는 팩토리 함수
     """
-    env = GameEnvironment(max_entities=max_entities)
+    env = GameEnvironment(max_entities=max_entities, max_lives=1)  # max_lives=1로 설정
     agent = PPOAgent(env, **kwargs)
 
     return agent

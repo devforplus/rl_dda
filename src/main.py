@@ -190,7 +190,8 @@ class App:
                     if ENABLE_PERFORMANCE_LOGGING:
                         print("🚀 고성능 캡쳐 모드 활성화")
                 except Exception as e:
-                    print(f"❌ FastCapture 초기화 실패: {e}")
+                    if not self.agent:  # 학습 모드가 아닐 때만 출력
+                        print(f"⚠️  FastCapture 실패, 기본 방법 사용: {e}")
                     self.use_fast_capture = False
                     if ENABLE_PERFORMANCE_LOGGING:
                         print("📸 일반 캡쳐 모드로 fallback")
@@ -253,6 +254,22 @@ class App:
             self.main_font = MonospaceBitmapFont()
             self.input = input_module.Input()
             self.game = Game(self)
+
+            # 에이전트가 존재하고 connect_game 메소드가 있다면 게임 인스턴스 연결
+            if (
+                self.agent
+                and hasattr(self.agent, "connect_game")
+                and callable(getattr(self.agent, "connect_game"))
+            ):
+                print(
+                    f"[DEBUG] App ({id(self)}): Attempting to connect agent {id(self.agent)} to game instance {id(self)}."
+                )
+                self.agent.connect_game(self)
+            else:
+                if self.agent:
+                    print(
+                        f"[DEBUG] App ({id(self)}): Agent {id(self.agent)} does not have a connect_game method or it is not callable."
+                    )
 
             px.run(self.update, self.draw)
         except Exception as e:
@@ -387,7 +404,9 @@ class App:
                                             "max": max_hp,
                                         }
 
-                            print(json.dumps(frame_data_log))
+                            # 에이전트가 없을 때만 로그 출력 (학습 모드가 아닐 때)
+                            if not self.agent:
+                                print(json.dumps(frame_data_log))
 
             if not IS_WEB and self.input.has_tapped(input_module.BUTTON_2):
                 print("Local save triggered (not implemented).")
@@ -457,7 +476,8 @@ class App:
                     image_data_b64, stats = result
                     capture_method = "FastCapture"
                 except Exception as e:
-                    print(f"⚠️  FastCapture 실패, 기본 방법 사용: {e}")
+                    if not self.agent:  # 학습 모드가 아닐 때만 출력
+                        print(f"⚠️  FastCapture 실패, 기본 방법 사용: {e}")
                     image_data_b64 = self._capture_frame_legacy()
                     capture_method = "Legacy"
             else:
@@ -466,7 +486,8 @@ class App:
 
             # 이미지가 성공적으로 캡쳐되었는지 확인
             if image_data_b64 is None:
-                print("❌ 이미지 캡쳐 실패")
+                if not self.agent:  # 학습 모드가 아닐 때만 출력
+                    print("❌ 이미지 캡쳐 실패")
                 return None
 
             # YOLO 데이터 생성 (기존 로직 유지)
@@ -495,7 +516,7 @@ class App:
                     img_data = base64.b64decode(image_data_b64)
                     pil_image = PILImage.open(io.BytesIO(img_data))
                 except Exception as e:
-                    print(f"⚠️  PIL 이미지 생성 실패: {e}")
+                    pass
 
             # YOLO 데이터 행 형태로 변환
             yolo_data_rows = frame_data["yolo_labels"]
@@ -505,20 +526,25 @@ class App:
             if (
                 ENABLE_PERFORMANCE_LOGGING and capture_time > 0.1
             ):  # 100ms 이상일 때만 출력
-                print(f"📊 캡쳐 성능: {capture_time:.3f}s, 메서드: {capture_method}")
+                if not self.agent:  # 학습 모드가 아닐 때만 출력
+                    print(
+                        f"📊 캡쳐 성능: {capture_time:.3f}s, 메서드: {capture_method}"
+                    )
 
             return (frame_data, pil_image, yolo_data_rows)
 
         except Exception as e:
-            print(f"❌ 프레임 데이터 수집 중 오류: {e}")
-            traceback.print_exc()
+            if not self.agent:  # 학습 모드가 아닐 때만 출력
+                print(f"❌ 프레임 데이터 수집 중 오류: {e}")
+                traceback.print_exc()
             return None
 
     def _capture_frame_legacy(self):
         """기존 캡쳐 방법 (fallback) - 픽셀별 읽기만 사용"""
         try:
             if not PILImage or not io or not base64:
-                print("❌ 필요한 라이브러리가 없습니다 (PIL, io, base64)")
+                if not self.agent:  # 학습 모드가 아닐 때만 출력
+                    print("❌ 필요한 라이브러리가 없습니다 (PIL, io, base64)")
                 return None
 
             # RGB 이미지 생성
@@ -558,7 +584,8 @@ class App:
             return img_str
 
         except Exception as e:
-            print(f"❌ Legacy 캡쳐 실패: {e}")
+            if not self.agent:  # 학습 모드가 아닐 때만 출력
+                print(f"❌ Legacy 캡쳐 실패: {e}")
             return None
 
     def _capture_frame_pixel_by_pixel(self):
