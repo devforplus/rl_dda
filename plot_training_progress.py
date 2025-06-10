@@ -28,15 +28,17 @@ class TrainingPlotter:
     CSV 로그 파일을 읽어서 훈련 진행도를 시각화하는 정적 그래프 생성
     """
 
-    def __init__(self, log_dir="logs", output_dir="plots"):
+    def __init__(self, log_dir="logs", output_dir="plots", random_log_file=None):
         """플로터 초기화
 
         Args:
             log_dir: 로그 파일 디렉토리
             output_dir: 그래프 출력 디렉토리
+            random_log_file: 랜덤 에이전트 로그 파일 경로
         """
         self.log_dir = log_dir
         self.output_dir = output_dir
+        self.random_log_file = random_log_file
 
         # 출력 디렉토리 생성
         os.makedirs(output_dir, exist_ok=True)
@@ -44,6 +46,7 @@ class TrainingPlotter:
         # 데이터 저장용
         self.episode_data = pd.DataFrame()
         self.training_data = pd.DataFrame()
+        self.random_data = pd.DataFrame()
 
         # 로그 파일 경로
         self.episode_log_file = None
@@ -102,6 +105,11 @@ class TrainingPlotter:
                         self.training_data["timestamp"]
                     )
 
+            # 랜덤 에이전트 데이터 로드
+            if self.random_log_file and os.path.exists(self.random_log_file):
+                self.random_data = pd.read_csv(self.random_log_file)
+                print(f"📊 Found random agent log: {self.random_log_file}")
+
             return True
 
         except Exception as e:
@@ -139,6 +147,21 @@ class TrainingPlotter:
             fontweight="bold",
         )
 
+        # 랜덤 에이전트 평균값 계산
+        random_avg = {}
+        if not self.random_data.empty:
+            random_avg["reward"] = self.random_data["total_reward"].mean()
+            random_avg["score"] = self.random_data["final_score"].mean()
+            random_avg["duration"] = self.random_data["duration_sec"].mean()
+            if (
+                "total_reward" in self.random_data.columns
+                and "duration_sec" in self.random_data.columns
+            ):
+                random_avg["efficiency"] = (
+                    self.random_data["total_reward"]
+                    / (self.random_data["duration_sec"] + 1e-8)
+                ).mean()
+
         # 1. 에피소드 보상
         ax = axes[0, 0]
         ax.plot(
@@ -161,6 +184,16 @@ class TrainingPlotter:
                 linewidth=3,
                 label=f"Moving Avg ({window})",
             )
+
+            if "reward" in random_avg:
+                ax.axhline(
+                    y=random_avg["reward"],
+                    color="grey",
+                    linestyle="--",
+                    linewidth=2,
+                    label=f"Random Avg ({random_avg['reward']:.2f})",
+                )
+
             ax.legend()
 
         latest_reward = df["total_reward"].iloc[-1] if len(df) > 0 else 0
@@ -202,6 +235,16 @@ class TrainingPlotter:
         ax.set_title(f"Game Scores (Latest: {latest_score:,})")
         ax.set_xlabel("Episode")
         ax.set_ylabel("Score")
+
+        if "score" in random_avg:
+            ax.axhline(
+                y=random_avg["score"],
+                color="grey",
+                linestyle="--",
+                linewidth=2,
+                label=f"Random Avg ({random_avg['score']:.0f})",
+            )
+
         ax.legend()
         ax.grid(True, alpha=0.3)
 
@@ -221,6 +264,16 @@ class TrainingPlotter:
                 alpha=0.9,
                 label=f"Moving Avg ({window})",
             )
+
+            if "duration" in random_avg:
+                ax.axhline(
+                    y=random_avg["duration"],
+                    color="grey",
+                    linestyle="--",
+                    linewidth=2,
+                    label=f"Random Avg ({random_avg['duration']:.1f}s)",
+                )
+
             ax.legend()
 
         latest_duration = df["duration_sec"].iloc[-1] if len(df) > 0 else 0
@@ -386,21 +439,21 @@ class TrainingPlotter:
 
         plt.close()
 
-    def generate_summary_plot(self):
-        """전체 요약 그래프 생성"""
+    def generate_reward_trend_plot(self):
+        """에피소드 보상 추세 그래프 생성"""
         if self.episode_data.empty:
             return
 
         df = self.episode_data
 
-        # 요약 그래프 (1x3 레이아웃)
-        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-        fig.suptitle(
-            f"Training Summary - {len(df)} Episodes", fontsize=16, fontweight="bold"
-        )
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
 
-        # 1. 보상 추세
-        ax = axes[0]
+        # 랜덤 에이전트 평균값 계산
+        random_avg = {}
+        if not self.random_data.empty:
+            random_avg["reward"] = self.random_data["total_reward"].mean()
+
+        # 보상 추세
         ax.plot(df["episode"], df["total_reward"], "b-", linewidth=2, alpha=0.6)
 
         if len(df) >= 5:
@@ -413,15 +466,48 @@ class TrainingPlotter:
                 linewidth=3,
                 label=f"Trend (MA {window})",
             )
+
+            if "reward" in random_avg:
+                ax.axhline(
+                    y=random_avg["reward"],
+                    color="grey",
+                    linestyle="--",
+                    linewidth=2,
+                    label=f"Random Avg ({random_avg['reward']:.2f})",
+                )
             ax.legend()
 
-        ax.set_title("Learning Progress")
+        ax.set_title(f"Learning Progress - {len(df)} Episodes")
         ax.set_xlabel("Episode")
         ax.set_ylabel("Total Reward")
         ax.grid(True, alpha=0.3)
+        plt.tight_layout()
 
-        # 2. 게임 성과
-        ax = axes[1]
+        # 파일 저장
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = os.path.join(self.output_dir, f"reward_trend_{timestamp}.png")
+        plt.savefig(filename, dpi=300, bbox_inches="tight")
+        print(f"📋 Reward trend plot saved: {filename}")
+
+        latest_filename = os.path.join(self.output_dir, "latest_reward_trend.png")
+        plt.savefig(latest_filename, dpi=300, bbox_inches="tight")
+
+        plt.close()
+
+    def generate_performance_plot(self):
+        """게임 성과(점수) 그래프 생성"""
+        if self.episode_data.empty:
+            return
+
+        df = self.episode_data
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+
+        # 랜덤 에이전트 평균값 계산
+        random_avg = {}
+        if not self.random_data.empty:
+            random_avg["score"] = self.random_data["final_score"].mean()
+
+        # 게임 성과
         ax.plot(
             df["episode"],
             df["final_score"],
@@ -441,15 +527,49 @@ class TrainingPlotter:
                 linewidth=3,
                 label=f"Trend (MA {window})",
             )
+
+            if "score" in random_avg:
+                ax.axhline(
+                    y=random_avg["score"],
+                    color="grey",
+                    linestyle="--",
+                    linewidth=2,
+                    label=f"Random Avg ({random_avg['score']:.0f})",
+                )
+
             ax.legend()
 
-        ax.set_title("Game Performance")
+        ax.set_title(f"Game Performance - {len(df)} Episodes")
         ax.set_xlabel("Episode")
         ax.set_ylabel("Score")
         ax.grid(True, alpha=0.3)
+        plt.tight_layout()
 
-        # 3. 생존 시간
-        ax = axes[2]
+        # 파일 저장
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = os.path.join(self.output_dir, f"performance_{timestamp}.png")
+        plt.savefig(filename, dpi=300, bbox_inches="tight")
+        print(f"📋 Performance plot saved: {filename}")
+
+        latest_filename = os.path.join(self.output_dir, "latest_performance.png")
+        plt.savefig(latest_filename, dpi=300, bbox_inches="tight")
+
+        plt.close()
+
+    def generate_survival_time_plot(self):
+        """생존 시간 그래프 생성"""
+        if self.episode_data.empty:
+            return
+
+        df = self.episode_data
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+
+        # 랜덤 에이전트 평균값 계산
+        random_avg = {}
+        if not self.random_data.empty:
+            random_avg["duration"] = self.random_data["duration_sec"].mean()
+
+        # 생존 시간
         ax.plot(df["episode"], df["duration_sec"], "m-", linewidth=2, alpha=0.8)
 
         if len(df) >= 5:
@@ -462,26 +582,42 @@ class TrainingPlotter:
                 linewidth=3,
                 label=f"Trend (MA {window})",
             )
+
+            if "duration" in random_avg:
+                ax.axhline(
+                    y=random_avg["duration"],
+                    color="grey",
+                    linestyle="--",
+                    linewidth=2,
+                    label=f"Random Avg ({random_avg['duration']:.1f}s)",
+                )
+
             ax.legend()
 
-        ax.set_title("Survival Time")
+        ax.set_title(f"Survival Time - {len(df)} Episodes")
         ax.set_xlabel("Episode")
         ax.set_ylabel("Duration (sec)")
         ax.grid(True, alpha=0.3)
-
         plt.tight_layout()
 
         # 파일 저장
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = os.path.join(self.output_dir, f"training_summary_{timestamp}.png")
+        filename = os.path.join(self.output_dir, f"survival_time_{timestamp}.png")
         plt.savefig(filename, dpi=300, bbox_inches="tight")
-        print(f"📋 Training summary saved: {filename}")
+        print(f"📋 Survival time plot saved: {filename}")
 
-        # 최신 파일로도 저장
-        latest_filename = os.path.join(self.output_dir, "latest_training_summary.png")
+        latest_filename = os.path.join(self.output_dir, "latest_survival_time.png")
         plt.savefig(latest_filename, dpi=300, bbox_inches="tight")
 
         plt.close()
+
+    def generate_summary_plot(self):
+        """요약 그래프들을 각각 생성"""
+        print("📊 Generating summary plots...")
+        self.generate_reward_trend_plot()
+        self.generate_performance_plot()
+        self.generate_survival_time_plot()
+        print("✅ Summary plots generated.")
 
     def generate_all_plots(self):
         """모든 그래프 생성"""
@@ -518,14 +654,26 @@ def main():
     parser.add_argument(
         "--summary-only", action="store_true", help="Generate only summary plot"
     )
+    parser.add_argument(
+        "--random-log",
+        type=str,
+        default="logs/random_episodes.csv",
+        help="Path to random agent's episode log file",
+    )
 
     args = parser.parse_args()
 
     print("🚀 Training Plot Generator Starting...")
     print(f"📁 Log directory: {args.log_dir}")
     print(f"📊 Output directory: {args.output_dir}")
+    if os.path.exists(args.random_log):
+        print(f"🎲 Comparing with random agent log: {args.random_log}")
 
-    plotter = TrainingPlotter(log_dir=args.log_dir, output_dir=args.output_dir)
+    plotter = TrainingPlotter(
+        log_dir=args.log_dir,
+        output_dir=args.output_dir,
+        random_log_file=args.random_log,
+    )
 
     if not plotter.find_latest_logs():
         return
@@ -541,7 +689,19 @@ def main():
     elif args.summary_only:
         plotter.generate_summary_plot()
     else:
-        plotter.generate_all_plots()
+        # self.generate_all_plots() # generate_all_plots() 대신 아래처럼 개별적으로 호출해야
+        # 스크립트 실행 인수가 적용됩니다.
+        if not any([args.episode_only, args.training_only, args.summary_only]):
+            plotter.generate_all_plots()
+        else:
+            if args.episode_only:
+                plotter.generate_episode_plots()
+            if args.training_only:
+                plotter.generate_training_plots()
+            if args.summary_only:
+                plotter.generate_summary_plot()
+
+    print("✅ Plot generation complete.")
 
 
 if __name__ == "__main__":
