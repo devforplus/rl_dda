@@ -28,17 +28,25 @@ class TrainingPlotter:
     CSV 로그 파일을 읽어서 훈련 진행도를 시각화하는 정적 그래프 생성
     """
 
-    def __init__(self, log_dir="logs", output_dir="plots", random_log_file=None):
+    def __init__(
+        self,
+        log_dir="logs",
+        output_dir="plots",
+        random_log_file=None,
+        episode_log_file=None,
+    ):
         """플로터 초기화
 
         Args:
             log_dir: 로그 파일 디렉토리
             output_dir: 그래프 출력 디렉토리
             random_log_file: 랜덤 에이전트 로그 파일 경로
+            episode_log_file: 특정 에피소드 로그 파일 경로
         """
         self.log_dir = log_dir
         self.output_dir = output_dir
         self.random_log_file = random_log_file
+        self.episode_log_file = episode_log_file
 
         # 출력 디렉토리 생성
         os.makedirs(output_dir, exist_ok=True)
@@ -49,7 +57,6 @@ class TrainingPlotter:
         self.random_data = pd.DataFrame()
 
         # 로그 파일 경로
-        self.episode_log_file = None
         self.training_log_file = None
 
         # 그래프 스타일 설정
@@ -59,15 +66,21 @@ class TrainingPlotter:
 
     def find_latest_logs(self):
         """가장 최신 로그 파일 찾기"""
-        if not os.path.exists(self.log_dir):
-            print(f"❌ Log directory not found: {self.log_dir}")
+        if self.episode_log_file and os.path.exists(self.episode_log_file):
+            print(f"📊 Using specified episode log: {self.episode_log_file}")
+        elif self.episode_log_file:
+            print(f"❌ Specified episode log not found: {self.episode_log_file}")
             return False
+        else:
+            if not os.path.exists(self.log_dir):
+                print(f"❌ Log directory not found: {self.log_dir}")
+                return False
 
-        # 에피소드 로그 파일 찾기
-        episode_files = glob.glob(os.path.join(self.log_dir, "episodes_*.csv"))
-        if episode_files:
-            self.episode_log_file = max(episode_files, key=os.path.getctime)
-            print(f"📊 Found episode log: {self.episode_log_file}")
+            # 에피소드 로그 파일 찾기
+            episode_files = glob.glob(os.path.join(self.log_dir, "episodes_*.csv"))
+            if episode_files:
+                self.episode_log_file = max(episode_files, key=os.path.getctime)
+                print(f"📊 Found episode log: {self.episode_log_file}")
 
         # 훈련 메트릭 로그 파일 찾기
         training_files = glob.glob(os.path.join(self.log_dir, "training_metrics_*.csv"))
@@ -660,6 +673,12 @@ def main():
         default="logs/random_episodes.csv",
         help="Path to random agent's episode log file",
     )
+    parser.add_argument(
+        "--episode-log-file",
+        type=str,
+        default=None,
+        help="Path to a specific episode log file to plot.",
+    )
 
     args = parser.parse_args()
 
@@ -673,6 +692,7 @@ def main():
         log_dir=args.log_dir,
         output_dir=args.output_dir,
         random_log_file=args.random_log,
+        episode_log_file=args.episode_log_file,
     )
 
     if not plotter.find_latest_logs():
