@@ -106,27 +106,7 @@ class Player(Sprite):
         # 기본 무적 상태 확인 (초기 무적 또는 강제 무적)
         base_invincible = self.invincibility_frames > 0 or self.forced_invincible
 
-        # 에이전트 관련 무적 상태 확인
-        agent_invincible = False
-        if (
-            hasattr(self.game_state, "game")
-            and hasattr(self.game_state.game, "app")
-            and hasattr(self.game_state.game.app, "agent")
-            and self.game_state.game.app.agent is not None
-        ):
-            # 에이전트가 있는 경우
-            agent = self.game_state.game.app.agent
-
-            # 에이전트가 학습 모드인지 확인
-            is_learning_mode = hasattr(agent, "enable_learning") and getattr(
-                agent, "enable_learning", False
-            )
-
-            # 학습 모드가 아닐 때만 무적 (평가/테스트 모드에서만 무적)
-            if not is_learning_mode:
-                agent_invincible = True
-
-        return base_invincible or agent_invincible
+        return base_invincible
 
     def collide_background(self, bg) -> bool:
         """

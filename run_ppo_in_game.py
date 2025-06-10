@@ -386,11 +386,8 @@ class GamePPOAgent:
 
             game_instance.on_exit = exit_with_plots
 
-    def select_action(self, state=None) -> int:
+    def select_action(self) -> int:
         """게임에서 호출되는 액션 선택 메서드
-
-        Args:
-            state: 게임 상태 (사용되지 않음, 직접 추출)
 
         Returns:
             선택된 액션 ID (0~8)
@@ -399,45 +396,23 @@ class GamePPOAgent:
 
         게임 루프에서 매 프레임 호출되어 에이전트의 액션을 반환
         """
+        if self.training_complete:
+            return 4  # Return a neutral action if training is done
+
         try:
-            # 훈련 완료 시 액션 선택 중단
-            if self.training_complete:
-                print("🔚 Training completed - stopping action selection")
-                return 4  # 기본 액션 반환 후 종료 대기
-
-            # 현재 시간 기록
-            current_time = time.time()
-
-            # 게임 인스턴스에서 상태 추출
             game_state = self._extract_current_game_state()
-
             if game_state is None:
-                # 상태를 추출할 수 없으면 기본 액션 (정지)
-                return 4  # 우측 이동 (안전한 기본 액션)
+                return 4  # Return a neutral action if game state is not available
 
-            # PPO 에이전트로 액션 선택
             if self.enable_learning:
-                # 학습 모드: 탐험 포함 액션 선택
                 action, log_prob, value = self.ppo_agent.select_action_with_exploration(
                     game_state
                 )
-
-                # 이전 상태가 있으면 경험 저장
-                if (
-                    self.last_game_state is not None
-                    and self.last_action is not None
-                    and hasattr(self, "last_log_prob")
-                    and hasattr(self, "last_value")
-                ):
-                    # 보상 계산
+                if self.last_game_state is not None and self.last_action is not None:
                     reward = self.ppo_agent.env.calculate_reward(
                         game_state, self.last_action
                     )
-
-                    # 에피소드 종료 여부 확인
                     done = self._is_episode_done(game_state)
-
-                    # 경험 저장
                     self.ppo_agent.store_experience(
                         self.last_game_state,
                         self.last_action,
@@ -446,108 +421,43 @@ class GamePPOAgent:
                         self.last_value,
                         done,
                     )
-
                     self.total_reward += reward
-
-                    # 에피소드 통계 업데이트
                     self.episode_rewards.append(reward)
                     self.episode_actions.append(self.last_action)
-
-                    # 현재 게임 상태 정보 업데이트
-                    if self.game_instance and hasattr(self.game_instance, "game"):
-                        game = self.game_instance.game
-                        if hasattr(game, "game_vars"):
-                            current_score = getattr(game.game_vars, "score", 0)
-                            current_lives = getattr(game.game_vars, "lives", 0)
-                            self.max_score_in_episode = max(
-                                self.max_score_in_episode, current_score
-                            )
-                            self.max_lives_in_episode = max(
-                                self.max_lives_in_episode, current_lives
-                            )
-
-                    # 에피소드 종료 처리
                     if done:
                         self._handle_episode_end()
-
-                # 현재 상태 저장
-                self.last_game_state = game_state
-                self.last_action = action
                 self.last_log_prob = log_prob
                 self.last_value = value
 
+                # 버퍼가 가득 차면 학습을 수행합니다.
+                if self.ppo_agent.is_buffer_full():
+                    print("🧠 Buffer is full, starting training...")
+                    training_stats = self.ppo_agent.train()
+                    if training_stats:
+                        self.log_training_metrics(training_stats)
             else:
-                # 평가 모드: 탐험 없는 액션 선택
                 action = self.ppo_agent.select_action(game_state)
-                self.last_action = action
 
-                # 평가 모드에서도 액션 추적 (보상은 추적하지 않음)
-                self.episode_actions.append(action)
-
+            self.last_game_state = game_state
+            self.last_action = action
             self.step_count += 1
-            self.last_action_time = current_time
 
-            # 강제 에피소드 종료 검사 (학습 모드에서만)
-            if self.enable_learning:
-                episode_length = self.step_count - self.episode_start_step
-
-                # 더 긴 에피소드를 허용하여 충분한 학습 기회 제공
-                check_interval = 1500 if self.fast_mode else 2000
-                max_episode_length = (
-                    5000 if self.fast_mode else 8000
-                )  # 더 긴 에피소드 허용
-
-                # 주기적으로 강제 에피소드 종료 고려 (더 관대하게)
-                if (
-                    episode_length >= check_interval
-                    and episode_length % check_interval == 0
-                ):
-                    if self.fast_mode:
-                        print(f"⚡ Fast mode - Episode length: {episode_length} steps")
-                    else:
-                        print(f"📊 Long episode in progress: {episode_length} steps")
-
-                    # 게임 상태가 명확히 무효한 경우에만 강제 종료
-                    current_game_state = self._extract_current_game_state()
-                    if (
-                        current_game_state is None
-                        or current_game_state.player_lives <= 0
-                    ):
-                        print(
-                            f"🔄 Forcing episode termination due to invalid game state"
-                        )
-                        self._handle_episode_end()
-                        return action
-
-                # 최대 길이 도달 시에만 무조건 강제 종료
-                if episode_length >= max_episode_length:
-                    print(
-                        f"🏁 Episode done: Maximum episode length reached ({episode_length} steps)"
-                    )
-                    self._handle_episode_end()
-
-            # 주기적 통계 출력
-            if self.step_count % self.stats_interval == 0:
-                self._print_performance_stats()
-
-            # 간격별 모델 저장 (학습 모드에서만)
+            # 모델 저장 로직 추가
             if (
                 self.enable_learning
                 and self.model_path
-                and self.step_count > 0
                 and self.step_count % self.save_interval == 0
             ):
-                # 모델 저장을 위한 디렉토리 생성
-                os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
                 self.ppo_agent.save_model(self.model_path)
                 print(f"💾 Model saved to {self.model_path} at step {self.step_count}")
 
             return action
-
         except Exception as e:
-            print(f"Error in select_action: {e}", file=sys.stderr)
-            print(traceback.format_exc(), file=sys.stderr)
-            return 4  # 안전한 기본 액션
+            print(
+                f"Error in select_action: {e}\n{traceback.format_exc()}",
+                file=sys.stderr,
+            )
+            return 4  # Return a neutral action in case of error
 
     def _extract_current_game_state(self):
         """현재 게임 상태 추출
@@ -847,40 +757,19 @@ class GamePPOAgent:
 
         self.last_survival_time = survival_seconds
 
-        # 학습 수행
-        if self.enable_learning:
-            # 환경의 성능 추적 업데이트 (리셋 전에 수행)
-            if hasattr(self.ppo_agent.env, "update_performance_tracking"):
-                self.ppo_agent.env.update_performance_tracking(
-                    self.total_reward, episode_length
-                )
-
-                # 안정성 정보 출력
-                if hasattr(self.ppo_agent.env, "stability_factor"):
-                    stability = self.ppo_agent.env.stability_factor
-                    curriculum = getattr(self.ppo_agent.env, "curriculum_stage", 1)
-                    print(f"🧠 Learning Stability:")
-                    print(f"   Stability Factor: {stability:.2f}")
-                    print(f"   Curriculum Stage: {curriculum}")
-
-            training_stats = self.ppo_agent.train()
-            if training_stats:
-                print(f"🧠 Training Results:")
-                print(f"   Total Loss: {training_stats.get('total_loss', 0):.6f}")
-                if "policy_loss" in training_stats:
-                    print(f"   Policy Loss: {training_stats['policy_loss']:.6f}")
-                if "value_loss" in training_stats:
-                    print(f"   Value Loss: {training_stats['value_loss']:.6f}")
-                if "entropy_loss" in training_stats:
-                    print(f"   Entropy Loss: {training_stats['entropy_loss']:.6f}")
-
-                # 훈련 메트릭 로깅
-                self.log_training_metrics(training_stats)
-
         print(f"📈 Overall Progress:")
         print(f"   Total Steps: {self.step_count}")
         print(f"   Episodes Completed: {self.episode_count}")
         print("=" * 50 + "\n")
+
+        # 게임을 먼저 재시작하여 환경을 초기화합니다.
+        if (
+            self.game_instance
+            and hasattr(self.game_instance, "game")
+            and hasattr(self.game_instance.game, "restart_game")
+        ):
+            self.game_instance.game.restart_game()
+            print("🔄 Game restarted for new episode.")
 
         # 에피소드 데이터 로깅 (리셋하기 전에 수행!)
         episode_total_reward = self.total_reward  # 현재 에피소드의 총 보상 저장
@@ -922,15 +811,6 @@ class GamePPOAgent:
         # 환경 리셋 (PPO 환경의 이전 상태 초기화)
         self.ppo_agent.env.reset()
 
-        # 게임 재시작
-        if (
-            self.game_instance
-            and hasattr(self.game_instance, "game")
-            and hasattr(self.game_instance.game, "restart_game")
-        ):
-            self.game_instance.game.restart_game()
-            print("🔄 Game restarted for new episode.")
-
         # 목표 에피소드 수 달성 시에만 그래프 생성
         should_generate_plots = False
         should_terminate_game = False  # 게임 종료 플래그 추가
@@ -966,8 +846,6 @@ class GamePPOAgent:
 
             # Pyxel 게임 종료
             try:
-                import pyxel as px
-
                 px.quit()
             except:
                 pass
@@ -1048,94 +926,60 @@ class GamePPOAgent:
 
 
 class PPOGameApp(App):
-    """PPO 에이전트와 통합된 게임 애플리케이션
+    """PPO 에이전트와 연동되는 게임 앱"""
 
-    기본 App 클래스를 상속하여 PPO 에이전트와의 연동을 개선합니다.
-
-    ---
-
-    PPO 에이전트가 게임 상태에 접근할 수 있도록 하는 확장된 App 클래스
-    """
-
-    def __init__(self, game_ppo_agent: GamePPOAgent):
-        """PPO 게임 앱 초기화
+    def __init__(self, game_ppo_agent: "GamePPOAgent"):
+        """앱 초기화
 
         Args:
-            game_ppo_agent: 게임 PPO 에이전트 인스턴스
-
-        ---
-
-        게임과 PPO 에이전트 사이의 연결을 설정
+            game_ppo_agent: PPO 에이전트 래퍼
         """
-        self.game_ppo_agent = game_ppo_agent
-
-        # 부모 클래스 초기화 (에이전트 전달)
+        self.game_agent = game_ppo_agent
+        # game_agent에 self(App 인스턴스)를 연결합니다.
+        self.game_agent.set_game_instance(self)
+        # App의 생성자를 호출합니다. 이 안에서 px.run()이 호출되어 게임이 시작됩니다.
         super().__init__(agent=game_ppo_agent)
 
-        # 게임 PPO 에이전트에 게임 인스턴스 연결
-        game_ppo_agent.set_game_instance(self)
+    def update(self):
+        """게임 업데이트 (에이전트 연동)"""
+        # 에이전트로부터 액션 받아오기
+        action = self.game_agent.select_action()
 
-        print("🎮 PPO Game App initialized successfully")
+        # 액션을 게임 입력으로 변환하여 적용
+        self.apply_agent_action(action)
+
+        # self.input.update()와 self.game.update()를 직접 호출하여
+        # App.update()의 중복된 에이전트 로직을 피합니다.
+        self.input.update()
+        self.game.update()
 
 
 def create_trained_ppo_agent(
-    model_path: Optional[str] = None, fast_mode: bool = False
+    model_path: Optional[str] = None, enable_learning: bool = False
 ) -> PPOAgent:
-    """훈련된 PPO 에이전트 생성
+    """훈련된 PPO 에이전트를 생성하거나 새로 초기화합니다."""
+    from rl.environment import GameEnvironment
+    from rl.agents.ppo_agent import create_ppo_agent
 
-    Args:
-        model_path: 저장된 모델 파일 경로 (None이면 새 모델)
-        fast_mode: 고속 학습 모드 여부
+    env = GameEnvironment()
+    agent = create_ppo_agent(env=env)
 
-    Returns:
-        PPO 에이전트 인스턴스
-
-    ---
-
-    기존 모델을 로드하거나 새 PPO 에이전트를 생성
-    """
-    if fast_mode:
-        print("🏰 Creating stable boss-fighting PPO agent!")
-        # 안정적인 보스전 학습을 위한 균형잡힌 하이퍼파라미터
-        agent = create_ppo_agent(
-            skill_level=0.75,  # 0.8에서 0.75로 소폭 감소 (안정성)
-            personality=1,  # 공격적 성향 유지
-            max_entities=50,
-            learning_rate=8e-5,  # 1.5e-4에서 8e-5로 감소 (안정적 학습)
-            batch_size=256,  # 512에서 256으로 감소 (과적합 방지)
-            buffer_size=8192,  # 12288에서 8192로 감소 (적절한 경험량)
-            ppo_epochs=2,  # 3에서 2로 감소 (과적합 방지)
-            gamma=0.996,  # 0.999에서 0.996으로 감소 (단기 보상 균형)
-            clip_epsilon=0.1,  # 0.12에서 0.1로 감소 (보수적 업데이트)
-            entropy_coef=0.008,  # 0.012에서 0.008로 감소 (안정적 탐험)
-            value_loss_coef=0.3,  # 0.2에서 0.3으로 증가 (가치 함수 안정성)
-        )
-    else:
-        # 일반 모드 - 매우 안정적 설정
-        agent = create_ppo_agent(
-            skill_level=0.75,  # 0.8에서 0.75로 감소
-            personality=1,  # 공격적 성향 유지
-            max_entities=50,
-            learning_rate=5e-5,  # 1e-4에서 5e-5로 감소 (매우 안정적)
-            batch_size=128,  # 256에서 128로 감소
-            buffer_size=4096,  # 8192에서 4096으로 감소
-            ppo_epochs=2,  # 3에서 2로 감소
-            gamma=0.995,  # 0.998에서 0.995로 감소 (균형)
-            clip_epsilon=0.12,  # 0.15에서 0.12로 감소 (보수적)
-            entropy_coef=0.006,  # 0.01에서 0.006으로 감소 (안정성)
-            value_loss_coef=0.35,  # 0.25에서 0.35로 증가 (가치 함수 중시)
-        )
-
-    # 저장된 모델 로드
     if model_path and os.path.exists(model_path):
         try:
             agent.load_model(model_path)
-            print(f"✅ Model loaded from {model_path}")
+            print(f"✅ Model loaded successfully from {model_path}")
         except Exception as e:
-            print(f"⚠️  Failed to load model from {model_path}: {e}")
+            print(
+                f"⚠️ Failed to load model from {model_path}, starting fresh. Error: {e}"
+            )
             print("Using newly initialized model instead.")
     else:
-        print("🆕 Using newly initialized stable boss-fighting PPO agent")
+        print("🆕 No model found or specified, starting with a new model.")
+
+    if enable_learning:
+        agent.set_train_mode()
+    else:
+        agent.set_eval_mode()
 
     return agent
 
@@ -1146,153 +990,91 @@ def run_ppo_in_game(
     personality: int = 1,
     enable_learning: bool = False,
     save_interval: int = 1000,
-    headless: bool = False,
     target_episodes: Optional[int] = None,
 ):
-    """PPO 에이전트를 게임에서 실행
+    """
+    PPO 에이전트를 실제 게임에 연동하여 실행합니다.
 
     Args:
-        model_path: 모델 파일 경로
-        skill_level: 실력 수준
-        personality: 성향
-        enable_learning: 학습 모드 여부
-        save_interval: 모델 저장 간격
-        headless: 헤드리스 모드 (게임 창 없이 실행)
-        target_episodes: 목표 에피소드 수 (도달 시 그래프 생성 후 종료)
-
-    ---
-
-    PPO 에이전트가 실제 게임을 플레이하도록 설정
+        model_path: 불러올 PPO 모델 파일 경로 (없으면 새로 생성)
+        skill_level: 플레이어 실력 수준
+        personality: 플레이어 성향 (0: 방어적, 1: 공격적)
+        enable_learning: 학습 모드 활성화 여부
+        save_interval: 모델 저장 간격 (스텝 단위)
+        target_episodes: 목표 에피소드 수 (도달 시 학습 종료)
     """
     try:
-        print("🚀 Starting PPO Agent in Game Environment")
-        print(f"📦 Model Path: {model_path if model_path else 'None (new model)'}")
-        print(f"🧠 Learning Mode: {'Enabled' if enable_learning else 'Disabled'}")
-        print(f"🖥️ Display Mode: {'Headless' if headless else 'Visual'}")
-        if target_episodes:
-            print(f"🎯 Target Episodes: {target_episodes}")
-
+        # 학습 모드이고 모델 경로가 지정되지 않은 경우, 자동 경로 생성
         if enable_learning and not model_path:
-            print(
-                "⚠️  Warning: Learning is enabled but no model path provided. Model will not be saved."
-            )
-        elif enable_learning and model_path:
-            print(
-                f"💾 Model will be saved to: {model_path} every {save_interval} steps"
-            )
+            model_dir = os.path.join("models", "ppo")
+            os.makedirs(model_dir, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            model_path = os.path.join(model_dir, f"ppo_agent_{timestamp}.pth")
+            print(f"✨ New model path generated: {model_path}")
 
-        # 헤드리스 모드 설정
-        if headless:
-            import os
+        # 에이전트 생성
+        ppo_agent = create_trained_ppo_agent(
+            model_path=model_path, enable_learning=enable_learning
+        )
 
-            os.environ["SDL_VIDEODRIVER"] = "dummy"
-            print("🔇 Headless mode enabled - no game window will be displayed")
-
-        # PPO 에이전트 생성
-        ppo_agent = create_trained_ppo_agent(model_path, enable_learning)
-
-        # 게임 PPO 에이전트 래퍼 생성
+        # 게임-PPO 에이전트 래퍼 생성
         game_agent = GamePPOAgent(
             ppo_agent=ppo_agent,
             skill_level=skill_level,
             personality=personality,
             enable_learning=enable_learning,
-            model_path=model_path if enable_learning else None,
+            model_path=model_path,
             save_interval=save_interval,
         )
 
-        # 목표 에피소드 수 설정
-        if target_episodes:
+        # 목표 에피소드 설정
+        if target_episodes is not None:
             game_agent.set_target_episodes(target_episodes)
 
-        # PPO 통합 게임 애플리케이션 시작
         print("🎮 Starting game with PPO agent...")
-        try:
-            app = PPOGameApp(game_agent)
-        except KeyboardInterrupt:
-            print("\n⚠️ Training interrupted by user (Ctrl+C)")
-            if enable_learning:
-                game_agent.generate_final_plots("Training interrupted by user")
-            print("🔚 Training stopped.")
-        except Exception as e:
-            print(f"❌ Unexpected error during training: {e}")
-            if enable_learning:
-                game_agent.generate_final_plots("Training stopped due to error")
-            raise
+        PPOGameApp(game_agent)
 
+    except KeyboardInterrupt:
+        print("\n⚠️ Training interrupted by user (Ctrl+C).")
+        if "game_agent" in locals() and enable_learning:
+            game_agent.generate_final_plots("Training interrupted by user")
     except Exception as e:
-        print(f"❌ Error running PPO in game: {e}", file=sys.stderr)
+        print(f"❌ An unexpected error occurred: {e}", file=sys.stderr)
         print(traceback.format_exc(), file=sys.stderr)
         sys.exit(1)
 
 
 def main():
-    """메인 실행 함수
-
-    ---
-
-    명령행 인자를 파싱하고 PPO 에이전트를 게임에서 실행
-    """
     import argparse
 
-    parser = argparse.ArgumentParser(description="Run PPO agent in game environment")
-    parser.add_argument("--model", type=str, help="Path to saved PPO model")
-    parser.add_argument("--skill", type=float, default=0.7, help="Skill level (0-1)")
+    parser = argparse.ArgumentParser(
+        description="Run PPO agent in the game environment."
+    )
+    parser.add_argument(
+        "--model", type=str, default=None, help="Path to the saved PPO model"
+    )
+    parser.add_argument(
+        "--skill", type=float, default=0.7, help="Player skill level (0 to 1)"
+    )
     parser.add_argument(
         "--personality",
         type=int,
         default=1,
-        choices=[0, 1],
-        help="Personality (0: defensive, 1: aggressive)",
+        help="Player personality (0: Defensive, 1: Aggressive)",
     )
-    parser.add_argument("--learn", action="store_true", help="Enable learning mode")
+    parser.add_argument(
+        "--learn", action="store_true", help="Enable learning mode for the agent"
+    )
     parser.add_argument(
         "--save-interval", type=int, default=1000, help="Model save interval (steps)"
     )
-    parser.add_argument("--headless", action="store_true", help="Enable headless mode")
     parser.add_argument(
         "--target-episodes",
         type=int,
-        help="Target number of episodes (generates plots when reached)",
+        default=None,
+        help="Target number of episodes to run before auto-terminating.",
     )
-
     args = parser.parse_args()
-
-    # 훈련 스케줄 추천 출력
-    if args.learn and args.target_episodes:
-        print("🏰 Boss-Fighting Training Schedule:")
-        if args.target_episodes <= 100:
-            print(
-                "   📊 Current Target: Basic Combat (Initial boss encounter training)"
-            )
-            print("   💡 Goal: Learn basic survival and enemy combat")
-        elif args.target_episodes <= 200:
-            print(
-                "   ⚔️ Current Target: Boss Approach Training (Recommended for first boss attempts)"
-            )
-            print("   💡 Expected: Reach boss battles, survive 30s+, Score 800+")
-        elif args.target_episodes <= 300:
-            print(
-                "   🏆 Current Target: Boss Mastery Training (Stage progression focus)"
-            )
-            print(
-                "   💡 Expected: Clear Stage 1, reach Stage 2, survive 45s+, Score 1500+"
-            )
-        elif args.target_episodes <= 500:
-            print("   🎓 Current Target: Multi-Stage Expert (Advanced stage clearing)")
-            print(
-                "   💡 Expected: Consistent Stage 2+ progression, Score 2500+, 60s+ survival"
-            )
-        elif args.target_episodes <= 750:
-            print("   🔬 Current Target: Master Training (All stages)")
-            print(
-                "   💡 Expected: Stage 3-4 progression, Score 4000+, Expert-level play"
-            )
-        else:
-            print("   🌟 Current Target: Grandmaster Training (Perfect gameplay)")
-            print("   💡 Expected: Stage 5 attempts, Score 6000+, Complete mastery")
-        print("   🎯 Primary Goal: Reach Stage 2 by defeating Stage 1 boss!")
-        print()
 
     run_ppo_in_game(
         model_path=args.model,
@@ -1300,7 +1082,6 @@ def main():
         personality=args.personality,
         enable_learning=args.learn,
         save_interval=args.save_interval,
-        headless=args.headless,
         target_episodes=args.target_episodes,
     )
 

@@ -6,6 +6,7 @@ import numpy as np
 from typing import List, Dict, Any, Tuple, Optional
 from collections import deque
 import random
+import os
 
 from rl.agents.base_agent import BaseAgent
 from rl.environment import GameEnvironment, GameState, EntityData, ActionType
@@ -42,12 +43,16 @@ class ExperienceBuffer:
 
         모든 경험 데이터를 삭제하고 버퍼를 리셋
         """
-        self.states = []
-        self.actions = []
-        self.rewards = []
-        self.log_probs = []
-        self.values = []
-        self.dones = []
+        self.states = deque(maxlen=self.buffer_size)
+        self.actions = deque(maxlen=self.buffer_size)
+        self.rewards = deque(maxlen=self.buffer_size)
+        self.log_probs = deque(maxlen=self.buffer_size)
+        self.values = deque(maxlen=self.buffer_size)
+        self.dones = deque(maxlen=self.buffer_size)
+
+    def is_full(self) -> bool:
+        """버퍼가 가득 찼는지 확인"""
+        return len(self.states) >= self.buffer_size
 
     def add(
         self,
@@ -79,15 +84,6 @@ class ExperienceBuffer:
         self.values.append(value)
         self.dones.append(done)
 
-        # 버퍼 크기 제한
-        if len(self.states) > self.buffer_size:
-            self.states.pop(0)
-            self.actions.pop(0)
-            self.rewards.pop(0)
-            self.log_probs.pop(0)
-            self.values.pop(0)
-            self.dones.pop(0)
-
     def get_batch(self) -> Dict[str, torch.Tensor]:
         """배치 데이터 반환
 
@@ -99,12 +95,12 @@ class ExperienceBuffer:
         저장된 경험을 배치 텐서로 변환하여 반환
         """
         return {
-            "states": torch.stack(self.states),
-            "actions": torch.tensor(self.actions, dtype=torch.long),
-            "rewards": torch.tensor(self.rewards, dtype=torch.float32),
-            "log_probs": torch.tensor(self.log_probs, dtype=torch.float32),
-            "values": torch.tensor(self.values, dtype=torch.float32),
-            "dones": torch.tensor(self.dones, dtype=torch.float32),
+            "states": torch.stack(list(self.states)),
+            "actions": torch.tensor(list(self.actions), dtype=torch.long),
+            "rewards": torch.tensor(list(self.rewards), dtype=torch.float32),
+            "log_probs": torch.tensor(list(self.log_probs), dtype=torch.float32),
+            "values": torch.tensor(list(self.values), dtype=torch.float32),
+            "dones": torch.tensor(list(self.dones), dtype=torch.float32),
         }
 
     def size(self) -> int:
@@ -138,12 +134,14 @@ class PPOAgent(BaseAgent):
         learning_rate: float = 3e-4,
         gamma: float = 0.99,
         lam: float = 0.95,
-        clip_epsilon: float = 0.2,
+        clip_epsilon: float = 0.15,
         value_loss_coef: float = 0.5,
-        entropy_coef: float = 0.01,
+        entropy_coef_start: float = 0.02,
+        entropy_coef_end: float = 0.001,
+        entropy_decay_batches: int = 250,
         max_grad_norm: float = 0.5,
-        ppo_epochs: int = 10,
-        batch_size: int = 64,
+        ppo_epochs: int = 4,
+        batch_size: int = 128,
         buffer_size: int = 2048,
         device: str = None,
     ):
@@ -156,7 +154,9 @@ class PPOAgent(BaseAgent):
             lam: GAE 람다 파라미터
             clip_epsilon: PPO 클리핑 값
             value_loss_coef: 가치 함수 손실 가중치
-            entropy_coef: 엔트로피 보너스 가중치
+            entropy_coef_start: 엔트로피 계수 시작값
+            entropy_coef_end: 엔트로피 계수 종료값
+            entropy_decay_batches: 엔트로피 계수 감쇠 배치 수
             max_grad_norm: 그래디언트 클리핑 최대값
             ppo_epochs: PPO 업데이트 에포크 수
             batch_size: 배치 크기
@@ -181,7 +181,10 @@ class PPOAgent(BaseAgent):
         self.lam = lam
         self.clip_epsilon = clip_epsilon
         self.value_loss_coef = value_loss_coef
-        self.entropy_coef = entropy_coef
+        self.entropy_coef_start = entropy_coef_start
+        self.entropy_coef_end = entropy_coef_end
+        self.entropy_decay_batches = entropy_decay_batches
+        self.entropy_coef = entropy_coef_start
         self.max_grad_norm = max_grad_norm
         self.ppo_epochs = ppo_epochs
         self.batch_size = batch_size
@@ -205,11 +208,23 @@ class PPOAgent(BaseAgent):
         self.current_episode_reward = 0.0
         self.current_episode_length = 0
 
-    def select_action(self, game_state: GameState) -> int:
+    def _update_entropy_coef(self):
+        """엔트로피 계수 업데이트 (선형 감쇠)"""
+        if self.training_step > self.entropy_decay_batches:
+            self.entropy_coef = self.entropy_coef_end
+        else:
+            decay_ratio = self.training_step / self.entropy_decay_batches
+            self.entropy_coef = (
+                self.entropy_coef_start
+                - (self.entropy_coef_start - self.entropy_coef_end) * decay_ratio
+            )
+
+    def select_action(self, game_state: GameState, deterministic: bool = True) -> int:
         """액션 선택
 
         Args:
             game_state: 현재 게임 상태
+            deterministic: True이면 탐험 없이 가장 확률이 높은 액션을 선택
 
         Returns:
             선택된 액션 ID
@@ -221,7 +236,9 @@ class PPOAgent(BaseAgent):
         state = self.env.encode_state(game_state).unsqueeze(0).to(self.device)
 
         with torch.no_grad():
-            action, log_prob, value = self.network.get_action_and_value(state)
+            action, _, _ = self.network.get_action_and_value(
+                state, deterministic=deterministic
+            )
 
         return action.item()
 
@@ -243,7 +260,9 @@ class PPOAgent(BaseAgent):
         state = self.env.encode_state(game_state).unsqueeze(0).to(self.device)
 
         with torch.no_grad():
-            action, log_prob, value = self.network.get_action_and_value(state)
+            action, log_prob, value = self.network.get_action_and_value(
+                state, deterministic=False
+            )
 
         return action.item(), log_prob.item(), value.item()
 
@@ -258,37 +277,12 @@ class PPOAgent(BaseAgent):
             value: 상태 가치 (Tensor)
             done: 에피소드 종료 여부 (bool)
         """
-        # state 처리: Tensor가 아니면 GameState로 간주하고 인코딩, Tensor이면 그대로 사용
         if not isinstance(state, torch.Tensor):
-            state_tensor = self.env.encode_state(state).to(self.device)
+            state_tensor = self.env.encode_state(state).cpu()
         else:
-            state_tensor = state.to(self.device)  # 이미 Tensor인 경우 device만 맞춰줌
+            state_tensor = state.cpu()
 
-        # action 처리: int이면 Tensor로 변환, Tensor이면 device만 맞춰줌
-        if not isinstance(action, torch.Tensor):
-            action_tensor = torch.tensor([action], device=self.device, dtype=torch.long)
-        else:
-            action_tensor = action.to(self.device)
-
-        # reward, log_prob, value, done은 각각 적절한 Tensor 형태로 변환 또는 device 이동
-        reward_tensor = torch.tensor([reward], device=self.device, dtype=torch.float32)
-
-        # log_prob와 value는 이미 Tensor로 전달된다고 가정 (select_action_with_exploration 반환값)
-        log_prob_tensor = torch.tensor(
-            [log_prob], device=self.device, dtype=torch.float32
-        )
-        value_tensor = torch.tensor([value], device=self.device, dtype=torch.float32)
-
-        done_tensor = torch.tensor([done], device=self.device, dtype=torch.bool)
-
-        self.buffer.add(
-            state_tensor,
-            action_tensor,
-            reward_tensor,
-            log_prob_tensor,
-            value_tensor,
-            done_tensor,
-        )
+        self.buffer.add(state_tensor, action, reward, log_prob, value, done)
 
         # 에피소드 통계 업데이트
         self.current_episode_reward += reward
@@ -299,6 +293,10 @@ class PPOAgent(BaseAgent):
             self.episode_lengths.append(self.current_episode_length)
             self.current_episode_reward = 0.0
             self.current_episode_length = 0
+
+    def is_buffer_full(self) -> bool:
+        """경험 버퍼가 가득 찼는지 확인"""
+        return self.buffer.is_full()
 
     def train(self) -> Dict[str, float]:
         """PPO 학습 수행
@@ -313,6 +311,9 @@ class PPOAgent(BaseAgent):
         if self.buffer.size() < self.batch_size:
             return {}
 
+        # 엔트로피 계수 업데이트
+        self._update_entropy_coef()
+
         # 배치 데이터 준비
         batch = self.buffer.get_batch()
         states = batch["states"].to(self.device)
@@ -322,17 +323,20 @@ class PPOAgent(BaseAgent):
         old_values = batch["values"].to(self.device)
         dones = batch["dones"].to(self.device)
 
-        # 다음 상태 가치 계산 (GAE용)
-        with torch.no_grad():
-            next_values = torch.zeros_like(old_values)
-            if len(states) > 1:
-                # 마지막을 제외한 모든 상태의 다음 상태 가치
-                _, next_vals = self.network(states[1:])
-                next_values[:-1] = next_vals.squeeze()
-
         # GAE로 어드밴티지 계산
+        with torch.no_grad():
+            # 마지막 상태가 done이 아닐 경우, network를 통해 bootstrap value 계산
+            if not dones[-1]:
+                last_state = states[-1].unsqueeze(0)
+                _, _, last_value = self.network.get_action_and_value(
+                    last_state, deterministic=True
+                )
+                last_next_value = last_value.squeeze()
+            else:
+                last_next_value = torch.tensor(0.0).to(self.device)
+
         advantages, value_targets = compute_gae(
-            rewards, old_values, next_values, dones, self.gamma, self.lam
+            rewards, old_values.squeeze(), dones, last_next_value, self.gamma, self.lam
         )
 
         # 어드밴티지 정규화
@@ -364,6 +368,7 @@ class PPOAgent(BaseAgent):
                 log_probs, values, entropy = self.network.evaluate_actions(
                     batch_states, batch_actions
                 )
+                values = values.squeeze()
 
                 # PPO 정책 손실 계산
                 ratio = torch.exp(log_probs - batch_old_log_probs)
@@ -374,8 +379,20 @@ class PPOAgent(BaseAgent):
                 )
                 policy_loss = -torch.min(surr1, surr2).mean()
 
-                # 가치 함수 손실 계산
-                value_loss = F.mse_loss(values, batch_value_targets)
+                # 가치 함수 손실 계산 (Clipped Value Loss)
+                batch_old_values = old_values[batch_indices].squeeze()
+                values_clipped = batch_old_values + torch.clamp(
+                    values - batch_old_values, -self.clip_epsilon, self.clip_epsilon
+                )
+                value_loss_unclipped = F.mse_loss(
+                    values, batch_value_targets, reduction="none"
+                )
+                value_loss_clipped = F.mse_loss(
+                    values_clipped, batch_value_targets, reduction="none"
+                )
+                value_loss = (
+                    0.5 * torch.max(value_loss_unclipped, value_loss_clipped).mean()
+                )
 
                 # 엔트로피 보너스
                 entropy_loss = -entropy.mean()
@@ -414,6 +431,7 @@ class PPOAgent(BaseAgent):
             "value_loss": value_loss_total / num_updates,
             "entropy": entropy_total / num_updates,
             "training_step": self.training_step,
+            "current_entropy_coef": self.entropy_coef,
         }
 
     def get_stats(self) -> Dict[str, float]:
@@ -446,6 +464,11 @@ class PPOAgent(BaseAgent):
 
         학습된 네트워크와 옵티마이저 상태를 파일에 저장
         """
+        # 저장 경로의 디렉토리가 존재하지 않으면 생성
+        save_dir = os.path.dirname(path)
+        if save_dir:
+            os.makedirs(save_dir, exist_ok=True)
+
         torch.save(
             {
                 "network_state_dict": self.network.state_dict(),
@@ -459,7 +482,9 @@ class PPOAgent(BaseAgent):
                     "lam": self.lam,
                     "clip_epsilon": self.clip_epsilon,
                     "value_loss_coef": self.value_loss_coef,
-                    "entropy_coef": self.entropy_coef,
+                    "entropy_coef_start": self.entropy_coef_start,
+                    "entropy_coef_end": self.entropy_coef_end,
+                    "entropy_decay_batches": self.entropy_decay_batches,
                     "max_grad_norm": self.max_grad_norm,
                     "ppo_epochs": self.ppo_epochs,
                     "batch_size": self.batch_size,
@@ -510,24 +535,39 @@ class PPOAgent(BaseAgent):
 
 # 유틸리티 함수
 def create_ppo_agent(
-    skill_level: float = 0.5, personality: int = 0, max_entities: int = 50, **kwargs
+    env: GameEnvironment,
+    agent_class: type = PPOAgent,
+    skill_level: float = 0.5,
+    personality: int = 0,
+    max_entities: int = 50,
+    learning_rate: float = 1e-4,
+    gamma: float = 0.99,
+    lam: float = 0.95,
+    clip_epsilon: float = 0.15,
+    value_loss_coef: float = 0.5,
+    entropy_coef_start: float = 0.02,
+    entropy_coef_end: float = 0.001,
+    entropy_decay_batches: int = 250,
+    max_grad_norm: float = 0.5,
+    ppo_epochs: int = 4,
+    batch_size: int = 128,
+    buffer_size: int = 2048,
+    device: str = None,
 ) -> PPOAgent:
-    """PPO 에이전트 생성 헬퍼 함수
+    """PPO 에이전트 생성
 
-    Args:
-        skill_level: 초기 실력 수준 (0~1)
-        personality: 성향 (0: 방어적, 1: 공격적)
-        max_entities: 최대 엔티티 수
-        **kwargs: PPO 하이퍼파라미터
-
-    Returns:
-        초기화된 PPO 에이전트
+    PPO 알고리즘에 필요한 하이퍼파라미터를 사용하여 PPOAgent 인스턴스를 생성합니다.
 
     ---
 
     간편하게 PPO 에이전트를 생성하는 팩토리 함수
     """
-    env = GameEnvironment(max_entities=max_entities, max_lives=1)  # max_lives=1로 설정
-    agent = PPOAgent(env, **kwargs)
+    kwargs = locals()
+    env = kwargs.pop("env")
+    kwargs.pop("agent_class", None)
+    kwargs.pop("skill_level", None)
+    kwargs.pop("personality", None)
+    kwargs.pop("max_entities", None)
 
+    agent = PPOAgent(env, **kwargs)
     return agent

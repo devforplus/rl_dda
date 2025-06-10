@@ -321,12 +321,13 @@ class ActorCriticNetwork(nn.Module):
         return action_probs, value
 
     def get_action_and_value(
-        self, state: torch.Tensor
+        self, state: torch.Tensor, deterministic: bool = False
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """액션 선택과 가치 추정을 동시에 수행
 
         Args:
             state: 입력 상태 텐서
+            deterministic: True이면 가장 확률이 높은 액션을 선택
 
         Returns:
             선택된 액션, 로그 확률, 상태 가치
@@ -338,7 +339,10 @@ class ActorCriticNetwork(nn.Module):
         action_probs, value = self.forward(state)
 
         dist = Categorical(action_probs)
-        action = dist.sample()
+        if deterministic:
+            action = torch.argmax(action_probs, dim=-1)
+        else:
+            action = dist.sample()
         log_prob = dist.log_prob(action)
 
         return action, log_prob, value
@@ -371,8 +375,8 @@ class ActorCriticNetwork(nn.Module):
 def compute_gae(
     rewards: torch.Tensor,
     values: torch.Tensor,
-    next_values: torch.Tensor,
     dones: torch.Tensor,
+    last_next_value: torch.Tensor,
     gamma: float = 0.99,
     lam: float = 0.95,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -383,8 +387,8 @@ def compute_gae(
     Args:
         rewards: 보상 텐서
         values: 현재 상태 가치
-        next_values: 다음 상태 가치
         dones: 에피소드 종료 여부
+        last_next_value: 마지막 스텝 이후의 다음 상태 가치
         gamma: 할인 계수
         lam: GAE 람다 파라미터
 
@@ -395,21 +399,25 @@ def compute_gae(
 
     PPO 학습에서 사용할 어드밴티지와 가치 타겟을 GAE 방식으로 계산
     """
-    batch_size = rewards.size(0)
+    num_steps = rewards.size(0)
     advantages = torch.zeros_like(rewards)
-
     gae = 0
-    for step in reversed(range(batch_size)):
-        if step == batch_size - 1:
-            next_value = next_values[step]
+
+    for step in reversed(range(num_steps)):
+        # 다음 스텝의 가치. 마지막 스텝이면 last_next_value를, 아니면 다음 스텝의 values를 사용.
+        if step == num_steps - 1:
+            next_value = last_next_value
         else:
             next_value = values[step + 1]
 
+        # dones[step]이 True이면 다음 상태는 터미널 상태이므로 가치는 0.
+        next_value = next_value * (1 - dones[step].float())
+
         # TD error 계산
-        delta = rewards[step] + gamma * next_value * (1 - dones[step]) - values[step]
+        delta = rewards[step] + gamma * next_value - values[step]
 
         # GAE 어드밴티지 계산
-        gae = delta + gamma * lam * (1 - dones[step]) * gae
+        gae = delta + gamma * lam * gae * (1 - dones[step].float())
         advantages[step] = gae
 
     # 가치 타겟 = 어드밴티지 + 현재 가치

@@ -3,6 +3,7 @@ import torch
 from typing import List, Dict, Any, Tuple, Optional
 from dataclasses import dataclass
 from enum import IntEnum
+from collections import deque
 
 from components.entity_types import EntityType
 
@@ -134,8 +135,8 @@ class GameEnvironment:
         self.action_size = 9
 
         # 이전 상태 추적 (보상 계산용)
-        self.previous_state: Optional[GameState] = None
-        self.action_history: List[int] = []
+        self.previous_state = None
+        self.action_history = []
         self.max_action_history = 10
 
         # Catastrophic Forgetting 방지를 위한 안정화 시스템
@@ -149,6 +150,16 @@ class GameEnvironment:
         self.curriculum_stage = 1  # 현재 커리큘럼 단계
         self.success_threshold = 0.7  # 성공 기준 (70% 이상 성능 유지)
         self.consecutive_successes = 0  # 연속 성공 횟수
+
+        # 보상 계산을 위한 상태 변수 초기화
+        self.last_score = 0
+        self.last_lives = 3  # 초기 목숨 값으로 가정
+
+        # 성능 추적
+        self.performance_tracker = deque(maxlen=100)
+        self.stability_factor = 1.0
+
+        self.reset()
 
     def encode_state(self, game_state: GameState) -> torch.Tensor:
         """게임 상태를 신경망 입력용 벡터로 인코딩
@@ -247,19 +258,53 @@ class GameEnvironment:
                 self.consecutive_successes = 0
                 print(f"🎓 Curriculum advanced to stage {self.curriculum_stage}")
 
-    def calculate_reward(self, current_state: GameState, action: int) -> float:
-        """현재 상태와 액션에 대한 보상 계산
+    def calculate_reward(self, game_state: GameState, last_action: int) -> float:
+        """
+        단순화된 보상 함수: 생존과 적 제거에 초점
 
         Args:
-            current_state: 현재 게임 상태
-            action: 수행한 액션
+            game_state: 현재 게임 상태
+            last_action: 에이전트가 마지막으로 취한 행동
 
         Returns:
             계산된 보상 값
+        """
+        reward = 0.0
 
-        ---
+        # 1. 생존 보상 (매 스텝마다 작은 보상)
+        reward += 0.01
 
-        안정적인 스테이지 진행을 위한 균형잡힌 보상 시스템
+        # 2. 적 제거 보상
+        if game_state.score > self.last_score:
+            reward += (
+                game_state.score - self.last_score
+            ) * 0.1  # 점수 증가분을 보상에 반영
+
+        # 3. 사망 시 큰 패널티
+        if game_state.player_lives < self.last_lives:
+            reward -= 100.0
+            print(f"💀 DEATH PENALTY: -100.0 applied.")
+
+        # 상태 업데이트
+        self.last_score = game_state.score
+        self.last_lives = game_state.player_lives
+
+        return reward
+
+    def _calculate_reward_original(
+        self, game_state: GameState, last_action: int
+    ) -> float:
+        """보상 계산 (원본)
+
+        에이전트의 행동에 대한 보상을 계산합니다.
+        생존, 적 파괴, 위험 회피 등 다양한 요소를 고려합니다.
+
+        Args:
+            game_state: 현재 게임 상태
+            last_action: 에이전트가 마지막으로 취한 행동
+
+        Returns:
+            계산된 보상 값
         """
         total_reward = 0.0
 
@@ -272,7 +317,7 @@ class GameEnvironment:
         # 기본 생존 보상 - 일관된 생존 중시
         base_survival_reward = 0.15 * curriculum_multiplier  # 0.12에서 0.15로 소폭 증가
         skill_multiplier = 1.0 + (
-            current_state.skill_level * 0.7
+            game_state.skill_level * 0.7
         )  # 0.8에서 0.7로 감소 (안정화)
         survival_reward = base_survival_reward * skill_multiplier * stability_multiplier
         total_reward += survival_reward
@@ -280,12 +325,12 @@ class GameEnvironment:
         # 적극적인 플레이를 위한 전투 효율성 보상
         enemy_count = sum(
             1
-            for entity in current_state.entities
+            for entity in game_state.entities
             if entity.entity_type == EntityType.ENEMY
         )
         enemy_shot_count = sum(
             1
-            for entity in current_state.entities
+            for entity in game_state.entities
             if entity.entity_type == EntityType.ENEMY_SHOT
         )
 
@@ -297,7 +342,7 @@ class GameEnvironment:
             EntityType.ENEMY_M,
         ]
         boss_count = sum(
-            1 for entity in current_state.entities if entity.entity_type in boss_types
+            1 for entity in game_state.entities if entity.entity_type in boss_types
         )
 
         # 스테이지 진행 감지 (보스 출현은 스테이지 후반부를 의미)
@@ -312,7 +357,7 @@ class GameEnvironment:
 
         # 1. 적 처치 보상 (보스 처치 보상 안정화)
         if self.previous_state is not None:
-            kill_increase = current_state.kills - self.previous_state.kills
+            kill_increase = game_state.kills - self.previous_state.kills
             if kill_increase > 0:
                 # 보스전 중일 때 킬 보상 적절히 증가 (과도하지 않게)
                 if boss_count > 0:
@@ -337,7 +382,7 @@ class GameEnvironment:
                 )
 
         # 2. 공격 행동에 대한 즉시 보상 (보스전 중 적절한 가중치)
-        if action == ActionType.FIRE:
+        if last_action == ActionType.FIRE:
             if boss_count > 0:
                 # 보스전 중 공격 시 적절한 보상
                 fire_reward = (
@@ -360,7 +405,7 @@ class GameEnvironment:
 
         # 3. 점수 증가 보상 (적절한 수준으로 조정)
         if self.previous_state is not None:
-            score_increase = current_state.score - self.previous_state.score
+            score_increase = game_state.score - self.previous_state.score
             if score_increase > 0:
                 score_reward = (
                     score_increase * 0.005 * skill_multiplier * stability_multiplier
@@ -368,21 +413,31 @@ class GameEnvironment:
                 total_reward += score_reward
 
         # 4. 생존 시간 보너스 (점진적이고 안정적)
-        if current_state.survival_time > 0:
+        if game_state.survival_time > 0:
             # 보스전 중일 때도 과도하지 않게 조정
             if boss_count > 0:
                 time_bonus_base = (
-                    current_state.survival_time**0.6
+                    game_state.survival_time**0.6
                 ) * 0.015  # 0.025에서 0.015로 감소
             else:
                 time_bonus_base = (
-                    current_state.survival_time**0.6
+                    game_state.survival_time**0.6
                 ) * 0.012  # 0.02에서 0.012로 감소
             time_bonus = time_bonus_base * skill_multiplier * stability_multiplier
             total_reward += time_bonus
 
-        # 5. 체력 유지 보상 (안정적 수준)
-        hp_ratio = current_state.player_hp / 2.0
+        # 5. 체력 유지 보상 및 피격 페널티
+        if self.previous_state is not None:
+            # 피격 페널티 (체력 감소 시)
+            hp_decrease = self.previous_state.player_hp - game_state.player_hp
+            if hp_decrease > 0:
+                # 목숨을 잃은 경우는 제외 (사망 페널티와 중복 방지)
+                if game_state.player_lives == self.previous_state.player_lives:
+                    hit_penalty = 15.0 * hp_decrease  # 잃은 체력만큼 페널티
+                    total_reward -= hit_penalty
+                    print(f"💔 HIT PENALTY: -{hit_penalty:.1f} (HP decreased)")
+
+        hp_ratio = game_state.player_hp / 2.0
         if hp_ratio == 1.0:
             hp_bonus = (
                 0.8 * skill_multiplier * stability_multiplier
@@ -396,28 +451,46 @@ class GameEnvironment:
             )  # 0.4에서 0.3으로 감소
             total_reward += hp_bonus
 
-        # 6. 스테이지 진행 보상 (핵심이지만 안정적으로)
+        # 6. 위험 회피 보너스
+        if self.previous_state is not None:
+            # 플레이어 근처의 위험한 탄환 수 계산
+            prev_dangerous_shots = sum(
+                1
+                for e in self.previous_state.entities
+                if e.entity_type == EntityType.ENEMY_SHOT and e.distance_to_player < 50
+            )
+            current_dangerous_shots = sum(
+                1
+                for e in game_state.entities
+                if e.entity_type == EntityType.ENEMY_SHOT and e.distance_to_player < 50
+            )
+            # 위험한 탄환이 줄어들었다면 (회피 성공) 보상
+            if current_dangerous_shots < prev_dangerous_shots:
+                dodged_bullets = prev_dangerous_shots - current_dangerous_shots
+                dodge_reward = (
+                    (5.0 * dodged_bullets) * skill_multiplier * stability_multiplier
+                )
+                total_reward += dodge_reward
+                print(
+                    f" dodging bullets reward: +{dodge_reward:.1f} (Dodged {dodged_bullets} bullets!)"
+                )
+
+        # 7. 스테이지 진행 보상 (핵심이지만 안정적으로)
         if self.previous_state is not None:
             stage_increase = (
-                current_state.current_stage - self.previous_state.current_stage
+                game_state.current_stage - self.previous_state.current_stage
             )
             if stage_increase > 0:
                 # 스테이지 클리어 시 큰 보상이지만 과도하지 않게
                 stage_clear_reward = (
-                    500.0 * (current_state.current_stage) * skill_multiplier
+                    500.0 * (game_state.current_stage) * skill_multiplier
                 )  # 1000.0에서 500.0으로 감소
                 total_reward += stage_clear_reward
                 print(
-                    f"🏆 STAGE CLEAR! +{stage_clear_reward:.1f} (Reached Stage {current_state.current_stage}!)"
+                    f"🏆 STAGE CLEAR! +{stage_clear_reward:.1f} (Reached Stage {game_state.current_stage}!)"
                 )
 
-        # 현재 스테이지에 따른 지속적 보너스
-        stage_bonus = (
-            current_state.current_stage * 3.0 * skill_multiplier * curriculum_multiplier
-        )  # 5.0에서 3.0으로 감소
-        total_reward += stage_bonus
-
-        # 7. 생존 마일스톤 보상 (점진적이고 균형잡힌)
+        # 8. 생존 마일스톤 보상 (점진적이고 균형잡힌)
         survival_milestones = [
             (300, 1.5),  # 5초 - 기본 생존
             (600, 3.0),  # 10초 - 안정적 생존
@@ -434,7 +507,7 @@ class GameEnvironment:
                 if (
                     self.previous_state.survival_time
                     < milestone_time
-                    <= current_state.survival_time
+                    <= game_state.survival_time
                 ):
                     final_milestone_reward = (
                         milestone_reward * skill_multiplier * stability_multiplier
@@ -444,17 +517,17 @@ class GameEnvironment:
                         f"🏆 SURVIVAL MILESTONE: +{final_milestone_reward:.1f} ({milestone_time / 60:.1f}s)"
                     )
 
-        # 8. 연속 생존 보너스 (균형잡힌 수준)
-        if current_state.survival_time > 1200:  # 20초 이상 생존 시
+        # 9. 연속 생존 보너스 (균형잡힌 수준)
+        if game_state.survival_time > 1200:  # 20초 이상 생존 시
             consistency_bonus = (
-                min((current_state.survival_time - 1200) * 0.01, 10.0)
+                min((game_state.survival_time - 1200) * 0.01, 10.0)
                 * stability_multiplier
             )  # 0.015에서 0.01로 감소
             if boss_count > 0:
                 consistency_bonus *= 1.5  # 2.0에서 1.5로 감소
             total_reward += consistency_bonus
 
-        # 9. 전투 회피 페널티 (보스전에서 적절한 강화)
+        # 10. 전투 회피 페널티 (보스전에서 적절한 강화)
         if self.previous_state is not None and len(self.action_history) >= 15:
             recent_fires = sum(
                 1 for a in self.action_history[-20:] if a == ActionType.FIRE
@@ -476,13 +549,13 @@ class GameEnvironment:
                 )  # 0.4에서 0.3으로 감소
                 total_reward -= passivity_penalty
 
-        # 10. 위험 관리 보상/페널티 (균형 조정)
+        # 11. 위험 관리 보상/페널티 (균형 조정)
         danger_level = (
             (enemy_count * 0.15) + (enemy_shot_count * 0.08) + (boss_count * 1.5)
-        )  # 보스 위험도 2.0에서 1.5로 감소
+        )
 
         if danger_level > 2.0:
-            if action == ActionType.FIRE:
+            if last_action == ActionType.FIRE:
                 courage_bonus = (
                     danger_level * 0.3 * skill_multiplier * stability_multiplier
                 )  # 0.4에서 0.3으로 감소
@@ -500,9 +573,9 @@ class GameEnvironment:
             )  # 0.1에서 0.08로 감소
             total_reward += safety_bonus
 
-        # 11. 목숨 감소 시 페널티 (안정적 조정)
+        # 12. 목숨 감소 시 페널티 (안정적 조정)
         if self.previous_state is not None:
-            life_lost = self.previous_state.player_lives - current_state.player_lives
+            life_lost = self.previous_state.player_lives - game_state.player_lives
             if life_lost > 0:
                 # 보스전 중 사망 시 적절한 페널티
                 if boss_count > 0:
@@ -518,10 +591,10 @@ class GameEnvironment:
                     )  # 120.0에서 100.0으로 감소
 
                 survival_time_penalty = min(
-                    current_state.survival_time * 0.02, 15.0
+                    game_state.survival_time * 0.02, 15.0
                 )  # 0.03에서 0.02로 감소
                 skill_death_multiplier = 1.0 + (
-                    current_state.skill_level * 0.1
+                    game_state.skill_level * 0.1
                 )  # 0.15에서 0.1로 감소
 
                 total_death_penalty = (
@@ -534,8 +607,8 @@ class GameEnvironment:
                     f"💀 DEATH PENALTY: -{total_death_penalty:.1f} (stability: {stability_multiplier:.2f})"
                 )
 
-        # 12. 움직임 보상 (적절한 수준)
-        if action in [
+        # 13. 움직임 보상 (적절한 수준)
+        if last_action in [
             ActionType.LEFT,
             ActionType.RIGHT,
             ActionType.UP,
@@ -548,7 +621,7 @@ class GameEnvironment:
                 movement_reward *= 1.1  # 1.2에서 1.1로 감소
             total_reward += movement_reward
 
-        # 13. 안정성 강화 메커니즘 (더 보수적인 제한)
+        # 14. 안정성 강화 메커니즘 (더 보수적인 제한)
         # 극단적인 보상 변화 방지
         if total_reward < -150:  # -200에서 -150으로 강화
             smoothed_penalty = (
@@ -564,32 +637,23 @@ class GameEnvironment:
             total_reward = smoothed_reward
 
         # 상태 업데이트
-        self.previous_state = current_state
-        self.action_history.append(action)
+        self.previous_state = game_state
+        self.action_history.append(last_action)
         if len(self.action_history) > self.max_action_history:
             self.action_history.pop(0)
 
         return total_reward
 
-    def reset(self):
-        """환경 리셋
-
-        새로운 에피소드 시작 시 호출하여 상태를 초기화합니다.
-
-        ---
-
-        강화학습 에피소드 시작 시 환경을 초기 상태로 리셋
-        """
+    def reset(self) -> None:
+        """환경 상태 초기화"""
         self.previous_state = None
-        self.action_history.clear()
+        self.action_history = []
+        self.last_score = 0
+        self.last_lives = 3  # 초기 목숨 값으로 설정 (게임 사양에 맞게 조정 필요)
 
     def get_action_space_size(self) -> int:
-        """액션 공간 크기 반환
-
-        Returns:
-            액션 공간의 크기 (9)
-        """
-        return self.action_size
+        """액션 공간의 크기를 반환"""
+        return len(ActionType)
 
     def get_state_size(self) -> int:
         """상태 공간 크기 반환

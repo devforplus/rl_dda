@@ -68,33 +68,29 @@ class TrainingPlotter:
         """가장 최신 로그 파일 찾기"""
         if self.episode_log_file and os.path.exists(self.episode_log_file):
             print(f"📊 Using specified episode log: {self.episode_log_file}")
+            # training log는 여전히 찾아야 함
         elif self.episode_log_file:
             print(f"❌ Specified episode log not found: {self.episode_log_file}")
             return False
         else:
+            # 지정된 파일이 없으면 최신 파일 찾기
             if not os.path.exists(self.log_dir):
                 print(f"❌ Log directory not found: {self.log_dir}")
                 return False
 
-            # 에피소드 로그 파일 찾기
             episode_files = glob.glob(os.path.join(self.log_dir, "episodes_*.csv"))
             if episode_files:
                 self.episode_log_file = max(episode_files, key=os.path.getctime)
-                print(f"📊 Found episode log: {self.episode_log_file}")
+                print(f"📊 Found latest episode log: {self.episode_log_file}")
 
-        # 훈련 메트릭 로그 파일 찾기
+        # 훈련 메트릭 로그 파일 찾기 (항상 최신)
         training_files = glob.glob(os.path.join(self.log_dir, "training_metrics_*.csv"))
         if training_files:
             self.training_log_file = max(training_files, key=os.path.getctime)
-            print(f"📈 Found training log: {self.training_log_file}")
+            print(f"📈 Found latest training log: {self.training_log_file}")
 
-        if not self.episode_log_file and not self.training_log_file:
-            print(f"⚠️ No log files found in {self.log_dir}")
-            print("   Available files:")
-            if os.path.exists(self.log_dir):
-                all_files = os.listdir(self.log_dir)
-                for f in all_files:
-                    print(f"     {f}")
+        if not self.episode_log_file:
+            print(f"⚠️ No episode log file found or specified.")
             return False
 
         return True
@@ -104,11 +100,26 @@ class TrainingPlotter:
         try:
             # 에피소드 데이터 로드
             if self.episode_log_file and os.path.exists(self.episode_log_file):
-                self.episode_data = pd.read_csv(self.episode_log_file)
-                if "timestamp" in self.episode_data.columns:
-                    self.episode_data["timestamp"] = pd.to_datetime(
-                        self.episode_data["timestamp"]
+                # 데이터가 비어있는 경우를 대비해 예외 처리 추가
+                try:
+                    self.episode_data = pd.read_csv(self.episode_log_file)
+                    if "timestamp" in self.episode_data.columns:
+                        self.episode_data["timestamp"] = pd.to_datetime(
+                            self.episode_data["timestamp"]
+                        )
+                    if self.episode_data.empty:
+                        print(
+                            f"⚠️ Warning: Episode log is empty: {self.episode_log_file}"
+                        )
+                    else:
+                        print(
+                            f"  Loaded {len(self.episode_data)} records from {self.episode_log_file}"
+                        )
+                except pd.errors.EmptyDataError:
+                    print(
+                        f"⚠️ Warning: Episode log is empty (pandas EmptyDataError): {self.episode_log_file}"
                     )
+                    self.episode_data = pd.DataFrame()
 
             # 훈련 메트릭 데이터 로드
             if self.training_log_file and os.path.exists(self.training_log_file):

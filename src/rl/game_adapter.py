@@ -95,6 +95,7 @@ class GameStateAdapter:
                     game_vars, "lives", 1
                 )  # 목숨 정보 추출 (기본값 3에서 1로 변경)
                 current_stage = getattr(game_vars, "stage_num", 1)  # 현재 스테이지
+                kills = getattr(game_vars, "kills", 0)  # 정확한 처치 수
 
                 # 게임 클리어 여부 확인 (최종 스테이지 완료 시)
                 from config.stage.stage_num import FINAL_STAGE
@@ -105,15 +106,6 @@ class GameStateAdapter:
                 # 생존 시간은 스테이지 상태에서 추출
                 if game_state and hasattr(game_state, "state_time"):
                     survival_time = game_state.state_time
-
-                # 처치 수는 점수 변화량으로 추정 (임시)
-                score_increase = max(0, score - self.previous_score)
-                if score_increase > 0:
-                    # 점수 증가량을 기반으로 처치 수 추정
-                    estimated_kills = score_increase // 100  # 적당한 점수 단위
-                    kills = self.previous_kills + estimated_kills
-                else:
-                    kills = self.previous_kills
 
         # 상태 정보 업데이트
         self.previous_score = score

@@ -121,9 +121,8 @@ class PPOTrainer:
             # 게임에 액션 적용
             self.game_adapter.apply_action_to_game(game_instance, action)
 
-            # 게임 한 스텝 실행 (이 부분은 게임 루프에서 처리됨)
-            # 여기서는 다음 상태를 얻기 위해 잠시 대기
-            time.sleep(0.016)  # 약 60FPS
+            # 게임 한 스텝 실행
+            game_instance.step()
 
             # 다음 상태 추출
             next_state = self.game_adapter.extract_game_state(
@@ -131,7 +130,7 @@ class PPOTrainer:
             )
 
             # 보상 계산
-            reward = self.agent.env.calculate_reward(next_state, action)
+            reward = self.agent.env._calculate_reward_original(next_state, action)
 
             # 에피소드 종료 조건 확인
             done = self._check_episode_done(
@@ -233,7 +232,7 @@ class PPOTrainer:
                 next_state = self.game_adapter.extract_game_state(
                     game_instance, skill_level, personality
                 )
-                reward = self.agent.env.calculate_reward(next_state, action)
+                reward = self.agent.env._calculate_reward_original(next_state, action)
 
                 # 종료 조건 확인
                 done = self._check_episode_done(

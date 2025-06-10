@@ -9,6 +9,29 @@ BUTTON_1 = 4  # 버튼 1 입력 (Z, U, 게임패드 A 버튼)
 BUTTON_2 = 5  # 버튼 2 입력 (X, 게임패드 B 버튼)
 INVINCIBLE = 6  # 무적 모드 토글 입력 (I 키)
 COLLECT_DATA = 7  # 데이터 수집 토글 입력 (C 키)
+YOLO_DEBUG = 8  # YOLO 디버그 그리기 토글 (D 키)
+
+# 매핑: 키 코드 -> 입력 상수
+KEY_MAPPINGS = {
+    px.KEY_Z: BUTTON_1,
+    px.KEY_X: BUTTON_2,
+    px.KEY_UP: UP,
+    px.KEY_DOWN: DOWN,
+    px.KEY_LEFT: LEFT,
+    px.KEY_RIGHT: RIGHT,
+    px.KEY_W: UP,
+    px.KEY_S: DOWN,
+    px.KEY_A: LEFT,
+    px.KEY_D: YOLO_DEBUG,
+    px.KEY_I: INVINCIBLE,
+    px.KEY_C: COLLECT_DATA,
+    px.GAMEPAD1_BUTTON_DPAD_UP: UP,
+    px.GAMEPAD1_BUTTON_DPAD_DOWN: DOWN,
+    px.GAMEPAD1_BUTTON_DPAD_LEFT: LEFT,
+    px.GAMEPAD1_BUTTON_DPAD_RIGHT: RIGHT,
+    px.GAMEPAD1_BUTTON_A: BUTTON_1,
+    px.GAMEPAD1_BUTTON_B: BUTTON_2,
+}
 
 
 class Input:
@@ -26,14 +49,14 @@ class Input:
         """
         self.pressing = []
         self.tapped = []
-        
+
         # 직접 설정할 수 있는 입력 상태 (RL 에이전트용)
         self.left_pressed = False
         self.right_pressed = False
         self.up_pressed = False
         self.down_pressed = False
         self.fire_pressed = False  # Z키에 해당
-        self.z_pressed = False     # Z키 직접 제어용
+        self.z_pressed = False  # Z키 직접 제어용
 
     def is_pressing(self, i: int) -> bool:
         """
@@ -67,31 +90,21 @@ class Input:
         self.tapped.clear()
 
         # 현재 눌려진 입력 처리
-        if px.btn(px.KEY_UP) or px.btn(px.KEY_W) or px.btn(px.GAMEPAD1_BUTTON_DPAD_UP) or self.up_pressed:
-            self.pressing.append(UP)
-        if (
-            px.btn(px.KEY_DOWN)
-            or px.btn(px.KEY_S)
-            or px.btn(px.GAMEPAD1_BUTTON_DPAD_DOWN)
-            or self.down_pressed
-        ):
-            self.pressing.append(DOWN)
-        if (
-            px.btn(px.KEY_LEFT)
-            or px.btn(px.KEY_A)
-            or px.btn(px.GAMEPAD1_BUTTON_DPAD_LEFT)
-            or self.left_pressed
-        ):
-            self.pressing.append(LEFT)
-        if (
-            px.btn(px.KEY_RIGHT)
-            or px.btn(px.KEY_D)
-            or px.btn(px.GAMEPAD1_BUTTON_DPAD_RIGHT)
-            or self.right_pressed
-        ):
-            self.pressing.append(RIGHT)
+        for key, value in KEY_MAPPINGS.items():
+            if (
+                px.btn(key)
+                or (key == px.KEY_S and self.down_pressed)
+                or (key == px.KEY_W and self.up_pressed)
+            ):
+                self.pressing.append(value)
 
-        if px.btn(px.KEY_Z) or px.btn(px.KEY_U) or px.btn(px.GAMEPAD1_BUTTON_A) or self.fire_pressed or self.z_pressed:
+        if (
+            px.btn(px.KEY_Z)
+            or px.btn(px.KEY_U)
+            or px.btn(px.GAMEPAD1_BUTTON_A)
+            or self.fire_pressed
+            or self.z_pressed
+        ):
             self.pressing.append(BUTTON_1)
         if px.btn(px.KEY_X) or px.btn(px.GAMEPAD1_BUTTON_B):
             self.pressing.append(BUTTON_2)
@@ -99,36 +112,19 @@ class Input:
         # 무적 모드 토글 입력
         if px.btn(px.KEY_I):
             self.pressing.append(INVINCIBLE)
-            
+
         # 데이터 수집 토글 입력
         if px.btn(px.KEY_C):
             self.pressing.append(COLLECT_DATA)
 
+        # 무적 모드 토글 입력
+        if px.btn(px.KEY_D):
+            self.pressing.append(YOLO_DEBUG)
+
         # 현재 프레임에서 눌린 입력 처리
-        if (
-            px.btnp(px.KEY_UP)
-            or px.btnp(px.KEY_W)
-            or px.btnp(px.GAMEPAD1_BUTTON_DPAD_UP)
-        ):
-            self.tapped.append(UP)
-        if (
-            px.btnp(px.KEY_DOWN)
-            or px.btnp(px.KEY_S)
-            or px.btnp(px.GAMEPAD1_BUTTON_DPAD_DOWN)
-        ):
-            self.tapped.append(DOWN)
-        if (
-            px.btnp(px.KEY_LEFT)
-            or px.btnp(px.KEY_A)
-            or px.btnp(px.GAMEPAD1_BUTTON_DPAD_LEFT)
-        ):
-            self.tapped.append(LEFT)
-        if (
-            px.btnp(px.KEY_RIGHT)
-            or px.btnp(px.KEY_D)
-            or px.btnp(px.GAMEPAD1_BUTTON_DPAD_RIGHT)
-        ):
-            self.tapped.append(RIGHT)
+        for key, value in KEY_MAPPINGS.items():
+            if px.btnp(key):
+                self.tapped.append(value)
 
         if px.btnp(px.KEY_Z) or px.btnp(px.KEY_U) or px.btnp(px.GAMEPAD1_BUTTON_A):
             self.tapped.append(BUTTON_1)
@@ -138,7 +134,11 @@ class Input:
         # 무적 모드 토글 입력
         if px.btnp(px.KEY_I):
             self.tapped.append(INVINCIBLE)
-            
+
         # 데이터 수집 토글 입력
         if px.btnp(px.KEY_C, 0, 0):
             self.tapped.append(COLLECT_DATA)
+
+        # 무적 모드 토글 입력
+        if px.btnp(px.KEY_D):
+            self.tapped.append(YOLO_DEBUG)

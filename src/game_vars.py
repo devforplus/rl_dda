@@ -19,6 +19,7 @@ class GameVars:
         for _ in range(MAX_WEAPONS):
             self.weapon_levels.append(0)
         self.stage_num = StageNum.STAGE_1
+        self.kills = 0
 
     def is_vortex_stage(self):
         return self.stage_num % 2 == 0
@@ -26,6 +27,7 @@ class GameVars:
     def new_game(self):
         self.continue_game()
         self.stage_num = StageNum.STAGE_1
+        self.kills = 0
 
     def continue_game(self):
         self.score = 0
@@ -33,6 +35,7 @@ class GameVars:
         for i in range(len(self.weapon_levels)):
             self.weapon_levels[i] = 0
         self.lives = STARTING_LIVES
+        self.kills = 0
 
     def go_to_next_stage(self):
         if self.stage_num < FINAL_STAGE:
@@ -49,6 +52,9 @@ class GameVars:
     def add_score(self, s):
         self.score = min(MAX_SCORE, self.score + s)
         self.hi_score = max(self.score, self.hi_score)
+
+    def add_kill(self):
+        self.kills += 1
 
     def decrease_all_weapon_levels(self, amount):
         for i in range(len(self.weapon_levels)):

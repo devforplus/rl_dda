@@ -58,28 +58,6 @@ class GameStateStage:
         # 플레이어 및 관련 객체 초기화
         self.player = Player(self)
 
-        # 에이전트가 있을 때는 플레이어를 무적 모드로 설정 (랜덤 에이전트 안전을 위함)
-        # 단, 학습 모드일 때는 무적 모드 비활성화하여 적절한 학습이 가능하도록 함
-        if (
-            hasattr(self.game, "app")
-            and hasattr(self.game.app, "agent")
-            and self.game.app.agent is not None
-        ):
-            agent = self.game.app.agent
-
-            # 에이전트가 학습 모드인지 확인
-            is_learning_mode = hasattr(agent, "enable_learning") and getattr(
-                agent, "enable_learning", False
-            )
-
-            # 학습 모드가 아닐 때만 무적 모드 활성화 (평가/테스트 모드에서만)
-            if not is_learning_mode:
-                self.player.forced_invincible = True
-                # 평가 모드에서만 필요시 출력
-            else:
-                # 학습 모드에서는 로그 출력하지 않음
-                pass
-
         self.player_shots = []
 
         # 적 및 관련 객체 초기화
@@ -136,28 +114,6 @@ class GameStateStage:
         """플레이어를 리스폰합니다."""
         self.player = Player(self)
 
-        # 에이전트가 있을 때는 플레이어를 무적 모드로 설정 (랜덤 에이전트 안전을 위함)
-        # 단, 학습 모드일 때는 무적 모드 비활성화하여 적절한 학습이 가능하도록 함
-        if (
-            hasattr(self.game, "app")
-            and hasattr(self.game.app, "agent")
-            and self.game.app.agent is not None
-        ):
-            agent = self.game.app.agent
-
-            # 에이전트가 학습 모드인지 확인
-            is_learning_mode = hasattr(agent, "enable_learning") and getattr(
-                agent, "enable_learning", False
-            )
-
-            # 학습 모드가 아닐 때만 무적 모드 활성화 (평가/테스트 모드에서만)
-            if not is_learning_mode:
-                self.player.forced_invincible = True
-                # 평가 모드에서만 필요시 출력
-            else:
-                # 학습 모드에서는 로그 출력하지 않음
-                pass
-
     def get_scroll_x_speed(self):
         return self.background.scroll_x_speed
 
@@ -183,6 +139,9 @@ class GameStateStage:
 
     def add_score(self, amount):
         self.game.game_vars.add_score(amount)
+
+    def add_kill(self):
+        self.game.game_vars.add_kill()
 
     # Doesnt include bosses.
     def get_num_enemies(self):

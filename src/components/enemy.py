@@ -101,6 +101,7 @@ class Enemy(Sprite):
         self.remove = True
         self.removal_reason = "killed_by_player"  # 플레이어에 의한 제거 사유 설정
         self.game_state.add_score(self.score)  # 점수 추가
+        self.game_state.add_kill()  # 킬 수 추가
         self.explode()  # 폭발 효과
         powerup.check_create_next(
             self.game_state, self.x, self.y
