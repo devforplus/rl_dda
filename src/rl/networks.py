@@ -21,17 +21,19 @@ class PolicyNetwork(nn.Module):
     상태를 입력받아 액션 확률 분포를 출력하는 정책 네트워크
     """
 
-    def __init__(self, state_size: int, action_size: int, hidden_size: int = 256):
-        """정책 네트워크 초기화
+    def __init__(
+        self, state_size: int, action_size: int, hidden_size: int = 512
+    ):  # 256 → 512
+        """정책 네트워크 초기화 (개선된 아키텍처)
 
         Args:
             state_size: 상태 벡터 크기
             action_size: 액션 공간 크기
-            hidden_size: 은닉층 크기
+            hidden_size: 은닉층 크기 (512로 확장)
 
         ---
 
-        다층 퍼셉트론 구조로 정책 네트워크를 구성
+        더 깊고 강력한 다층 퍼셉트론 구조로 정책 네트워크를 구성
         """
         super(PolicyNetwork, self).__init__()
 
@@ -39,24 +41,28 @@ class PolicyNetwork(nn.Module):
         self.action_size = action_size
         self.hidden_size = hidden_size
 
-        # 네트워크 레이어 정의
+        # 확장된 네트워크 레이어 정의 (3층 → 5층)
         self.fc1 = nn.Linear(state_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, hidden_size)
-        self.fc3 = nn.Linear(hidden_size, hidden_size // 2)
-        self.action_head = nn.Linear(hidden_size // 2, action_size)
+        self.fc3 = nn.Linear(hidden_size, hidden_size)  # 추가 레이어
+        self.fc4 = nn.Linear(hidden_size, hidden_size // 2)  # 추가 레이어
+        self.fc5 = nn.Linear(hidden_size // 2, hidden_size // 4)  # 추가 레이어
+        self.action_head = nn.Linear(hidden_size // 4, action_size)
 
         # 드롭아웃 레이어 (과적합 방지)
         self.dropout = nn.Dropout(0.1)
 
-        # 레이어 노름 (학습 안정성 향상)
+        # 레이어 노름 (학습 안정성 향상) - 모든 레이어에 적용
         self.layer_norm1 = nn.LayerNorm(hidden_size)
         self.layer_norm2 = nn.LayerNorm(hidden_size)
+        self.layer_norm3 = nn.LayerNorm(hidden_size)
+        self.layer_norm4 = nn.LayerNorm(hidden_size // 2)
 
         # 가중치 초기화
         self._initialize_weights()
 
     def _initialize_weights(self):
-        """네트워크 가중치 초기화
+        """네트워크 가중치 초기화 (확장된 레이어 대응)
 
         Xavier uniform 초기화를 사용하여 학습 안정성을 향상시킵니다.
 
@@ -64,12 +70,19 @@ class PolicyNetwork(nn.Module):
 
         신경망의 가중치를 효과적으로 초기화하여 학습 성능 개선
         """
-        for layer in [self.fc1, self.fc2, self.fc3, self.action_head]:
+        for layer in [
+            self.fc1,
+            self.fc2,
+            self.fc3,
+            self.fc4,
+            self.fc5,
+            self.action_head,
+        ]:
             nn.init.xavier_uniform_(layer.weight)
             nn.init.zeros_(layer.bias)
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:
-        """순전파 수행
+        """순전파 수행 (확장된 아키텍처)
 
         Args:
             state: 입력 상태 텐서
@@ -79,15 +92,27 @@ class PolicyNetwork(nn.Module):
 
         ---
 
-        상태를 입력받아 각 액션의 선택 확률을 계산
+        5층 신경망으로 상태를 입력받아 각 액션의 선택 확률을 계산
         """
-        x = F.relu(self.layer_norm1(self.fc1(state)))
+        # 1층: 입력 → 512, SiLU 활성화 + LayerNorm + Dropout
+        x = F.silu(self.layer_norm1(self.fc1(state)))  # ReLU → SiLU
         x = self.dropout(x)
 
-        x = F.relu(self.layer_norm2(self.fc2(x)))
+        # 2층: 512 → 512, SiLU 활성화 + LayerNorm + Dropout
+        x = F.silu(self.layer_norm2(self.fc2(x)))
         x = self.dropout(x)
 
-        x = F.relu(self.fc3(x))
+        # 3층: 512 → 512, SiLU 활성화 + LayerNorm + Dropout
+        x = F.silu(self.layer_norm3(self.fc3(x)))
+        x = self.dropout(x)
+
+        # 4층: 512 → 256, SiLU 활성화 + LayerNorm
+        x = F.silu(self.layer_norm4(self.fc4(x)))
+
+        # 5층: 256 → 128, SiLU 활성화
+        x = F.silu(self.fc5(x))
+
+        # 출력층: 128 → 액션 수
         action_probs = F.softmax(self.action_head(x), dim=-1)
 
         return action_probs
@@ -155,51 +180,62 @@ class ValueNetwork(nn.Module):
     상태를 입력받아 해당 상태의 가치를 추정하는 가치 함수 네트워크
     """
 
-    def __init__(self, state_size: int, hidden_size: int = 256):
-        """가치 네트워크 초기화
+    def __init__(self, state_size: int, hidden_size: int = 512):  # 256 → 512
+        """가치 네트워크 초기화 (개선된 아키텍처)
 
         Args:
             state_size: 상태 벡터 크기
-            hidden_size: 은닉층 크기
+            hidden_size: 은닉층 크기 (512로 확장)
 
         ---
 
-        다층 퍼셉트론 구조로 가치 네트워크를 구성
+        더 깊고 강력한 다층 퍼셉트론 구조로 가치 네트워크를 구성
         """
         super(ValueNetwork, self).__init__()
 
         self.state_size = state_size
         self.hidden_size = hidden_size
 
-        # 네트워크 레이어 정의
+        # 확장된 네트워크 레이어 정의 (3층 → 5층)
         self.fc1 = nn.Linear(state_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, hidden_size)
-        self.fc3 = nn.Linear(hidden_size, hidden_size // 2)
-        self.value_head = nn.Linear(hidden_size // 2, 1)
+        self.fc3 = nn.Linear(hidden_size, hidden_size)  # 추가 레이어
+        self.fc4 = nn.Linear(hidden_size, hidden_size // 2)  # 추가 레이어
+        self.fc5 = nn.Linear(hidden_size // 2, hidden_size // 4)  # 추가 레이어
+        self.value_head = nn.Linear(hidden_size // 4, 1)
 
         # 드롭아웃 레이어
         self.dropout = nn.Dropout(0.1)
 
-        # 레이어 노름
+        # 확장된 레이어 노름
         self.layer_norm1 = nn.LayerNorm(hidden_size)
         self.layer_norm2 = nn.LayerNorm(hidden_size)
+        self.layer_norm3 = nn.LayerNorm(hidden_size)
+        self.layer_norm4 = nn.LayerNorm(hidden_size // 2)
 
         # 가중치 초기화
         self._initialize_weights()
 
     def _initialize_weights(self):
-        """네트워크 가중치 초기화
+        """네트워크 가중치 초기화 (확장된 레이어 대응)
 
         ---
 
         가치 함수 네트워크의 가중치를 초기화
         """
-        for layer in [self.fc1, self.fc2, self.fc3, self.value_head]:
+        for layer in [
+            self.fc1,
+            self.fc2,
+            self.fc3,
+            self.fc4,
+            self.fc5,
+            self.value_head,
+        ]:
             nn.init.xavier_uniform_(layer.weight)
             nn.init.zeros_(layer.bias)
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:
-        """순전파 수행
+        """순전파 수행 (확장된 아키텍처)
 
         Args:
             state: 입력 상태 텐서
@@ -209,15 +245,27 @@ class ValueNetwork(nn.Module):
 
         ---
 
-        상태를 입력받아 해당 상태의 가치를 추정
+        5층 신경망으로 상태를 입력받아 해당 상태의 가치를 추정
         """
-        x = F.relu(self.layer_norm1(self.fc1(state)))
+        # 1층: 입력 → 512, SiLU 활성화 + LayerNorm + Dropout
+        x = F.silu(self.layer_norm1(self.fc1(state)))  # ReLU → SiLU
         x = self.dropout(x)
 
-        x = F.relu(self.layer_norm2(self.fc2(x)))
+        # 2층: 512 → 512, SiLU 활성화 + LayerNorm + Dropout
+        x = F.silu(self.layer_norm2(self.fc2(x)))
         x = self.dropout(x)
 
-        x = F.relu(self.fc3(x))
+        # 3층: 512 → 512, SiLU 활성화 + LayerNorm + Dropout
+        x = F.silu(self.layer_norm3(self.fc3(x)))
+        x = self.dropout(x)
+
+        # 4층: 512 → 256, SiLU 활성화 + LayerNorm
+        x = F.silu(self.layer_norm4(self.fc4(x)))
+
+        # 5층: 256 → 128, SiLU 활성화
+        x = F.silu(self.fc5(x))
+
+        # 출력층: 128 → 1 (가치 추정)
         value = self.value_head(x)
 
         return value
@@ -234,7 +282,9 @@ class ActorCriticNetwork(nn.Module):
     공유된 특성 추출 레이어와 분리된 출력 헤드를 가진 네트워크
     """
 
-    def __init__(self, state_size: int, action_size: int, hidden_size: int = 256):
+    def __init__(
+        self, state_size: int, action_size: int, hidden_size: int = 512
+    ):  # 256 → 512
         """Actor-Critic 네트워크 초기화
 
         Args:
