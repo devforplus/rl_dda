@@ -23,7 +23,7 @@ class ExperienceBuffer:
     상태, 액션, 보상, 로그 확률 등의 경험 데이터를 효율적으로 저장
     """
 
-    def __init__(self, buffer_size: int = 2048):
+    def __init__(self, buffer_size: int = 4096):  # 2048 → 4096 (일관성)
         """경험 버퍼 초기화
 
         Args:
@@ -131,7 +131,7 @@ class PPOAgent(BaseAgent):
     def __init__(
         self,
         env: GameEnvironment,
-        learning_rate: float = 3e-4,
+        learning_rate: float = 5e-4,  # 3e-4 → 5e-4 (학습 속도 향상)
         gamma: float = 0.99,
         lam: float = 0.95,
         clip_epsilon: float = 0.15,
@@ -140,9 +140,9 @@ class PPOAgent(BaseAgent):
         entropy_coef_end: float = 0.001,
         entropy_decay_batches: int = 250,
         max_grad_norm: float = 0.5,
-        ppo_epochs: int = 4,
-        batch_size: int = 128,
-        buffer_size: int = 2048,
+        ppo_epochs: int = 8,  # 4 → 8 (더 많은 업데이트)
+        batch_size: int = 256,  # 128 → 256 (안정적 그래디언트)
+        buffer_size: int = 4096,  # 2048 → 4096 (더 많은 경험)
         device: str = None,
     ):
         """PPO 에이전트 초기화
@@ -540,7 +540,7 @@ def create_ppo_agent(
     skill_level: float = 0.5,
     personality: int = 0,
     max_entities: int = 50,
-    learning_rate: float = 1e-4,
+    learning_rate: float = 5e-4,  # 1e-4 → 5e-4 (일관성 있는 학습률)
     gamma: float = 0.99,
     lam: float = 0.95,
     clip_epsilon: float = 0.15,
@@ -549,9 +549,9 @@ def create_ppo_agent(
     entropy_coef_end: float = 0.001,
     entropy_decay_batches: int = 250,
     max_grad_norm: float = 0.5,
-    ppo_epochs: int = 4,
-    batch_size: int = 128,
-    buffer_size: int = 2048,
+    ppo_epochs: int = 8,  # 4 → 8 (더 많은 업데이트)
+    batch_size: int = 256,  # 128 → 256 (안정적 그래디언트)
+    buffer_size: int = 4096,  # 2048 → 4096 (더 많은 경험)
     device: str = None,
 ) -> PPOAgent:
     """PPO 에이전트 생성
