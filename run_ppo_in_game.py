@@ -93,7 +93,7 @@ class ImprovedGameEnvironment(GameEnvironment):
                 ):
                     total_reward += milestone_reward
                     print(
-                        f"🎉 IMPROVED MILESTONE: +{milestone_reward:.1f} ({milestone_time / 60:.1f}s)"
+                        f"MILESTONE: +{milestone_reward:.1f} ({milestone_time / 60:.1f}s)"
                     )
 
         # 3. 점수 증가 보상 (기존의 2배)
@@ -107,7 +107,7 @@ class ImprovedGameEnvironment(GameEnvironment):
         if game_state.player_lives < self.last_lives:
             death_penalty = -50.0  # 기존 -100.0에서 감소
             total_reward += death_penalty
-            print(f"💀 REDUCED DEATH PENALTY: {death_penalty:.1f}")
+            print(f"DEATH PENALTY: {death_penalty:.1f}")
 
         # 5. 공격 행동 장려 보상
         if last_action == 8:  # FIRE 액션
@@ -299,7 +299,7 @@ class GamePPOAgent:
                 ]
             )
 
-        print(f"📊 Logging initialized:")
+        print(f"Logging initialized:")
         print(f"   Training metrics: {self.training_log_file}")
         print(f"   Episode data: {self.episode_log_file}")
 
@@ -442,10 +442,17 @@ class GamePPOAgent:
 
         try:
             import matplotlib.pyplot as plt
+            import matplotlib
             import numpy as np
 
+            # 폰트 경고 억제
+            matplotlib.rcParams["font.family"] = ["DejaVu Sans", "sans-serif"]
+            import warnings
+
+            warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
+
             if len(self.episode_total_rewards) < 2:
-                print("📊 Not enough data for plotting (need at least 2 episodes)")
+                print("Not enough data for plotting (need at least 2 episodes)")
                 return
 
             # 플롯 디렉토리 생성
@@ -591,7 +598,7 @@ class GamePPOAgent:
             plt.text(
                 0.1,
                 0.9,
-                f"📊 Training Summary",
+                f"Training Summary",
                 fontsize=14,
                 fontweight="bold",
                 transform=plt.gca().transAxes,
@@ -674,7 +681,7 @@ class GamePPOAgent:
             latest_path = os.path.join(plot_dir, "latest_training_progress.png")
             plt.savefig(latest_path, dpi=150, bbox_inches="tight")
 
-            print(f"📊 Enhanced training plots saved: {plot_path}")
+            print(f"Training plots saved: {plot_path}")
             plt.close()
 
         except ImportError:
@@ -686,7 +693,7 @@ class GamePPOAgent:
                 plotter = TrainingPlotter(log_dir=self.log_dir, output_dir="plots")
                 success = plotter.generate_all_plots()
                 if success:
-                    print(f"📊 Training plots generated in plots/ directory")
+                    print(f"Training plots generated in plots/ directory")
             except ImportError:
                 print("⚠️ plot_training_progress.py not found - plots not generated")
         except Exception as e:
@@ -1083,8 +1090,19 @@ class GamePPOAgent:
 
         # 액션 분포 출력 (간소화)
         if self.episode_count % 5 == 0:  # 5 에피소드마다만 상세 출력
-            print(f"🎮 Action Distribution:")
-            action_names = ["↖", "↑", "↗", "←", "•", "→", "↙", "↓", "↘", "🔥"]
+            print(f"Action Distribution:")
+            action_names = [
+                "UL",
+                "UP",
+                "UR",
+                "LEFT",
+                "STAY",
+                "RIGHT",
+                "DL",
+                "DOWN",
+                "DR",
+                "FIRE",
+            ]
             for action_id in sorted(action_distribution.keys()):
                 if action_id < len(action_names):
                     action_name = action_names[action_id]
@@ -1092,7 +1110,7 @@ class GamePPOAgent:
                     percentage = (count / max(1, episode_length)) * 100
                     if action_id == 8:  # Fire action - highlight
                         print(
-                            f"   🔥 {action_name} (#{action_id}): {count} times ({percentage:.1f}%) ⭐"
+                            f"   {action_name} (#{action_id}): {count} times ({percentage:.1f}%) *"
                         )
                     else:
                         print(
@@ -1116,7 +1134,7 @@ class GamePPOAgent:
 
         # 상세한 에피소드 요약 출력
         print(f"\n🏁 ===== Episode {self.episode_count} Summary =====")
-        print(f"📊 Episode Stats:")
+        print(f"Episode Stats:")
         print(f"   Duration: {episode_duration:.1f}s ({episode_length} steps)")
         print(f"   Steps/sec: {episode_length / max(0.1, episode_duration):.1f}")
         print(f"   End Reason: {episode_end_reason}")
@@ -1221,14 +1239,14 @@ class GamePPOAgent:
             should_terminate_game = True  # 목표 달성 시 게임 종료
             self.training_complete = True  # 훈련 완료 표시
             print(f"\n🎯 Target episodes ({self.target_episodes}) reached!")
-            print(f"📊 Episodes: {self.episode_count}, Steps: {self.step_count}")
+            print(f"Episodes: {self.episode_count}, Steps: {self.step_count}")
 
             # 그래프 생성
             try:
                 self.generate_final_plots(
                     f"Target episodes ({self.target_episodes}) completed"
                 )
-                print("📊 Final plots generated.")
+                print("Final plots generated.")
             except Exception as e:
                 print(f"⚠️ Failed to generate plots: {e}")
 
@@ -1258,7 +1276,7 @@ class GamePPOAgent:
             and self.episode_count > 0
         ):
             print(
-                f"📊 Generating periodic training plots (Episode {self.episode_count})..."
+                f"Generating periodic training plots (Episode {self.episode_count})..."
             )
             self.generate_training_plots()
 
@@ -1283,7 +1301,7 @@ class GamePPOAgent:
         # PPO 에이전트 통계
         agent_stats = self.ppo_agent.get_stats()
 
-        print(f"📊 Stats @ Step {self.step_count} (Episode {self.episode_count}):")
+        print(f"Stats @ Step {self.step_count} (Episode {self.episode_count}):")
         print(f"   Current Reward: {self.total_reward:.2f}")
         print(f"   Steps/sec: {steps_per_second:.1f}")
 
@@ -1322,13 +1340,13 @@ class GamePPOAgent:
 
         훈련 완료 시 최종 결과 그래프를 생성
         """
-        print(f"📊 Generating final training plots - {reason}")
+        print(f"Generating final training plots - {reason}")
         self.generate_training_plots()
 
         # 최종 통계 출력
         print("\n" + "=" * 80)
         print("🎯 Training Summary")
-        print(f"📊 Total Episodes: {self.episode_count}")
+        print(f"Total Episodes: {self.episode_count}")
         print(f"📈 Total Steps: {self.step_count}")
         print(f"🏆 Best Score: {self.best_score:,}")
         print(f"💰 Best Reward: {self.best_reward:.3f}")
