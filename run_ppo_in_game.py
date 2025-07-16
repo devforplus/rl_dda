@@ -1872,7 +1872,9 @@ class GamePPOAgent:
                 from rl.game_adapter import GameStateAdapter
 
                 adapter = GameStateAdapter()
-                real_game_state = adapter.extract_game_state(self.game_instance)
+                real_game_state = adapter.extract_game_state(
+                    self.game_instance, self.skill_level, self.personality
+                )
                 if real_game_state:
                     survival_seconds = self._convert_survival_time_to_seconds(
                         real_game_state.survival_time
@@ -2151,14 +2153,24 @@ class GamePPOAgent:
             survival_time_frames: 프레임 단위 생존 시간
 
         Returns:
-            실제 생존 시간 (초)
+            게임 내 생존 시간 (초)
 
         ---
 
-        배속 모드에서는 게임이 빠르게 진행되므로,
-        실제 생존 시간은 프레임 수를 (60 * speed_multiplier)로 나눈 값입니다.
+        🧪 실험 결과: survival_time_frames는 이미 배속을 반영한 게임 시간
+        따라서 단순히 60으로 나누면 올바른 게임 내 생존 시간이 됨
         """
-        return survival_time_frames / (60.0 * self.speed_multiplier)
+        # 🎯 실험 결과: Method 1 (frames/60)이 정답
+        # survival_time_frames는 이미 배속 모드를 반영한 게임 시간
+        survival_seconds = survival_time_frames / 60.0
+
+        # 🔍 디버깅: 가끔 중요한 정보 출력
+        if self.episode_count % 20 == 0:
+            print(
+                f"🧪 Survival Time: {survival_time_frames} frames = {survival_seconds:.3f}s (Speed: {self.speed_multiplier}x)"
+            )
+
+        return survival_seconds
 
 
 class PPOGameApp(App):
