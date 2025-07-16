@@ -1501,35 +1501,59 @@ class GamePPOAgent:
         return base_action
 
     def _extract_current_game_state(self):
-        """현재 게임 상태 추출
+        """현재 게임 상태를 추출하여 GameState 객체로 변환
 
         Returns:
-            GameState 인스턴스 또는 None
+            GameState: 현재 게임 상태
 
         ---
 
-        실제 게임 인스턴스에서 상태를 추출하여 PPO 모델용으로 변환
+        게임 인스턴스에서 필요한 정보를 추출하여 강화학습에 사용할 수 있는 형태로 변환
         """
-        try:
-            if self.game_instance is None:
-                return self._create_dummy_game_state()
+        if not self.game_instance:
+            return self._create_dummy_game_state()
 
-            # 게임 어댑터를 사용하여 실제 게임 상태 추출
-            extracted_state = self.adapter.extract_game_state(
-                self.game_instance,
-                self.skill_level,
-                self.personality,
+        try:
+            # game_adapter를 통해 게임 상태 추출
+            from rl.game_adapter import GameStateAdapter
+
+            adapter = GameStateAdapter()
+            game_state = adapter.extract_game_state(
+                self.game_instance, self.skill_level, self.personality
             )
 
-            # 추출된 상태 검증
-            if extracted_state is None:
-                return self._create_dummy_game_state()
+            # 🔍 디버깅: 게임 상태 변화 추적 (에피소드 종료 관련)
+            if self.game_instance and hasattr(self.game_instance, "game"):
+                game = self.game_instance.game
+                if hasattr(game, "state") and hasattr(game.state, "state"):
+                    current_state = game.state.state
+                    if hasattr(current_state, "name"):
+                        state_name = current_state.name
 
-            return extracted_state
+                        # 게임 상태가 변경되었을 때만 로그 출력
+                        if (
+                            not hasattr(self, "_last_game_state_name")
+                            or self._last_game_state_name != state_name
+                        ):
+                            if state_name in [
+                                "PLAYER_DEAD",
+                                "GAME_OVER",
+                                "PLAY",
+                                "PLAYER_SPAWNED",
+                            ]:
+                                lives = (
+                                    getattr(game.game_vars, "lives", "N/A")
+                                    if hasattr(game, "game_vars")
+                                    else "N/A"
+                                )
+                                print(
+                                    f"🎮 Game State Change: {self._last_game_state_name if hasattr(self, '_last_game_state_name') else 'UNKNOWN'} → {state_name} (Lives: {lives})"
+                                )
+                            self._last_game_state_name = state_name
 
+            return game_state
         except Exception as e:
-            print(f"❌ Error extracting game state: {e}", file=sys.stderr)
-            # 오류 발생 시 더미 상태로 대체
+            print(f"⚠️ Error extracting game state: {e}")
             return self._create_dummy_game_state()
 
     def _create_dummy_game_state(self):
@@ -1596,49 +1620,27 @@ class GamePPOAgent:
             game_state.survival_time
         )
 
-        # 🎯 개선된 최소 생존 시간 보장: 완화된 조건
-        if self.use_improved_rewards and hasattr(
-            self.ppo_agent.env, "get_current_phase_info"
-        ):
-            phase_info = self.ppo_agent.env.get_current_phase_info()
-
-            # 🛡️ 대폭 완화된 최소 생존 시간 (학습 방해 최소화)
-            min_survival_times = [0.3, 0.5, 0.0, 0.0]  # 처음 2단계만 최소 보장
-            min_survival = min_survival_times[phase_info["phase"]]
-
-            # 최소 생존 시간 미달 시에도 더 관대하게
-            if (
-                survival_seconds < min_survival and episode_length > 18
-            ):  # 0.3초, 18프레임 이상
-                # 매우 짧은 경우에만 강제 연장 (기존보다 훨씬 완화)
-                return False
-
-        # 플레이어 목숨이 0이하면 에피소드 종료
-        if game_state.player_lives <= 0:
-            print(
-                f"🏁 Episode done: Player lives exhausted ({game_state.player_lives})"
-            )
-            return True
-
-        # 게임 클리어 시 에피소드 종료 (모든 스테이지 완주)
-        if game_state.game_cleared:
-            print(f"🏁 Episode done: Game cleared!")
-            return True
-
-        # 게임 인스턴스에서 직접 게임 오버 상태 확인
+        # 🚨 최우선: 게임 인스턴스에서 직접 게임 상태 확인 (플레이어 사망 즉시 감지)
         if self.game_instance and hasattr(self.game_instance, "game"):
             game = self.game_instance.game
 
-            # 게임 상태 확인
+            # 게임 상태 우선 확인 - 플레이어 사망 또는 게임 오버 즉시 종료
             if hasattr(game, "state") and hasattr(game.state, "state"):
                 current_state = game.state.state
                 if hasattr(current_state, "name"):
                     state_name = current_state.name
-                    if state_name in ["GAME_OVER", "GAMEOVER", "GAME_END"]:
-                        print(f"🏁 Episode done: Game state is {state_name}")
+                    if state_name in [
+                        "PLAYER_DEAD",
+                        "GAME_OVER",
+                        "GAMEOVER",
+                        "GAME_END",
+                    ]:
+                        print(
+                            f"🏁 Episode done: Game state is {state_name} (immediate termination)"
+                        )
                         return True
 
-            # 게임 변수에서 직접 확인
+            # 게임 변수에서 목숨 확인 (2차 확인)
             if hasattr(game, "game_vars"):
                 game_vars = game.game_vars
                 lives_count = getattr(game_vars, "lives", None)
@@ -1653,6 +1655,37 @@ class GamePPOAgent:
                         print(f"🏁 Episode done: Final stage {current_stage} reached")
                         return True
 
+        # GameState 객체를 통한 종료 조건 확인 (3차 확인)
+        if game_state.player_lives <= 0:
+            print(
+                f"🏁 Episode done: Player lives exhausted ({game_state.player_lives})"
+            )
+            return True
+
+        # 게임 클리어 시 에피소드 종료 (모든 스테이지 완주)
+        if game_state.game_cleared:
+            print(f"🏁 Episode done: Game cleared!")
+            return True
+
+        # 🎯 커리큘럼 학습 최소 생존 시간 조건 (대폭 완화 - 학습 방해 최소화)
+        if self.use_improved_rewards and hasattr(
+            self.ppo_agent.env, "get_current_phase_info"
+        ):
+            phase_info = self.ppo_agent.env.get_current_phase_info()
+
+            # 🛡️ 매우 제한적인 최소 생존 시간 (초급 단계에서만 적용)
+            min_survival_times = [0.2, 0.0, 0.0, 0.0]  # 첫 번째 단계에서만 0.2초 보장
+            min_survival = min_survival_times[phase_info["phase"]]
+
+            # 최소 생존 시간 조건을 매우 완화하여 플레이어 사망 시 즉시 종료 우선
+            if (
+                survival_seconds < min_survival
+                and episode_length > 12  # 12프레임 (0.2초) 이상만 체크
+                and phase_info["phase"] == 0  # 첫 번째 단계에서만 적용
+            ):
+                # 매우 짧은 경우에만 강제 연장 (거의 사용하지 않음)
+                return False
+
         # 매우 긴 에피소드 강제 종료 (무한 루프 방지)
         max_episode_length = 8000 if not self.fast_mode else 5000
 
@@ -1662,12 +1695,12 @@ class GamePPOAgent:
             )
             return True
 
-        # 강제 에피소드 종료 조건 완화 (커리큘럼 학습 시)
+        # 기존 조건: 매우 짧은 생존 시간 연속 발생 (커리큘럼 학습 시 비활성화)
         if not (
             self.use_improved_rewards
             and hasattr(self.ppo_agent.env, "get_current_phase_info")
         ):
-            # 기존 조건: 매우 짧은 생존 시간 연속 발생
+            # 일반 학습 모드에서만 적용
             if (
                 survival_seconds < 0.5 and episode_length > 30
             ):  # 0.5초 미만이고 30스텝 이상
