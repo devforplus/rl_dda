@@ -86,21 +86,14 @@ class GameState:
 
 
 class GameEnvironment:
-    """PPO 강화학습을 위한 게임 환경 클래스
+    """게임과 PPO 에이전트 간의 브리지 역할을 하는 환경 클래스
 
-    게임 상태를 관찰하고 에이전트의 액션에 따른 보상을 계산합니다.
-
-    Attributes:
-        max_entities: 최대 엔티티 수 (상태 벡터 크기 고정용)
-        entity_feature_size: 엔티티당 특성 수
-        state_size: 전체 상태 벡터 크기
-        action_size: 액션 공간 크기
-        max_lives: 플레이어의 최대 목숨 수 (정규화용)
-        final_stage_num: 마지막 스테이지 번호 (정규화용)
+    게임 상태를 추출하고 PPO 모델의 입력으로 변환하며,
+    에이전트의 액션에 따른 보상을 계산합니다.
 
     ---
 
-    게임과 강화학습 환경을 연결하는 인터페이스 클래스
+    Reinforcement Learning 환경의 표준 인터페이스를 제공
     """
 
     def __init__(
@@ -159,7 +152,39 @@ class GameEnvironment:
         self.performance_tracker = deque(maxlen=100)
         self.stability_factor = 1.0
 
+        # 개선된 생존 마일스톤 (훨씬 더 세분화)
+        self.early_survival_milestones = [
+            (60, 10.0),  # 1초 - 첫 생존
+            (120, 15.0),  # 2초 - 기본 생존
+            (180, 25.0),  # 3초 - 안정적 생존
+            (240, 40.0),  # 4초 - 좋은 생존
+            (300, 60.0),  # 5초 - 우수한 생존
+            (420, 80.0),  # 7초 - 뛰어난 생존
+            (600, 120.0),  # 10초 - 탁월한 생존
+            (900, 200.0),  # 15초 - 마스터 레벨
+            (1200, 300.0),  # 20초 - 전문가 레벨
+        ]
+
+        # 배속 모드 지원 (기본값 1 = 정상 속도)
+        self.speed_multiplier = 1
+
         self.reset()
+
+    def _convert_survival_time_to_seconds(self, survival_time_frames: int) -> float:
+        """배속 모드를 고려하여 survival_time을 실제 초 단위로 변환
+
+        Args:
+            survival_time_frames: 프레임 단위 생존 시간
+
+        Returns:
+            실제 생존 시간 (초)
+
+        ---
+
+        배속 모드에서는 게임이 빠르게 진행되므로,
+        실제 생존 시간은 프레임 수를 (60 * speed_multiplier)로 나눈 값입니다.
+        """
+        return survival_time_frames / (60.0 * self.speed_multiplier)
 
     def encode_state(self, game_state: GameState) -> torch.Tensor:
         """게임 상태를 신경망 입력용 벡터로 인코딩
@@ -260,7 +285,13 @@ class GameEnvironment:
 
     def calculate_reward(self, game_state: GameState, last_action: int) -> float:
         """
-        단순화된 보상 함수: 생존과 적 제거에 초점
+        대폭 개선된 보상 시스템 - 초기 학습 효율성 극대화
+
+        핵심 개선사항:
+        1. 생존 보상 10배 증가 (0.01 → 0.1)
+        2. 초기 마일스톤 대폭 세분화 (1초부터 시작)
+        3. 사망 페널티 50% 감소 (-100 → -50)
+        4. 단순하고 직관적인 구조
 
         Args:
             game_state: 현재 게임 상태
@@ -269,35 +300,58 @@ class GameEnvironment:
         Returns:
             계산된 보상 값
         """
-        reward = 0.0
+        total_reward = 0.0
 
-        # 1. 생존 보상 (매 스텝마다 작은 보상)
-        reward += 0.01
+        # 1. 기본 생존 보상 (10배 증가)
+        survival_reward = 0.1  # 0.01 → 0.1 (1000% 증가)
+        total_reward += survival_reward
 
-        # 2. 적 제거 보상
+        # 2. 초기 생존 마일스톤 보상 (세분화)
+        if self.previous_state is not None:
+            for milestone_time, milestone_reward in self.early_survival_milestones:
+                if (
+                    self.previous_state.survival_time
+                    < milestone_time
+                    <= game_state.survival_time
+                ):
+                    total_reward += milestone_reward
+                    print(
+                        f"🎉 SURVIVAL MILESTONE: +{milestone_reward:.1f} ({milestone_time / 60:.1f}s)"
+                    )
+
+        # 3. 점수 증가 보상 (2배 증가)
         if game_state.score > self.last_score:
-            reward += (
+            score_reward = (
                 game_state.score - self.last_score
-            ) * 0.1  # 점수 증가분을 보상에 반영
+            ) * 0.2  # 0.1 → 0.2 (2배 증가)
+            total_reward += score_reward
+            print(f"📈 SCORE: +{score_reward:.1f}")
 
-        # 3. 사망 시 큰 패널티
+        # 4. 감소된 사망 페널티 (50% 감소)
         if game_state.player_lives < self.last_lives:
-            reward -= 100.0
-            print(f"💀 DEATH PENALTY: -100.0 applied.")
+            death_penalty = -50.0  # -100.0 → -50.0 (50% 감소)
+            total_reward += death_penalty
+            print(f"💀 DEATH PENALTY: {death_penalty:.1f}")
+
+        # 5. 공격 행동 보상 (적극적 플레이 장려)
+        if last_action == ActionType.FIRE:
+            fire_reward = 0.5
+            total_reward += fire_reward
 
         # 상태 업데이트
         self.last_score = game_state.score
         self.last_lives = game_state.player_lives
+        self.previous_state = game_state
 
-        return reward
+        return total_reward
 
-    def _calculate_reward_original(
+    def _calculate_reward_complex(
         self, game_state: GameState, last_action: int
     ) -> float:
-        """실력값 기반 적응적 리워드 시스템
+        """복잡한 보상 시스템 (백업용)
 
-        실력이 높을수록 더 높은 기대치를 가지고,
-        그 기대치 대비 성과에 따라 리워드 차등 지급
+        기존의 복잡한 보상 계산 로직을 백업으로 보관합니다.
+        필요시 다시 사용할 수 있도록 유지합니다.
 
         Args:
             game_state: 현재 게임 상태
@@ -335,8 +389,12 @@ class GameEnvironment:
         if self.previous_state:
             kill_increase = game_state.kills - self.previous_state.kills
             if kill_increase > 0:
-                # 현재 킬 레이트가 기대치 대비 얼마나 좋은지 평가
-                time_minutes = max(game_state.survival_time / 60.0, 0.1)
+                # 현재 킬 레이트가 기대치 대비 얼마나 좋은지 평가 (배속 모드 고려)
+                time_minutes = max(
+                    self._convert_survival_time_to_seconds(game_state.survival_time)
+                    / 60.0,
+                    0.1,
+                )
                 current_kill_rate = game_state.kills / time_minutes
                 kill_efficiency = current_kill_rate / expected_kills_per_min
 

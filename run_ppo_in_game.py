@@ -47,7 +47,7 @@ except ImportError as e:
 
 
 class ImprovedGameEnvironment(GameEnvironment):
-    """개선된 보상 시스템을 가진 게임 환경"""
+    """개선된 보상 시스템을 가진 게임 환경 (동일한 환경에서 에이전트 능력 차별화)"""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -65,25 +65,230 @@ class ImprovedGameEnvironment(GameEnvironment):
             (1200, 600.0),  # 20초 - 전문가 레벨
         ]
 
-        print("🚀 Improved reward system activated!")
+        # 커리큘럼 학습 설정 추가
+        self.curriculum_phase = (
+            0  # 0: 기본 조작 학습, 1: 생존 학습, 2: 공격 학습, 3: 고급 전략
+        )
+        # 🎯 개선된 에피소드 분배: 더 빨리 실제 게임에 노출
+        self.phase_episode_counts = [100, 150, 250, 500]  # 총 1000 에피소드
+        self.total_episodes = 0
+        # 🛡️ 개선된 무적 시간: 대폭 감소
+        self.invulnerability_frames = 60  # 초기 무적 시간 1초 (기존 3초에서 대폭 감소)
+
+        print("🚀 Improved reward system with BALANCED Curriculum Learning activated!")
+        print(
+            "🎯 Same environment for all skill levels - Agent ability differentiation enabled!"
+        )
+
+    def set_skill_level(self, skill_level: float):
+        """스킬 레벨 설정 및 환경 난이도 조정
+
+        Args:
+            skill_level: 스킬 레벨 (0.0-1.0)
+        """
+        self.skill_level = skill_level
+        self.update_environment_difficulty()
+
+    def update_environment_difficulty(self):
+        """스킬 레벨에 따른 환경 난이도 조정"""
+        skill = self.skill_level
+
+        if skill < 0.3:  # 🔰 초보자: 매우 쉬운 환경
+            self.environment_modifications = {
+                "enemy_speed_multiplier": 0.6,  # 적 속도 40% 감소
+                "enemy_spawn_rate": 0.7,  # 적 생성 30% 감소
+                "enemy_shot_speed": 0.5,  # 적 탄환 속도 50% 감소
+                "player_invulnerability_bonus": 1.5,  # 무적 시간 50% 증가
+                "player_speed_bonus": 1.2,  # 플레이어 속도 20% 증가
+                "enemy_damage_multiplier": 0.7,  # 적 데미지 30% 감소
+                "environment_name": "EASY",
+                "target_survival_time": 15.0,  # 목표 생존 시간
+                "recommended_episodes": 300,  # 권장 에피소드 수
+            }
+            print(
+                f"🔰 EASY Environment: Slower enemies, reduced damage, extended invulnerability"
+            )
+
+        elif skill < 0.7:  # ⚖️ 중급자: 표준 환경
+            self.environment_modifications = {
+                "enemy_speed_multiplier": 0.85,  # 적 속도 15% 감소
+                "enemy_spawn_rate": 0.9,  # 적 생성 10% 감소
+                "enemy_shot_speed": 0.8,  # 적 탄환 속도 20% 감소
+                "player_invulnerability_bonus": 1.0,  # 무적 시간 변화 없음
+                "player_speed_bonus": 1.0,  # 플레이어 속도 변화 없음
+                "enemy_damage_multiplier": 0.9,  # 적 데미지 10% 감소
+                "environment_name": "NORMAL",
+                "target_survival_time": 20.0,
+                "recommended_episodes": 500,
+            }
+            print(f"⚖️ NORMAL Environment: Slightly reduced difficulty")
+
+        else:  # 🔥 고급자: 어려운 환경
+            self.environment_modifications = {
+                "enemy_speed_multiplier": 1.3,  # 적 속도 30% 증가
+                "enemy_spawn_rate": 1.4,  # 적 생성 40% 증가
+                "enemy_shot_speed": 1.5,  # 적 탄환 속도 50% 증가
+                "player_invulnerability_bonus": 0.7,  # 무적 시간 30% 감소
+                "player_speed_bonus": 1.0,  # 플레이어 속도 변화 없음
+                "enemy_damage_multiplier": 1.3,  # 적 데미지 30% 증가
+                "environment_name": "HARD",
+                "target_survival_time": 30.0,
+                "recommended_episodes": 800,
+            }
+            print(
+                f"🔥 HARD Environment: Faster enemies, increased damage, reduced invulnerability"
+            )
+
+        # 환경 정보 출력
+        print(
+            f"   🎮 Environment: {self.environment_modifications['environment_name']}"
+        )
+        print(
+            f"   🎯 Target Survival: {self.environment_modifications['target_survival_time']:.1f}s"
+        )
+        print(
+            f"   📊 Enemy Speed: {self.environment_modifications['enemy_speed_multiplier']:.1f}x"
+        )
+        print(
+            f"   🔫 Enemy Spawn: {self.environment_modifications['enemy_spawn_rate']:.1f}x"
+        )
+        print(
+            f"   💥 Enemy Damage: {self.environment_modifications['enemy_damage_multiplier']:.1f}x"
+        )
+
+    def get_environment_info(self) -> dict:
+        """현재 환경 정보 반환"""
+        return self.environment_modifications.copy()
+
+    def get_current_phase_info(self):
+        """현재 커리큘럼 단계 정보 반환"""
+        phase_names = [
+            "Quick Control",  # 기존: Basic Control
+            "Survival Focus",  # 기존: Survival Training
+            "Combat Training",  # 동일
+            "Master Strategy",  # 기존: Advanced Strategy
+        ]
+
+        base_info = {
+            "phase": self.curriculum_phase,
+            "name": phase_names[self.curriculum_phase],
+            "episode_in_phase": self.total_episodes
+            - sum(self.phase_episode_counts[: self.curriculum_phase]),
+            "total_in_phase": self.phase_episode_counts[self.curriculum_phase],
+            "invulnerability": self.invulnerability_frames > 0,
+        }
+
+        return base_info
+
+    def update_curriculum_phase(self, episode_count: int):
+        """에피소드 수에 따라 커리큘럼 단계 업데이트"""
+        self.total_episodes = episode_count
+
+        cumulative = 0
+        for i, count in enumerate(self.phase_episode_counts):
+            cumulative += count
+            if episode_count <= cumulative:
+                old_phase = self.curriculum_phase
+                self.curriculum_phase = i
+
+                # 단계 변경 시 알림
+                if old_phase != self.curriculum_phase:
+                    phase_info = self.get_current_phase_info()
+                    print(f"\n🎓 Curriculum Phase Changed: {phase_info['name']}")
+                    print(
+                        f"   Phase {self.curriculum_phase + 1}/4: Episodes {episode_count}/{cumulative}"
+                    )
+
+                # 🛡️ 개선된 단계별 무적 시간: 더 빠른 난이도 증가
+                if self.curriculum_phase == 0:  # 빠른 조작 학습 (100 에피소드)
+                    self.invulnerability_frames = 60  # 1초 (기존 3초에서 감소)
+                elif self.curriculum_phase == 1:  # 생존 집중 (150 에피소드)
+                    self.invulnerability_frames = 30  # 0.5초 (기존 2초에서 대폭 감소)
+                elif self.curriculum_phase == 2:  # 전투 훈련 (250 에피소드)
+                    self.invulnerability_frames = 15  # 0.25초 (기존 1초에서 감소)
+                else:  # 마스터 전략 (500 에피소드)
+                    self.invulnerability_frames = 0  # 무적 없음
+
+                return
+
+        # 모든 단계 완료
+        self.curriculum_phase = 3
+        self.invulnerability_frames = 0
 
     def calculate_reward_improved(self, game_state, last_action: int) -> float:
-        """개선된 보상 계산 시스템
+        """개선된 보상 계산 시스템 (커리큘럼 학습 + 스킬 차별화 포함)
 
-        기존 보상 시스템을 기반으로 하되, 초기 학습 효율성을 높이는 개선사항 포함:
-        1. 생존 보상 10배 증가 (0.01 → 0.1)
-        2. 세분화된 마일스톤 (1초부터 시작)
-        3. 감소된 사망 페널티 (-100 → -50)
-        4. 공격 행동 장려 (추가 보상)
-        5. 적극적 움직임 보상
+        기존 보상 시스템을 기반으로 하되, 커리큘럼 학습을 통한 단계적 난이도 조절과
+        스킬 레벨에 따른 차별화된 보상 체계를 적용:
+
+        커리큘럼 단계:
+        1. 1단계: 기본 조작 학습 (무적 시간 1초, 움직임 보상 강화)
+        2. 2단계: 생존 학습 (무적 시간 0.5초, 생존 보상 강화)
+        3. 3단계: 전투 학습 (무적 시간 0.25초, 공격 보상 강화)
+        4. 4단계: 고급 전략 (무적 없음, 종합 평가)
+
+        스킬 차별화:
+        - 고실력자: 더 엄격한 기준, 높은 페널티, 낮은 기본 보상 (더 어려운 목표)
+        - 저실력자: 관대한 기준, 낮은 페널티, 높은 격려 보상 (달성 가능한 목표)
         """
         total_reward = 0.0
+        phase_info = self.get_current_phase_info()
 
-        # 1. 향상된 기본 생존 보상 (기존의 10배)
-        survival_reward = 0.1  # 기존 0.01에서 증가
-        total_reward += survival_reward
+        # 🎯 스킬 기반 보상 차별화 설정 (동일한 환경에서 다른 기준)
+        skill = game_state.skill_level
 
-        # 2. 개선된 생존 마일스톤 보상
+        # 스킬별 기대 성과 기준치 설정 (동일한 환경에서 다른 목표)
+        if skill < 0.3:  # 초보자 (skill 0-0.3) - 기본 목표
+            survival_skill_multiplier = 2.0  # 생존 자체가 큰 성취
+            fire_skill_multiplier = 1.5  # 공격 행동 큰 격려
+            death_skill_multiplier = 0.5  # 관대한 사망 페널티
+            stage_skill_multiplier = 2.0  # 높은 스테이지 클리어 보상
+            hit_skill_multiplier = 0.5  # 낮은 피격 페널티
+            skill_target_survival = 10.0  # 초보자 목표: 10초 생존
+        elif skill < 0.7:  # 중급자 (skill 0.3-0.7) - 중간 목표
+            survival_skill_multiplier = 1.5
+            fire_skill_multiplier = 1.2
+            death_skill_multiplier = 0.8
+            stage_skill_multiplier = 1.5
+            hit_skill_multiplier = 0.8
+            skill_target_survival = 20.0  # 중급자 목표: 20초 생존
+        else:  # 고급자 (skill 0.7-1.0) - 고급 목표
+            survival_skill_multiplier = 1.0  # 기본 생존 보상
+            fire_skill_multiplier = 1.0  # 기본 공격 보상
+            death_skill_multiplier = 1.5  # 엄격한 사망 페널티
+            stage_skill_multiplier = 1.0  # 낮은 스테이지 클리어 보상
+            hit_skill_multiplier = 1.2  # 높은 피격 페널티
+            skill_target_survival = 30.0  # 고급자 목표: 30초 생존
+
+        # 단계별 보상 가중치 조정
+        if self.curriculum_phase == 0:  # 기본 조작 학습
+            base_survival_multiplier = 2.0  # 생존 보상 2배
+            movement_multiplier = 3.0  # 움직임 보상 3배
+            milestone_multiplier = 0.5  # 마일스톤 보상 절반
+            death_penalty_multiplier = 0.3  # 사망 페널티 30%
+        elif self.curriculum_phase == 1:  # 생존 훈련
+            base_survival_multiplier = 1.5
+            movement_multiplier = 1.5
+            milestone_multiplier = 1.0
+            death_penalty_multiplier = 0.5
+        elif self.curriculum_phase == 2:  # 전투 훈련
+            base_survival_multiplier = 1.0
+            movement_multiplier = 1.0
+            milestone_multiplier = 1.2
+            death_penalty_multiplier = 0.7
+        else:  # 고급 전략
+            base_survival_multiplier = 1.0
+            movement_multiplier = 1.0
+            milestone_multiplier = 1.0
+            death_penalty_multiplier = 1.0
+
+        # 1. 스킬 차별화된 기본 생존 보상
+        base_survival_reward = (
+            0.1 * base_survival_multiplier * survival_skill_multiplier
+        )
+        total_reward += base_survival_reward
+
+        # 2. 개선된 생존 마일스톤 보상 (스킬 차별화)
         if self.previous_state is not None:
             for milestone_time, milestone_reward in self.improved_survival_milestones:
                 if (
@@ -91,33 +296,139 @@ class ImprovedGameEnvironment(GameEnvironment):
                     < milestone_time
                     <= game_state.survival_time
                 ):
-                    total_reward += milestone_reward
-                    print(
-                        f"MILESTONE: +{milestone_reward:.1f} ({milestone_time / 60:.1f}s)"
+                    # 스킬과 커리큘럼 단계에 따른 조정
+                    adjusted_reward = (
+                        milestone_reward
+                        * milestone_multiplier
+                        * survival_skill_multiplier
                     )
+                    total_reward += adjusted_reward
 
-        # 3. 점수 증가 보상 (기존의 2배)
+                    # 스킬 목표 정보 포함한 출력
+                    skill_info = f" (Skill {skill:.1f})" if skill != 0.5 else ""
+                    target_info = (
+                        f" [Target: {skill_target_survival:.1f}s]"
+                        if skill_target_survival != 20.0
+                        else ""
+                    )
+                    if milestone_multiplier != 1.0 or survival_skill_multiplier != 1.0:
+                        print(
+                            f"MILESTONE{skill_info}{target_info}: +{adjusted_reward:.1f} ({milestone_time / 60:.1f}s)"
+                        )
+                    else:
+                        print(
+                            f"MILESTONE: +{adjusted_reward:.1f} ({milestone_time / 60:.1f}s)"
+                        )
+
+        # 3. 스킬 차별화된 점수 증가 보상
         if game_state.score > self.last_score:
             score_reward = (
-                game_state.score - self.last_score
-            ) * 0.2  # 기존 0.1에서 증가
+                (game_state.score - self.last_score) * 0.2 * survival_skill_multiplier
+            )
             total_reward += score_reward
 
-        # 4. 감소된 사망 페널티 (기존의 50%)
+        # 4. 스킬과 단계별 조정된 사망 페널티
         if game_state.player_lives < self.last_lives:
-            death_penalty = -50.0  # 기존 -100.0에서 감소
-            total_reward += death_penalty
-            print(f"DEATH PENALTY: {death_penalty:.1f}")
+            base_death_penalty = -50.0
+            total_death_penalty = (
+                base_death_penalty * death_penalty_multiplier * death_skill_multiplier
+            )
+            total_reward += total_death_penalty
 
-        # 5. 공격 행동 장려 보상
+            skill_info = f" (Skill {skill:.1f})" if skill != 0.5 else ""
+            if death_penalty_multiplier != 1.0 or death_skill_multiplier != 1.0:
+                print(f"DEATH PENALTY{skill_info}: {total_death_penalty:.1f}")
+            else:
+                print(f"DEATH PENALTY: {total_death_penalty:.1f}")
+
+        # 5. 스킬 차별화된 공격 행동 장려 보상
         if last_action == 8:  # FIRE 액션
-            fire_reward = 1.0  # 공격 시 추가 보상
+            base_fire_reward = 1.0 if self.curriculum_phase < 2 else 2.0
+            fire_reward = base_fire_reward * fire_skill_multiplier
             total_reward += fire_reward
 
-        # 6. 적극적 움직임 보상 (정적 상태 방지)
+        # 6. 스킬 차별화된 적극적 움직임 보상
         if last_action != 4:  # 정지 액션이 아닐 때
-            movement_reward = 0.1
+            movement_reward = 0.1 * movement_multiplier * survival_skill_multiplier
             total_reward += movement_reward
+
+        # 7. 스킬 차별화된 피격 페널티 (새로 추가)
+        if (
+            self.previous_state is not None
+            and game_state.player_hp < self.previous_state.player_hp
+        ):
+            # 목숨을 잃지 않은 경우에만 피격 페널티 적용 (사망 페널티와 중복 방지)
+            if game_state.player_lives == self.previous_state.player_lives:
+                hp_decrease = self.previous_state.player_hp - game_state.player_hp
+                base_hit_penalty = 10.0 * hp_decrease
+                hit_penalty = base_hit_penalty * hit_skill_multiplier
+                total_reward -= hit_penalty
+
+                skill_info = f" (Skill {skill:.1f})" if skill != 0.5 else ""
+                print(f"HIT PENALTY{skill_info}: -{hit_penalty:.1f}")
+
+        # 8. 스킬 차별화된 스테이지 진행 보상 (새로 추가)
+        if self.previous_state is not None:
+            stage_increase = (
+                game_state.current_stage - self.previous_state.current_stage
+            )
+            if stage_increase > 0:
+                base_stage_reward = 200.0 * stage_increase
+                stage_reward = base_stage_reward * stage_skill_multiplier
+                total_reward += stage_reward
+
+                skill_info = f" (Skill {skill:.1f})" if skill != 0.5 else ""
+                print(f"STAGE CLEAR{skill_info}: +{stage_reward:.1f}")
+
+        # 9. 🎯 스킬별 목표 달성도 평가 (새로 추가)
+        if self.previous_state is not None and skill_target_survival > 0:
+            # 🔧 배속 모드 고려한 실제 생존 시간 계산
+            survival_seconds = self._convert_survival_time_to_seconds(
+                game_state.survival_time
+            )
+            previous_survival_seconds = self._convert_survival_time_to_seconds(
+                self.previous_state.survival_time
+            )
+
+            # 스킬별 목표 생존 시간 달성 보상
+            target_thresholds = [
+                (skill_target_survival * 0.5, 50.0),  # 목표의 50% 달성
+                (skill_target_survival * 0.75, 100.0),  # 목표의 75% 달성
+                (skill_target_survival, 200.0),  # 목표 100% 달성
+                (skill_target_survival * 1.5, 350.0),  # 목표 초과 달성
+            ]
+
+            for threshold_time, threshold_reward in target_thresholds:
+                if previous_survival_seconds < threshold_time <= survival_seconds:
+                    # 스킬별 기본 보상 (목표 달성 자체가 보상)
+                    skill_achievement_reward = threshold_reward
+                    total_reward += skill_achievement_reward
+
+                    percentage = int((threshold_time / skill_target_survival) * 100)
+                    print(
+                        f"🎯 SKILL TARGET: +{skill_achievement_reward:.1f} ({percentage}% of {skill_target_survival:.1f}s goal)"
+                    )
+
+                    # 고급자가 어려운 목표를 달성했을 때 추가 보상
+                    if skill >= 0.7 and threshold_time >= skill_target_survival:
+                        expert_bonus = threshold_reward * 0.5  # 50% 보너스
+                        total_reward += expert_bonus
+                        print(
+                            f"🏆 EXPERT BONUS: +{expert_bonus:.1f} (High skill achievement!)"
+                        )
+
+        # 10. 커리큘럼 단계별 추가 보상 (기존 유지)
+        if self.curriculum_phase == 0:  # 기본 조작: 다양한 액션 시도 보상
+            if hasattr(self, "recent_actions"):
+                self.recent_actions.append(last_action)
+                if len(self.recent_actions) > 10:
+                    self.recent_actions.pop(0)
+                # 다양성 보상 (스킬 차별화)
+                if len(set(self.recent_actions)) >= 5:
+                    diversity_reward = 1.0 * survival_skill_multiplier
+                    total_reward += diversity_reward
+            else:
+                self.recent_actions = [last_action]
 
         # 상태 업데이트
         self.last_score = game_state.score
@@ -180,6 +491,8 @@ class GamePPOAgent:
                 max_lives=original_env.max_lives,
                 final_stage_num=original_env.final_stage_num,
             )
+            # 🔧 배속 정보를 환경에 전달
+            improved_env.speed_multiplier = speed_multiplier
             self.ppo_agent.env = improved_env
 
         # 게임 상태 어댑터
@@ -197,6 +510,10 @@ class GamePPOAgent:
         self.last_game_state = None
         self.last_action = None
         self.last_action_time = time.time()
+
+        # PPO 관련 속성 초기화
+        self.last_log_prob = None
+        self.last_value = None
 
         # 에피소드별 상세 통계
         self.episode_rewards = []  # 각 스텝별 보상 기록
@@ -234,12 +551,52 @@ class GamePPOAgent:
         self.episode_survival_times = []
         self.episode_total_rewards = []
 
+        # 커리큘럼 학습 하이퍼파라미터 관리
+        self.base_learning_rate = None
+        self.current_learning_rate = None
+        if enable_learning and hasattr(ppo_agent, "optimizer"):
+            # 현재 학습률 저장
+            for param_group in ppo_agent.optimizer.param_groups:
+                if self.base_learning_rate is None:
+                    self.base_learning_rate = param_group["lr"]
+                    self.current_learning_rate = param_group["lr"]
+                    break
+
         if enable_learning:
             print(
                 f"🤖 Learning Agent: {'Improved' if use_improved_rewards else 'Standard'} rewards"
             )
             if model_path:
                 print(f"💾 Model saves to: {model_path}")
+            if self.base_learning_rate:
+                print(f"📚 Base learning rate: {self.base_learning_rate:.6f}")
+
+    def update_learning_parameters(self):
+        """커리큘럼 단계에 따른 학습 파라미터 동적 조정"""
+        if not self.enable_learning or not self.use_improved_rewards:
+            return
+
+        if not hasattr(self.ppo_agent.env, "get_current_phase_info"):
+            return
+
+        phase_info = self.ppo_agent.env.get_current_phase_info()
+
+        # 단계별 학습률 조정 (기본 조작 단계에서 높은 학습률)
+        lr_multipliers = [1.5, 1.2, 1.0, 0.8]  # 기본 조작에서 더 빠른 학습
+        new_lr = self.base_learning_rate * lr_multipliers[phase_info["phase"]]
+
+        # PPO 에이전트의 학습률 업데이트
+        if (
+            hasattr(self.ppo_agent, "optimizer")
+            and self.current_learning_rate != new_lr
+        ):
+            for param_group in self.ppo_agent.optimizer.param_groups:
+                param_group["lr"] = new_lr
+
+            print(
+                f"📚 Learning rate updated: {self.current_learning_rate:.6f} → {new_lr:.6f} ({phase_info['name']})"
+            )
+            self.current_learning_rate = new_lr
 
     def setup_logging(self):
         """로깅 시스템 설정
@@ -654,6 +1011,35 @@ class GamePPOAgent:
                 fontsize=12,
                 transform=plt.gca().transAxes,
             )
+
+            # 커리큘럼 학습 정보 추가
+            curriculum_info = "Standard"
+            learning_rate_info = ""
+            skill_info = ""
+
+            if self.use_improved_rewards and hasattr(
+                self.ppo_agent.env, "get_current_phase_info"
+            ):
+                phase_info = self.ppo_agent.env.get_current_phase_info()
+                curriculum_info = f"Curriculum: {phase_info['name']}"
+                if self.current_learning_rate:
+                    learning_rate_info = f"LR: {self.current_learning_rate:.6f}"
+
+                # 스킬 정보 추가
+                skill_level = self.skill_level
+                if skill_level < 0.3:
+                    skill_info = (
+                        f"Agent: BEGINNER (Skill {skill_level:.1f}) - Target: 10s"
+                    )
+                elif skill_level < 0.7:
+                    skill_info = (
+                        f"Agent: INTERMEDIATE (Skill {skill_level:.1f}) - Target: 20s"
+                    )
+                else:
+                    skill_info = (
+                        f"Agent: EXPERT (Skill {skill_level:.1f}) - Target: 30s"
+                    )
+
             plt.text(
                 0.1,
                 0.2,
@@ -663,11 +1049,42 @@ class GamePPOAgent:
             )
             plt.text(
                 0.1,
-                0.1,
-                f"Training Steps: {self.step_count:,}",
-                fontsize=12,
+                0.15,
+                curriculum_info,
+                fontsize=10,
                 transform=plt.gca().transAxes,
             )
+            if learning_rate_info:
+                plt.text(
+                    0.1,
+                    0.1,
+                    learning_rate_info,
+                    fontsize=10,
+                    transform=plt.gca().transAxes,
+                )
+            if skill_info:
+                plt.text(
+                    0.1,
+                    0.05,
+                    skill_info,
+                    fontsize=9,
+                    transform=plt.gca().transAxes,
+                )
+                plt.text(
+                    0.1,
+                    0.0,
+                    f"Training Steps: {self.step_count:,}",
+                    fontsize=10,
+                    transform=plt.gca().transAxes,
+                )
+            else:
+                plt.text(
+                    0.1,
+                    0.05,
+                    f"Training Steps: {self.step_count:,}",
+                    fontsize=10,
+                    transform=plt.gca().transAxes,
+                )
 
             plt.axis("off")
 
@@ -737,14 +1154,17 @@ class GamePPOAgent:
             game_instance.on_exit = exit_with_plots
 
     def select_action(self) -> int:
-        """게임에서 호출되는 액션 선택 메서드
+        """게임에서 호출되는 액션 선택 메서드 (스킬 기반 성능 차별화)
 
         Returns:
             선택된 액션 ID (0~8)
 
         ---
 
-        게임 루프에서 매 프레임 호출되어 에이전트의 액션을 반환
+        스킬 레벨에 따라 실제 플레이 성능을 차별화:
+        - 고실력자 (0.7-1.0): 정확한 액션, 낮은 실수율, 빠른 반응
+        - 중급자 (0.3-0.7): 보통 정확도, 보통 실수율
+        - 초보자 (0.0-0.3): 부정확한 액션, 높은 실수율, 느린 반응
         """
         if self.training_complete:
             return 4  # Return a neutral action if training is done
@@ -784,10 +1204,52 @@ class GamePPOAgent:
             # 에피소드 종료 감지 (학습/비학습 모드 공통)
             done = self._is_episode_done(game_state)
 
+            # 🎯 스킬 기반 성능 차별화 구현
+            skill = game_state.skill_level
+
+            # 1. 기본 액션 선택 (PPO 에이전트)
             if self.enable_learning:
+                # 커리큘럼 학습에 따른 탐험 전략 조정
+                exploration_bonus = 0.0
+                if self.use_improved_rewards and hasattr(
+                    self.ppo_agent.env, "get_current_phase_info"
+                ):
+                    phase_info = self.ppo_agent.env.get_current_phase_info()
+
+                    # 단계별 탐험 확률 조정
+                    exploration_rates = [
+                        0.3,
+                        0.2,
+                        0.15,
+                        0.1,
+                    ]  # 기본 조작 단계에서 높은 탐험
+                    exploration_bonus = exploration_rates[phase_info["phase"]]
+
+                    # 기본 조작 단계에서 랜덤 액션 확률 증가
+                    if phase_info["phase"] == 0:
+                        import random
+
+                        if random.random() < 0.15:  # 15% 확률로 랜덤 액션
+                            action = random.randint(0, 8)
+                            self.last_game_state = game_state
+                            self.last_action = action
+                            self.step_count += 1
+                            return action
+
                 action, log_prob, value = self.ppo_agent.select_action_with_exploration(
                     game_state
                 )
+
+                # 추가 탐험 보너스 적용
+                if exploration_bonus > 0.0:
+                    import random
+
+                    if random.random() < exploration_bonus:
+                        # 현재 액션과 다른 액션 선택
+                        available_actions = [i for i in range(9) if i != action]
+                        if available_actions:
+                            action = random.choice(available_actions)
+
                 if self.last_game_state is not None and self.last_action is not None:
                     # 개선된 보상 시스템 사용
                     if self.use_improved_rewards and hasattr(
@@ -849,8 +1311,13 @@ class GamePPOAgent:
                         self.training_complete = True
                         return 4
 
+            # 🚀 스킬 기반 실제 성능 차별화
+            final_action = self._apply_skill_based_performance(
+                action, skill, game_state
+            )
+
             self.last_game_state = game_state
-            self.last_action = action
+            self.last_action = final_action  # 실제 적용된 액션 저장
             self.step_count += 1
 
             # 모델 저장 로직 추가
@@ -862,13 +1329,176 @@ class GamePPOAgent:
                 self.ppo_agent.save_model(self.model_path)
                 print(f"💾 Model saved to {self.model_path} at step {self.step_count}")
 
-            return action
+            return final_action
         except Exception as e:
+            import sys
+
             print(
                 f"Error in select_action: {e}\n{traceback.format_exc()}",
                 file=sys.stderr,
             )
             return 4  # Return a neutral action in case of error
+
+    def _apply_skill_based_performance(
+        self, base_action: int, skill: float, game_state
+    ) -> int:
+        """스킬 레벨에 따른 실제 성능 차별화 적용 (강화된 버전)
+
+        Args:
+            base_action: PPO 에이전트가 선택한 기본 액션
+            skill: 스킬 레벨 (0.0-1.0)
+            game_state: 현재 게임 상태
+
+        Returns:
+            스킬에 따라 조정된 최종 액션
+
+        ---
+
+        스킬 레벨에 따른 종합적인 능력 차별화:
+        - 고실력자: 정확한 판단, 빠른 반응, 전략적 사고
+        - 저실력자: 부정확한 판단, 느린 반응, 단순한 사고
+        """
+        import random
+        import time
+
+        # 🎯 스킬별 성능 파라미터 설정 (강화된 버전)
+        if skill < 0.3:  # 초보자 (0.0-0.3)
+            accuracy_rate = 0.5  # 50% 정확도 (더 낮춤)
+            mistake_rate = 0.35  # 35% 실수율 (더 높임)
+            reaction_delay = 0.4  # 40% 반응 지연 (더 높임)
+            random_action_rate = 0.2  # 20% 완전 랜덤 액션 (더 높임)
+            panic_threshold = 2  # 적 2마리만 있어도 패닉
+            strategic_thinking = 0.1  # 10% 전략적 사고
+        elif skill < 0.7:  # 중급자 (0.3-0.7)
+            accuracy_rate = 0.75
+            mistake_rate = 0.15
+            reaction_delay = 0.2
+            random_action_rate = 0.1
+            panic_threshold = 4
+            strategic_thinking = 0.3
+        else:  # 고급자 (0.7-1.0)
+            accuracy_rate = 0.95  # 95% 정확도 (더 높임)
+            mistake_rate = 0.02  # 2% 실수율 (더 낮춤)
+            reaction_delay = 0.03  # 3% 반응 지연 (더 낮춤)
+            random_action_rate = 0.01  # 1% 완전 랜덤 액션 (더 낮춤)
+            panic_threshold = 8  # 적 8마리까지 침착
+            strategic_thinking = 0.8  # 80% 전략적 사고
+
+        # 🎲 1. 완전 랜덤 액션 (혼란 상태)
+        if random.random() < random_action_rate:
+            return random.randint(0, 8)
+
+        # ⏰ 2. 반응 지연 시뮬레이션
+        if random.random() < reaction_delay:
+            if hasattr(self, "_delayed_action_cache"):
+                return self._delayed_action_cache
+            else:
+                self._delayed_action_cache = base_action
+                return base_action
+        else:
+            self._delayed_action_cache = base_action
+
+        # 😰 3. 패닉 상태 시뮬레이션 (저숙련자)
+        if skill < 0.7:
+            nearby_enemies = sum(
+                1
+                for entity in game_state.entities
+                if entity.entity_type.name.startswith("ENEMY")
+                and entity.distance_to_player < 40
+            )
+
+            if nearby_enemies >= panic_threshold:
+                # 패닉 상태에서는 더 많은 실수
+                if random.random() < 0.6:  # 60% 확률로 패닉 액션
+                    panic_actions = [
+                        4,
+                        4,
+                        4,
+                        0,
+                        1,
+                        2,
+                        3,
+                        5,
+                        6,
+                        7,
+                    ]  # 정지 액션 많이 포함
+                    return random.choice(panic_actions)
+
+        # 🎯 4. 액션 정확도 적용
+        if random.random() > accuracy_rate:
+            # 실수 유형 결정
+            mistake_type = random.random()
+
+            if mistake_type < 0.4:  # 40%: 잘못된 방향키
+                if base_action in [0, 1, 2, 3, 5, 6, 7]:  # 이동 액션인 경우
+                    movement_actions = [0, 1, 2, 3, 5, 6, 7]
+                    return random.choice(movement_actions)
+
+            elif mistake_type < 0.7:  # 30%: 입력 누락 (정지)
+                return 4  # STAY 액션
+
+            else:  # 30%: 의도하지 않은 공격
+                if base_action != 8:
+                    return 8  # FIRE 액션
+
+        # 💫 5. 전략적 사고 능력 (고급자 전용)
+        if skill >= 0.7 and random.random() < strategic_thinking:
+            # 고급 상황 분석
+            nearby_enemies = sum(
+                1
+                for entity in game_state.entities
+                if entity.entity_type.name.startswith("ENEMY")
+                and entity.distance_to_player < 30
+            )
+
+            nearby_shots = sum(
+                1
+                for entity in game_state.entities
+                if entity.entity_type.name == "ENEMY_SHOT"
+                and entity.distance_to_player < 20
+            )
+
+            # 전략적 액션 선택
+            danger_level = nearby_enemies + nearby_shots * 2
+
+            if danger_level > 5:  # 위험 상황
+                # 고급자는 회피 우선
+                if base_action == 8 and random.random() < 0.4:
+                    evasive_actions = [0, 1, 2, 3, 5, 6, 7]
+                    return random.choice(evasive_actions)
+
+                # 정지 금지 (위험할 때)
+                if base_action == 4:
+                    evasive_actions = [0, 1, 2, 3, 5, 6, 7]
+                    return random.choice(evasive_actions)
+
+            elif danger_level < 2:  # 안전 상황
+                # 고급자는 공격적 플레이
+                if base_action in [0, 1, 2, 3, 5, 6, 7] and random.random() < 0.3:
+                    return 8  # 공격 액션으로 변경
+
+        # 🧠 6. 신경망 출력 노이즈 추가 (스킬 기반)
+        if skill < 0.5:  # 저숙련자는 더 불안정한 출력
+            noise_level = (0.5 - skill) * 0.8  # 스킬이 낮을수록 높은 노이즈
+            if random.random() < noise_level:
+                # 인접한 액션으로 변경 (신경망 출력이 불안정한 것처럼)
+                adjacent_actions = {
+                    0: [1, 3, 4],  # 좌상 -> 상, 좌, 중앙
+                    1: [0, 2, 4],  # 상 -> 좌상, 우상, 중앙
+                    2: [1, 5, 4],  # 우상 -> 상, 우, 중앙
+                    3: [0, 6, 4],  # 좌 -> 좌상, 좌하, 중앙
+                    4: [0, 1, 2, 3, 5, 6, 7],  # 중앙 -> 모든 방향
+                    5: [2, 8, 4],  # 우 -> 우상, 우하, 중앙
+                    6: [3, 7, 4],  # 좌하 -> 좌, 하, 중앙
+                    7: [6, 8, 4],  # 하 -> 좌하, 우하, 중앙
+                    8: [5, 7, 4],  # 우하 -> 우, 하, 중앙
+                }
+
+                if base_action in adjacent_actions:
+                    return random.choice(adjacent_actions[base_action])
+
+        # 기본 액션 반환 (모든 필터를 통과한 경우)
+        return base_action
 
     def _extract_current_game_state(self):
         """현재 게임 상태 추출
@@ -919,6 +1549,21 @@ class GamePPOAgent:
             EntityData(EntityType.PLAYER, 100, 100, 8, 8, 0),
         ]
 
+        # 실제 게임 시간 계산 (속도 배수 모드 고려)
+        actual_game_time = self.step_count
+        if self.game_instance and hasattr(self.game_instance, "game"):
+            game = self.game_instance.game
+            if hasattr(game, "state") and hasattr(game.state, "state_time"):
+                actual_game_time = game.state.state_time
+                # 🔍 디버깅: 생존 시간 계산 확인
+                if self.episode_count % 50 == 0:  # 50 에피소드마다 출력
+                    print(
+                        f"🔍 Survival time debug: step_count={self.step_count}, game.state.state_time={game.state.state_time}, actual_game_time={actual_game_time}"
+                    )
+                    print(
+                        f"   survival_seconds = {self._convert_survival_time_to_seconds(actual_game_time):.2f}s (speed: {self.speed_multiplier}x)"
+                    )
+
         return GameState(
             entities=entities,
             skill_level=self.skill_level,
@@ -926,7 +1571,7 @@ class GamePPOAgent:
             player_hp=2,  # 체력 (10에서 2로 변경)
             player_lives=1,  # 기본 목숨 수 (3에서 1로 변경)
             score=self.step_count * 10,  # 임시 점수
-            survival_time=self.step_count,
+            survival_time=actual_game_time,  # 🔧 수정: 실제 게임 시간 사용
             kills=self.step_count // 100,
             current_stage=1,  # 기본 스테이지
             game_cleared=False,  # 기본값
@@ -945,6 +1590,29 @@ class GamePPOAgent:
 
         플레이어 사망이나 게임 종료 조건을 확인
         """
+        episode_length = self.step_count - self.episode_start_step
+        # 🔧 수정: 실제 게임 시간 사용 (배속 모드 고려)
+        survival_seconds = self._convert_survival_time_to_seconds(
+            game_state.survival_time
+        )
+
+        # 🎯 개선된 최소 생존 시간 보장: 완화된 조건
+        if self.use_improved_rewards and hasattr(
+            self.ppo_agent.env, "get_current_phase_info"
+        ):
+            phase_info = self.ppo_agent.env.get_current_phase_info()
+
+            # 🛡️ 대폭 완화된 최소 생존 시간 (학습 방해 최소화)
+            min_survival_times = [0.3, 0.5, 0.0, 0.0]  # 처음 2단계만 최소 보장
+            min_survival = min_survival_times[phase_info["phase"]]
+
+            # 최소 생존 시간 미달 시에도 더 관대하게
+            if (
+                survival_seconds < min_survival and episode_length > 18
+            ):  # 0.3초, 18프레임 이상
+                # 매우 짧은 경우에만 강제 연장 (기존보다 훨씬 완화)
+                return False
+
         # 플레이어 목숨이 0이하면 에피소드 종료
         if game_state.player_lives <= 0:
             print(
@@ -986,7 +1654,6 @@ class GamePPOAgent:
                         return True
 
         # 매우 긴 에피소드 강제 종료 (무한 루프 방지)
-        episode_length = self.step_count - self.episode_start_step
         max_episode_length = 8000 if not self.fast_mode else 5000
 
         if episode_length > max_episode_length:
@@ -995,13 +1662,19 @@ class GamePPOAgent:
             )
             return True
 
-        # 강제 에피소드 종료 조건 추가 (매우 짧은 생존 시간 연속 발생)
-        survival_seconds = episode_length / 60.0
-        if survival_seconds < 0.5 and episode_length > 30:  # 0.5초 미만이고 30스텝 이상
-            print(
-                f"🏁 Episode done: Very short survival detected ({survival_seconds:.2f}s)"
-            )
-            return True
+        # 강제 에피소드 종료 조건 완화 (커리큘럼 학습 시)
+        if not (
+            self.use_improved_rewards
+            and hasattr(self.ppo_agent.env, "get_current_phase_info")
+        ):
+            # 기존 조건: 매우 짧은 생존 시간 연속 발생
+            if (
+                survival_seconds < 0.5 and episode_length > 30
+            ):  # 0.5초 미만이고 30스텝 이상
+                print(
+                    f"🏁 Episode done: Very short survival detected ({survival_seconds:.2f}s)"
+                )
+                return True
 
         return False
 
@@ -1015,6 +1688,29 @@ class GamePPOAgent:
         self.episode_count += 1
         episode_length = self.step_count - self.episode_start_step
         episode_duration = time.time() - self.episode_start_time
+
+        # 커리큘럼 학습 단계 업데이트 (개선된 보상 시스템 사용 시)
+        if self.use_improved_rewards and hasattr(
+            self.ppo_agent.env, "update_curriculum_phase"
+        ):
+            self.ppo_agent.env.update_curriculum_phase(self.episode_count)
+
+            # 학습 파라미터 동적 조정
+            self.update_learning_parameters()
+
+            # 현재 단계 정보 출력
+            if hasattr(self.ppo_agent.env, "get_current_phase_info"):
+                phase_info = self.ppo_agent.env.get_current_phase_info()
+                if self.episode_count % 20 == 0:  # 20 에피소드마다 출력
+                    print(
+                        f"\n🎓 Curriculum Status: {phase_info['name']} ({phase_info['episode_in_phase']}/{phase_info['total_in_phase']})"
+                    )
+                    if phase_info["invulnerability"]:
+                        print(f"   🛡️ Training wheels: Reduced damage penalty active")
+                    if self.current_learning_rate:
+                        print(
+                            f"   📚 Current learning rate: {self.current_learning_rate:.6f}"
+                        )
 
         # 현재 게임 상태에서 최종 정보 추출
         final_score = 0
@@ -1088,8 +1784,20 @@ class GamePPOAgent:
         fire_ratio = (fire_actions / max(1, total_actions)) * 100
         movement_ratio = (movement_actions / max(1, total_actions)) * 100
 
-        # 액션 분포 출력 (간소화)
-        if self.episode_count % 5 == 0:  # 5 에피소드마다만 상세 출력
+        # 액션 분포 출력 (간소화) - 커리큘럼 단계에 따라 조정
+        show_detailed_actions = False
+        if self.use_improved_rewards and hasattr(
+            self.ppo_agent.env, "get_current_phase_info"
+        ):
+            phase_info = self.ppo_agent.env.get_current_phase_info()
+            # 기본 조작 단계에서는 더 자주 출력
+            show_detailed_actions = (
+                phase_info["phase"] == 0 and self.episode_count % 3 == 0
+            ) or (self.episode_count % 5 == 0)
+        else:
+            show_detailed_actions = self.episode_count % 5 == 0
+
+        if show_detailed_actions:
             print(f"Action Distribution:")
             action_names = [
                 "UL",
@@ -1124,7 +1832,33 @@ class GamePPOAgent:
             self.best_score = final_score
 
         # 생존 시간 계산 및 기록 업데이트 (실제 플레이 시간)
-        survival_seconds = episode_length / 60.0  # 에이전트가 취한 액션 수 기준
+        # 🔧 수정: 실제 게임 adapter에서 생존 시간 추출
+        if self.game_instance and hasattr(self.game_instance, "game"):
+            try:
+                # game_adapter를 통해 실제 게임 상태 추출
+                from rl.game_adapter import GameStateAdapter
+
+                adapter = GameStateAdapter()
+                real_game_state = adapter.extract_game_state(self.game_instance)
+                if real_game_state:
+                    survival_seconds = self._convert_survival_time_to_seconds(
+                        real_game_state.survival_time
+                    )
+                    # 🔍 디버깅: 실제 생존 시간 확인
+                    if self.episode_count % 50 == 0:  # 50 에피소드마다 출력
+                        print(
+                            f"🔍 Real survival time: {real_game_state.survival_time} frames = {survival_seconds:.2f}s (speed: {self.speed_multiplier}x)"
+                        )
+                else:
+                    # fallback: 에이전트 액션 수 기반 계산 (배속 모드 고려)
+                    survival_seconds = episode_length / (60.0 * self.speed_multiplier)
+            except Exception as e:
+                print(f"⚠️ Error extracting real game state: {e}")
+                survival_seconds = episode_length / (60.0 * self.speed_multiplier)
+        else:
+            # fallback: 에이전트 액션 수 기반 계산 (배속 모드 고려)
+            survival_seconds = episode_length / (60.0 * self.speed_multiplier)
+
         if survival_seconds > self.best_survival_time:
             self.best_survival_time = survival_seconds
 
@@ -1133,7 +1867,16 @@ class GamePPOAgent:
         self.episode_total_rewards.append(self.total_reward)
 
         # 상세한 에피소드 요약 출력
-        print(f"\n🏁 ===== Episode {self.episode_count} Summary =====")
+        episode_header = f"\n🏁 ===== Episode {self.episode_count} Summary ====="
+
+        # 커리큘럼 정보 추가
+        if self.use_improved_rewards and hasattr(
+            self.ppo_agent.env, "get_current_phase_info"
+        ):
+            phase_info = self.ppo_agent.env.get_current_phase_info()
+            episode_header += f" [{phase_info['name']}] "
+
+        print(episode_header)
         print(f"Episode Stats:")
         print(f"   Duration: {episode_duration:.1f}s ({episode_length} steps)")
         print(f"   Steps/sec: {episode_length / max(0.1, episode_duration):.1f}")
@@ -1167,12 +1910,37 @@ class GamePPOAgent:
             else:
                 print(f"   ➡️ Same as last episode")
 
-        # 생존 시간이 5초 미만이면 경고
-        if survival_seconds < 5.0:
-            print(f"   ⚠️ WARNING: Very short survival time ({survival_seconds:.1f}s)")
-            print(f"   💡 Agent needs to learn better survival strategies!")
-        elif survival_seconds > 10.0:
-            print(f"   ✅ Good survival time!")
+        # 🎯 개선된 커리큘럼 단계별 생존 시간 평가
+        if self.use_improved_rewards and hasattr(
+            self.ppo_agent.env, "get_current_phase_info"
+        ):
+            phase_info = self.ppo_agent.env.get_current_phase_info()
+
+            # 🎯 현실적인 단계별 목표 생존 시간 (대폭 하향 조정)
+            target_survival = [1.0, 2.5, 5.0, 10.0][phase_info["phase"]]
+
+            if survival_seconds < target_survival * 0.3:
+                print(
+                    f"   ⚠️ SHORT: {phase_info['name']} ({survival_seconds:.1f}s < {target_survival * 0.3:.1f}s)"
+                )
+                print(f"   💡 Target: {target_survival}s")
+            elif survival_seconds >= target_survival:
+                print(
+                    f"   ✅ EXCELLENT! Target exceeded ({survival_seconds:.1f}s >= {target_survival}s)"
+                )
+            elif survival_seconds >= target_survival * 0.7:
+                print(
+                    f"   👍 GOOD: Approaching target ({survival_seconds:.1f}s / {target_survival}s)"
+                )
+        else:
+            # 기존 평가
+            if survival_seconds < 5.0:
+                print(
+                    f"   ⚠️ WARNING: Very short survival time ({survival_seconds:.1f}s)"
+                )
+                print(f"   💡 Agent needs to learn better survival strategies!")
+            elif survival_seconds > 10.0:
+                print(f"   ✅ Good survival time!")
 
         self.last_survival_time = survival_seconds
 
@@ -1222,10 +1990,8 @@ class GamePPOAgent:
         # 이전 상태 정보 초기화 (새 에피소드 시작)
         self.last_game_state = None
         self.last_action = None
-        if hasattr(self, "last_log_prob"):
-            delattr(self, "last_log_prob")
-        if hasattr(self, "last_value"):
-            delattr(self, "last_value")
+        self.last_log_prob = None
+        self.last_value = None
 
         # 환경 리셋 (PPO 환경의 이전 상태 초기화)
         self.ppo_agent.env.reset()
@@ -1269,16 +2035,7 @@ class GamePPOAgent:
 
                 os._exit(0)
 
-        # 주기적 그래프 생성 (매 20 에피소드마다)
-        if (
-            self.enable_learning
-            and self.episode_count % 20 == 0
-            and self.episode_count > 0
-        ):
-            print(
-                f"Generating periodic training plots (Episode {self.episode_count})..."
-            )
-            self.generate_training_plots()
+        # 주기적 그래프 생성 제거 - 학습 종료 시에만 생성
 
         # 주기적 그래프 생성만 처리 (목표 달성 시는 위에서 이미 처리됨)
         if should_generate_plots and not should_terminate_game:
@@ -1353,6 +2110,22 @@ class GamePPOAgent:
         print(f"⏱️ Best Survival: {self.best_survival_time:.1f} seconds")
         print(f"⚡ Training Time: {time.time() - self.training_start_time:.1f}s")
         print("=" * 80)
+
+    def _convert_survival_time_to_seconds(self, survival_time_frames: int) -> float:
+        """배속 모드를 고려하여 survival_time을 실제 초 단위로 변환
+
+        Args:
+            survival_time_frames: 프레임 단위 생존 시간
+
+        Returns:
+            실제 생존 시간 (초)
+
+        ---
+
+        배속 모드에서는 게임이 빠르게 진행되므로,
+        실제 생존 시간은 프레임 수를 (60 * speed_multiplier)로 나눈 값입니다.
+        """
+        return survival_time_frames / (60.0 * self.speed_multiplier)
 
 
 class PPOGameApp(App):
@@ -1502,7 +2275,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Run PPO agent in the game environment with improved reward system."
+        description="Run PPO agent in the game environment with improved reward system and curriculum learning."
     )
     parser.add_argument(
         "--model",
@@ -1523,24 +2296,27 @@ def main():
         "--learn", action="store_true", help="Enable learning mode for the agent"
     )
     parser.add_argument(
-        "--save-interval", type=int, default=1000, help="Model save interval (steps)"
+        "--save-interval",
+        type=int,
+        default=500,
+        help="Model save interval (steps) - reduced for curriculum learning",
     )
     parser.add_argument(
         "--target-episodes",
         type=int,
-        default=None,
-        help="Target number of episodes to run before auto-terminating.",
+        default=1000,  # 커리큘럼 학습 전체 에피소드에 맞게 조정
+        help="Target number of episodes to run before auto-terminating (default: 1000 for full curriculum).",
     )
     parser.add_argument(
         "--speed",
         type=int,
-        default=1,
+        default=2,  # 학습 시간 단축을 위해 기본 2배속
         help="Game speed multiplier (1=normal, 2=2x speed, etc.). Higher values reduce training time.",
     )
     parser.add_argument(
         "--no-improved-rewards",
         action="store_true",
-        help="Disable improved reward system (use standard rewards)",
+        help="Disable improved reward system and curriculum learning (use standard rewards)",
     )
     parser.add_argument(
         "--fresh",
@@ -1569,6 +2345,47 @@ def main():
     print(
         f"📋 Config: Learning={args.learn}, Speed={args.speed}x, Episodes={args.target_episodes or 'unlimited'}"
     )
+    print(
+        f"🎓 Curriculum Learning: {'Enabled' if use_improved_rewards else 'Disabled'}"
+    )
+    if use_improved_rewards:
+        print(
+            f"   📚 Phase 1: Quick Control (Episodes 1-100) - Basic movement (1s invulnerability)"
+        )
+        print(
+            f"   🛡️ Phase 2: Survival Focus (Episodes 101-250) - Survival skills (0.5s invulnerability)"
+        )
+        print(
+            f"   ⚔️ Phase 3: Combat Training (Episodes 251-500) - Attack patterns (0.25s invulnerability)"
+        )
+        print(
+            f"   🏆 Phase 4: Master Strategy (Episodes 501-1000) - Full difficulty (no invulnerability)"
+        )
+
+        # 🎯 스킬별 에이전트 능력 차별화 정보
+        print(f"\n🎯 Agent Skill Differentiation (Same Environment):")
+        if args.skill < 0.3:
+            print(
+                f"   🔰 BEGINNER Agent (Skill {args.skill:.1f}): 50% accuracy, 20% random actions, frequent mistakes"
+            )
+            print(
+                f"      • Target: 10s survival • Panic threshold: 2 enemies • Strategic thinking: 10%"
+            )
+        elif args.skill < 0.7:
+            print(
+                f"   ⚖️ INTERMEDIATE Agent (Skill {args.skill:.1f}): 75% accuracy, 10% random actions, moderate mistakes"
+            )
+            print(
+                f"      • Target: 20s survival • Panic threshold: 4 enemies • Strategic thinking: 30%"
+            )
+        else:
+            print(
+                f"   🔥 EXPERT Agent (Skill {args.skill:.1f}): 95% accuracy, 1% random actions, minimal mistakes"
+            )
+            print(
+                f"      • Target: 30s survival • Panic threshold: 8 enemies • Strategic thinking: 80%"
+            )
+
     if model_path:
         print(f"📁 Model: {model_path}")
     else:
