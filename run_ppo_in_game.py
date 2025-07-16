@@ -438,6 +438,22 @@ class ImprovedGameEnvironment(GameEnvironment):
                             f"🏆 EXPERT BONUS: +{expert_bonus:.1f} (High skill achievement!)"
                         )
 
+        # 🔧 변수 초기화 (모든 보상 시스템에서 사용)
+        nearby_enemies = []
+        nearby_shots = []
+
+        # 플레이어 주변 적 및 적 탄환 분석 (모든 보상 시스템에서 공통 사용)
+        for entity in game_state.entities:
+            if (
+                entity.entity_type.name.startswith("ENEMY")
+                and entity.entity_type.name != "ENEMY_SHOT"
+            ):
+                if entity.distance_to_player < 50:  # 50픽셀 이내 적
+                    nearby_enemies.append(entity)
+            elif entity.entity_type.name == "ENEMY_SHOT":
+                if entity.distance_to_player < 30:  # 30픽셀 이내 적 탄환
+                    nearby_shots.append(entity)
+
         # 10. 커리큘럼 단계별 추가 보상 (기존 유지)
         if self.curriculum_phase == 0:  # 기본 조작: 다양한 액션 시도 보상
             if hasattr(self, "recent_actions"):
@@ -454,21 +470,6 @@ class ImprovedGameEnvironment(GameEnvironment):
         # 🆕 11. 적 회피 보상 시스템 (새로 추가)
         enemy_avoidance_reward = 0.0
         if self.curriculum_phase >= 1:  # 생존 훈련 단계부터 적용
-            # 플레이어 주변 적 및 적 탄환 분석
-            nearby_enemies = []
-            nearby_shots = []
-
-            for entity in game_state.entities:
-                if (
-                    entity.entity_type.name.startswith("ENEMY")
-                    and entity.entity_type.name != "ENEMY_SHOT"
-                ):
-                    if entity.distance_to_player < 50:  # 50픽셀 이내 적
-                        nearby_enemies.append(entity)
-                elif entity.entity_type.name == "ENEMY_SHOT":
-                    if entity.distance_to_player < 30:  # 30픽셀 이내 적 탄환
-                        nearby_shots.append(entity)
-
             # 안전한 거리 유지 보상
             if len(nearby_enemies) > 0:
                 avg_enemy_distance = sum(
