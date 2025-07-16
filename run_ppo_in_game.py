@@ -90,70 +90,85 @@ class ImprovedGameEnvironment(GameEnvironment):
         self.update_environment_difficulty()
 
     def update_environment_difficulty(self):
-        """스킬 레벨에 따른 환경 난이도 조정"""
+        """스킬 레벨에 따른 환경 난이도 조정 (개선된 세분화)"""
         skill = self.skill_level
 
-        if skill < 0.3:  # 🔰 초보자: 매우 쉬운 환경
+        if skill < 0.2:  # 🔰 초보자: 매우 쉬운 환경
             self.environment_modifications = {
-                "enemy_speed_multiplier": 0.6,  # 적 속도 40% 감소
-                "enemy_spawn_rate": 0.7,  # 적 생성 30% 감소
-                "enemy_shot_speed": 0.5,  # 적 탄환 속도 50% 감소
-                "player_invulnerability_bonus": 1.5,  # 무적 시간 50% 증가
+                "enemy_speed_multiplier": 0.5,  # 적 속도 50% 감소
+                "enemy_spawn_rate": 0.6,  # 적 생성 40% 감소
+                "enemy_shot_speed": 0.4,  # 적 탄환 속도 60% 감소
+                "player_invulnerability_bonus": 1.8,  # 무적 시간 80% 증가
+                "player_speed_bonus": 1.3,  # 플레이어 속도 30% 증가
+                "enemy_damage_multiplier": 0.6,  # 적 데미지 40% 감소
+                "environment_name": "BEGINNER",
+                "target_survival_time": 10.0,  # 목표 생존 시간
+                "recommended_episodes": 200,  # 권장 에피소드 수
+            }
+            print(f"🔰 BEGINNER Environment: Much easier for initial learning")
+
+        elif skill < 0.4:  # 🟡 입문자: 쉬운 환경
+            self.environment_modifications = {
+                "enemy_speed_multiplier": 0.7,  # 적 속도 30% 감소
+                "enemy_spawn_rate": 0.8,  # 적 생성 20% 감소
+                "enemy_shot_speed": 0.6,  # 적 탄환 속도 40% 감소
+                "player_invulnerability_bonus": 1.4,  # 무적 시간 40% 증가
                 "player_speed_bonus": 1.2,  # 플레이어 속도 20% 증가
-                "enemy_damage_multiplier": 0.7,  # 적 데미지 30% 감소
+                "enemy_damage_multiplier": 0.8,  # 적 데미지 20% 감소
                 "environment_name": "EASY",
-                "target_survival_time": 15.0,  # 목표 생존 시간
-                "recommended_episodes": 300,  # 권장 에피소드 수
+                "target_survival_time": 15.0,
+                "recommended_episodes": 250,
             }
-            print(
-                f"🔰 EASY Environment: Slower enemies, reduced damage, extended invulnerability"
-            )
+            print(f"🟡 EASY Environment: Gradual difficulty increase")
 
-        elif skill < 0.7:  # ⚖️ 중급자: 표준 환경
+        elif skill < 0.6:  # 🟠 중급자: 표준 환경
             self.environment_modifications = {
-                "enemy_speed_multiplier": 0.85,  # 적 속도 15% 감소
-                "enemy_spawn_rate": 0.9,  # 적 생성 10% 감소
-                "enemy_shot_speed": 0.8,  # 적 탄환 속도 20% 감소
-                "player_invulnerability_bonus": 1.0,  # 무적 시간 변화 없음
-                "player_speed_bonus": 1.0,  # 플레이어 속도 변화 없음
-                "enemy_damage_multiplier": 0.9,  # 적 데미지 10% 감소
-                "environment_name": "NORMAL",
+                "enemy_speed_multiplier": 0.9,  # 적 속도 10% 감소
+                "enemy_spawn_rate": 0.95,  # 적 생성 5% 감소
+                "enemy_shot_speed": 0.85,  # 적 탄환 속도 15% 감소
+                "player_invulnerability_bonus": 1.1,  # 무적 시간 10% 증가
+                "player_speed_bonus": 1.1,  # 플레이어 속도 10% 증가
+                "enemy_damage_multiplier": 0.95,  # 적 데미지 5% 감소
+                "environment_name": "INTERMEDIATE",
                 "target_survival_time": 20.0,
-                "recommended_episodes": 500,
+                "recommended_episodes": 300,
             }
-            print(f"⚖️ NORMAL Environment: Slightly reduced difficulty")
+            print(f"🟠 INTERMEDIATE Environment: Balanced difficulty")
 
-        else:  # 🔥 고급자: 어려운 환경
+        elif skill < 0.8:  # ⚖️ 고급자: 약간 어려운 환경
             self.environment_modifications = {
-                "enemy_speed_multiplier": 1.3,  # 적 속도 30% 증가
-                "enemy_spawn_rate": 1.4,  # 적 생성 40% 증가
-                "enemy_shot_speed": 1.5,  # 적 탄환 속도 50% 증가
-                "player_invulnerability_bonus": 0.7,  # 무적 시간 30% 감소
-                "player_speed_bonus": 1.0,  # 플레이어 속도 변화 없음
-                "enemy_damage_multiplier": 1.3,  # 적 데미지 30% 증가
-                "environment_name": "HARD",
-                "target_survival_time": 30.0,
-                "recommended_episodes": 800,
+                "enemy_speed_multiplier": 1.0,  # 적 속도 표준
+                "enemy_spawn_rate": 1.0,  # 적 생성 표준
+                "enemy_shot_speed": 1.0,  # 적 탄환 속도 표준
+                "player_invulnerability_bonus": 1.0,  # 무적 시간 표준
+                "player_speed_bonus": 1.0,  # 플레이어 속도 표준
+                "enemy_damage_multiplier": 1.0,  # 적 데미지 표준
+                "environment_name": "NORMAL",
+                "target_survival_time": 25.0,
+                "recommended_episodes": 350,
             }
-            print(
-                f"🔥 HARD Environment: Faster enemies, increased damage, reduced invulnerability"
-            )
+            print(f"⚖️ NORMAL Environment: Standard difficulty")
 
-        # 환경 정보 출력
+        else:  # 🔥 전문가: 어려운 환경
+            self.environment_modifications = {
+                "enemy_speed_multiplier": 1.2,  # 적 속도 20% 증가
+                "enemy_spawn_rate": 1.3,  # 적 생성 30% 증가
+                "enemy_shot_speed": 1.4,  # 적 탄환 속도 40% 증가
+                "player_invulnerability_bonus": 0.8,  # 무적 시간 20% 감소
+                "player_speed_bonus": 1.0,  # 플레이어 속도 표준
+                "enemy_damage_multiplier": 1.2,  # 적 데미지 20% 증가
+                "environment_name": "EXPERT",
+                "target_survival_time": 30.0,
+                "recommended_episodes": 400,
+            }
+            print(f"🔥 EXPERT Environment: Challenging gameplay")
+
+        # 환경 설정 적용
         print(
-            f"   🎮 Environment: {self.environment_modifications['environment_name']}"
+            f"   Target: {self.environment_modifications['target_survival_time']}s survival"
         )
         print(
-            f"   🎯 Target Survival: {self.environment_modifications['target_survival_time']:.1f}s"
-        )
-        print(
-            f"   📊 Enemy Speed: {self.environment_modifications['enemy_speed_multiplier']:.1f}x"
-        )
-        print(
-            f"   🔫 Enemy Spawn: {self.environment_modifications['enemy_spawn_rate']:.1f}x"
-        )
-        print(
-            f"   💥 Enemy Damage: {self.environment_modifications['enemy_damage_multiplier']:.1f}x"
+            f"   Recommended episodes: {self.environment_modifications['recommended_episodes']}"
         )
 
     def get_environment_info(self) -> dict:
@@ -161,12 +176,13 @@ class ImprovedGameEnvironment(GameEnvironment):
         return self.environment_modifications.copy()
 
     def get_current_phase_info(self):
-        """현재 커리큘럼 단계 정보 반환"""
+        """현재 커리큘럼 단계 정보 반환 (개선된 세분화)"""
         phase_names = [
-            "Quick Control",  # 기존: Basic Control
-            "Survival Focus",  # 기존: Survival Training
-            "Combat Training",  # 동일
-            "Master Strategy",  # 기존: Advanced Strategy
+            "Basic Control",  # 0단계: 기본 조작 학습
+            "Survival Training",  # 1단계: 생존 훈련
+            "Intermediate Combat",  # 2단계: 중급 전투
+            "Advanced Strategy",  # 3단계: 고급 전략
+            "Expert Mastery",  # 4단계: 전문가 숙련
         ]
 
         base_info = {
@@ -181,8 +197,11 @@ class ImprovedGameEnvironment(GameEnvironment):
         return base_info
 
     def update_curriculum_phase(self, episode_count: int):
-        """에피소드 수에 따라 커리큘럼 단계 업데이트"""
+        """에피소드 수에 따라 커리큘럼 단계 업데이트 (개선된 세분화)"""
         self.total_episodes = episode_count
+
+        # 🎯 세분화된 커리큘럼 단계 (총 1200 에피소드)
+        self.phase_episode_counts = [150, 200, 250, 300, 300]  # 5단계로 확장
 
         cumulative = 0
         for i, count in enumerate(self.phase_episode_counts):
@@ -196,23 +215,25 @@ class ImprovedGameEnvironment(GameEnvironment):
                     phase_info = self.get_current_phase_info()
                     print(f"\n🎓 Curriculum Phase Changed: {phase_info['name']}")
                     print(
-                        f"   Phase {self.curriculum_phase + 1}/4: Episodes {episode_count}/{cumulative}"
+                        f"   Phase {self.curriculum_phase + 1}/5: Episodes {episode_count}/{cumulative}"
                     )
 
-                # 🛡️ 개선된 단계별 무적 시간: 더 빠른 난이도 증가
-                if self.curriculum_phase == 0:  # 빠른 조작 학습 (100 에피소드)
-                    self.invulnerability_frames = 60  # 1초 (기존 3초에서 감소)
-                elif self.curriculum_phase == 1:  # 생존 집중 (150 에피소드)
-                    self.invulnerability_frames = 30  # 0.5초 (기존 2초에서 대폭 감소)
-                elif self.curriculum_phase == 2:  # 전투 훈련 (250 에피소드)
-                    self.invulnerability_frames = 15  # 0.25초 (기존 1초에서 감소)
-                else:  # 마스터 전략 (500 에피소드)
-                    self.invulnerability_frames = 0  # 무적 없음
+                # 🛡️ 점진적 무적 시간 감소
+                invulnerability_times = [
+                    90,
+                    60,
+                    30,
+                    15,
+                    0,
+                ]  # 1.5초 → 1초 → 0.5초 → 0.25초 → 0초
+                self.invulnerability_frames = invulnerability_times[
+                    self.curriculum_phase
+                ]
 
                 return
 
         # 모든 단계 완료
-        self.curriculum_phase = 3
+        self.curriculum_phase = 4
         self.invulnerability_frames = 0
 
     def calculate_reward_improved(self, game_state, last_action: int) -> float:
@@ -430,6 +451,146 @@ class ImprovedGameEnvironment(GameEnvironment):
             else:
                 self.recent_actions = [last_action]
 
+        # 🆕 11. 적 회피 보상 시스템 (새로 추가)
+        enemy_avoidance_reward = 0.0
+        if self.curriculum_phase >= 1:  # 생존 훈련 단계부터 적용
+            # 플레이어 주변 적 및 적 탄환 분석
+            nearby_enemies = []
+            nearby_shots = []
+
+            for entity in game_state.entities:
+                if (
+                    entity.entity_type.name.startswith("ENEMY")
+                    and entity.entity_type.name != "ENEMY_SHOT"
+                ):
+                    if entity.distance_to_player < 50:  # 50픽셀 이내 적
+                        nearby_enemies.append(entity)
+                elif entity.entity_type.name == "ENEMY_SHOT":
+                    if entity.distance_to_player < 30:  # 30픽셀 이내 적 탄환
+                        nearby_shots.append(entity)
+
+            # 안전한 거리 유지 보상
+            if len(nearby_enemies) > 0:
+                avg_enemy_distance = sum(
+                    enemy.distance_to_player for enemy in nearby_enemies
+                ) / len(nearby_enemies)
+                if avg_enemy_distance > 35:  # 적절한 거리 유지
+                    safe_distance_reward = 0.5 * survival_skill_multiplier
+                    enemy_avoidance_reward += safe_distance_reward
+                elif avg_enemy_distance < 15:  # 너무 가까운 거리 페널티
+                    danger_penalty = -0.8 * hit_skill_multiplier
+                    enemy_avoidance_reward += danger_penalty
+
+            # 적 탄환 회피 보상
+            if len(nearby_shots) > 0:
+                avg_shot_distance = sum(
+                    shot.distance_to_player for shot in nearby_shots
+                ) / len(nearby_shots)
+                if avg_shot_distance > 20:  # 탄환으로부터 안전한 거리
+                    shot_avoidance_reward = 0.3 * survival_skill_multiplier
+                    enemy_avoidance_reward += shot_avoidance_reward
+                elif avg_shot_distance < 10:  # 탄환에 너무 가까움
+                    shot_danger_penalty = -0.5 * hit_skill_multiplier
+                    enemy_avoidance_reward += shot_danger_penalty
+
+            # 위험 지역 통과 보상 (적이 많은 상황에서 생존)
+            if len(nearby_enemies) >= 3 and len(nearby_shots) >= 2:
+                if last_action != 4:  # 정지하지 않고 움직임
+                    danger_navigation_reward = 1.0 * survival_skill_multiplier
+                    enemy_avoidance_reward += danger_navigation_reward
+                    if self.curriculum_phase >= 2:  # 전투 훈련 단계부터 추가 보상
+                        enemy_avoidance_reward += 0.5
+
+        total_reward += enemy_avoidance_reward
+
+        # 🆕 12. 강화된 탐험 행동 보상 시스템 (새로 추가)
+        exploration_reward = 0.0
+        if self.curriculum_phase <= 1:  # 기본 조작 및 생존 훈련 단계에서 강화
+            # 액션 패턴 분석
+            if not hasattr(self, "action_history"):
+                self.action_history = []
+
+            self.action_history.append(last_action)
+            if len(self.action_history) > 20:
+                self.action_history.pop(0)
+
+            # 다양성 보상 (기존보다 강화)
+            if len(self.action_history) >= 10:
+                unique_actions = len(set(self.action_history[-10:]))
+                if unique_actions >= 6:  # 10개 중 6개 이상 다른 액션
+                    diversity_bonus = 1.5 * survival_skill_multiplier
+                    exploration_reward += diversity_bonus
+                elif unique_actions >= 4:  # 10개 중 4개 이상 다른 액션
+                    diversity_bonus = 0.8 * survival_skill_multiplier
+                    exploration_reward += diversity_bonus
+
+            # 연속된 같은 액션 페널티 (너무 반복적인 행동 방지)
+            if len(self.action_history) >= 5:
+                recent_actions = self.action_history[-5:]
+                if (
+                    len(set(recent_actions)) == 1 and recent_actions[0] == 4
+                ):  # 5번 연속 정지
+                    stagnation_penalty = -1.0 * survival_skill_multiplier
+                    exploration_reward += stagnation_penalty
+                elif len(set(recent_actions)) <= 2:  # 5번 중 2개 이하 액션만 사용
+                    repetition_penalty = -0.3 * survival_skill_multiplier
+                    exploration_reward += repetition_penalty
+
+            # 적응적 행동 보상 (상황에 맞는 액션 선택)
+            if len(nearby_enemies) > 0 and last_action == 8:  # 적이 있을 때 공격
+                adaptive_attack_reward = 0.5 * fire_skill_multiplier
+                exploration_reward += adaptive_attack_reward
+            elif len(nearby_shots) > 0 and last_action in [
+                0,
+                1,
+                2,
+                3,
+                5,
+                6,
+                7,
+            ]:  # 탄환이 있을 때 회피
+                adaptive_evasion_reward = 0.4 * survival_skill_multiplier
+                exploration_reward += adaptive_evasion_reward
+
+        total_reward += exploration_reward
+
+        # 🆕 13. 적응적 보상 조정 시스템 (새로 추가)
+        adaptive_reward = 0.0
+        if hasattr(self, "recent_survival_times"):
+            self.recent_survival_times.append(game_state.survival_time)
+            if len(self.recent_survival_times) > 50:
+                self.recent_survival_times.pop(0)
+        else:
+            self.recent_survival_times = [game_state.survival_time]
+
+        # 성능 개선 보상 (최근 성과 대비)
+        if len(self.recent_survival_times) >= 10:
+            recent_avg = sum(self.recent_survival_times[-10:]) / 10
+            older_avg = (
+                sum(self.recent_survival_times[-20:-10]) / 10
+                if len(self.recent_survival_times) >= 20
+                else recent_avg
+            )
+
+            if recent_avg > older_avg * 1.1:  # 10% 이상 성능 개선
+                improvement_reward = 2.0 * survival_skill_multiplier
+                adaptive_reward += improvement_reward
+                if self.curriculum_phase >= 2:  # 전투 훈련 단계부터 추가 보상
+                    adaptive_reward += 1.0
+
+        # 일관성 보상 (안정적인 성과 유지)
+        if len(self.recent_survival_times) >= 5:
+            recent_5_avg = sum(self.recent_survival_times[-5:]) / 5
+            target_survival_frames = skill_target_survival * 60  # 초를 프레임으로 변환
+
+            if (
+                recent_5_avg >= target_survival_frames * 0.8
+            ):  # 목표의 80% 이상 지속 달성
+                consistency_reward = 1.5 * survival_skill_multiplier
+                adaptive_reward += consistency_reward
+
+        total_reward += adaptive_reward
+
         # 상태 업데이트
         self.last_score = game_state.score
         self.last_lives = game_state.player_lives
@@ -575,7 +736,7 @@ class GamePPOAgent:
                 print(f"📚 Base learning rate: {self.base_learning_rate:.6f}")
 
     def update_learning_parameters(self):
-        """커리큘럼 단계에 따른 학습 파라미터 동적 조정"""
+        """커리큘럼 단계에 따른 학습 파라미터 동적 조정 (개선된 버전)"""
         if not self.enable_learning or not self.use_improved_rewards:
             return
 
@@ -584,9 +745,65 @@ class GamePPOAgent:
 
         phase_info = self.ppo_agent.env.get_current_phase_info()
 
-        # 단계별 학습률 조정 (기본 조작 단계에서 높은 학습률)
-        lr_multipliers = [1.5, 1.2, 1.0, 0.8]  # 기본 조작에서 더 빠른 학습
-        new_lr = self.base_learning_rate * lr_multipliers[phase_info["phase"]]
+        # 🧠 성과 기반 적응적 학습률 조정
+        performance_multiplier = 1.0
+        if len(self.episode_survival_times) >= 10:
+            recent_avg = sum(self.episode_survival_times[-10:]) / 10
+            target_survival_seconds = self._get_phase_target_survival_time(
+                phase_info["phase"]
+            )
+
+            # 성과 비율 계산
+            performance_ratio = recent_avg / max(1.0, target_survival_seconds)
+
+            if performance_ratio > 1.2:  # 목표 대비 120% 이상 성과
+                performance_multiplier = 0.8  # 학습률 감소 (안정화)
+            elif performance_ratio < 0.5:  # 목표 대비 50% 미만 성과
+                performance_multiplier = 1.3  # 학습률 증가 (빠른 학습)
+            elif performance_ratio < 0.3:  # 목표 대비 30% 미만 성과
+                performance_multiplier = 1.5  # 학습률 더 증가
+
+        # 🎯 개선된 단계별 학습률 조정 (5단계 지원)
+        lr_multipliers = [1.8, 1.4, 1.2, 1.0, 0.8]  # 초기 단계에서 더 적극적 학습
+        base_lr_multiplier = lr_multipliers[phase_info["phase"]]
+
+        # 최종 학습률 계산
+        new_lr = self.base_learning_rate * base_lr_multiplier * performance_multiplier
+
+        # 🔧 배치 크기 동적 조정
+        if hasattr(self.ppo_agent, "buffer_size"):
+            phase_batch_sizes = [32, 64, 128, 256, 512]  # 단계별 배치 크기
+            target_batch_size = phase_batch_sizes[phase_info["phase"]]
+
+            # PPO 에이전트의 배치 크기 업데이트 (가능한 경우)
+            if hasattr(self.ppo_agent, "batch_size"):
+                self.ppo_agent.batch_size = min(
+                    target_batch_size, self.ppo_agent.buffer_size
+                )
+
+        # 🎲 탐험 전략 동적 조정
+        if hasattr(self.ppo_agent, "epsilon") or hasattr(
+            self.ppo_agent, "entropy_coeff"
+        ):
+            # 단계별 탐험 계수 조정
+            exploration_coeffs = [
+                0.08,
+                0.06,
+                0.04,
+                0.02,
+                0.01,
+            ]  # 초기 단계에서 높은 탐험
+            target_exploration = exploration_coeffs[phase_info["phase"]]
+
+            # 성과 기반 탐험 조정
+            if performance_multiplier > 1.2:  # 성과가 부족할 때 탐험 증가
+                target_exploration *= 1.5
+            elif performance_multiplier < 0.9:  # 성과가 좋을 때 탐험 감소
+                target_exploration *= 0.8
+
+            # 엔트로피 계수 업데이트 (가능한 경우)
+            if hasattr(self.ppo_agent, "entropy_coeff"):
+                self.ppo_agent.entropy_coeff = target_exploration
 
         # PPO 에이전트의 학습률 업데이트
         if (
@@ -596,10 +813,41 @@ class GamePPOAgent:
             for param_group in self.ppo_agent.optimizer.param_groups:
                 param_group["lr"] = new_lr
 
-            print(
-                f"📚 Learning rate updated: {self.current_learning_rate:.6f} → {new_lr:.6f} ({phase_info['name']})"
-            )
+            # 🔍 상세한 학습률 조정 정보 출력
+            print(f"📚 Learning Parameters Updated:")
+            print(f"   Phase: {phase_info['name']} ({phase_info['phase']}/4)")
+            print(f"   Learning Rate: {self.current_learning_rate:.6f} → {new_lr:.6f}")
+            print(f"   Base Multiplier: {base_lr_multiplier:.2f}")
+            print(f"   Performance Multiplier: {performance_multiplier:.2f}")
+
+            if hasattr(self.ppo_agent, "batch_size"):
+                print(f"   Batch Size: {self.ppo_agent.batch_size}")
+            if hasattr(self.ppo_agent, "entropy_coeff"):
+                print(f"   Exploration Coeff: {self.ppo_agent.entropy_coeff:.4f}")
+
             self.current_learning_rate = new_lr
+
+        # 🚀 추가 최적화: 학습 안정성 향상
+        if phase_info["phase"] >= 3:  # 고급 단계에서 안정성 중시
+            # 그래디언트 클리핑 강화
+            if hasattr(self.ppo_agent, "max_grad_norm"):
+                self.ppo_agent.max_grad_norm = 0.3  # 더 강한 클리핑
+
+            # 학습 빈도 조정
+            if hasattr(self.ppo_agent, "update_epochs"):
+                self.ppo_agent.update_epochs = 6  # 더 많은 업데이트
+        else:
+            # 초기 단계에서 빠른 학습
+            if hasattr(self.ppo_agent, "max_grad_norm"):
+                self.ppo_agent.max_grad_norm = 0.5  # 완화된 클리핑
+
+            if hasattr(self.ppo_agent, "update_epochs"):
+                self.ppo_agent.update_epochs = 4  # 기본 업데이트
+
+    def _get_phase_target_survival_time(self, phase: int) -> float:
+        """커리큘럼 단계별 목표 생존 시간 반환"""
+        phase_targets = [2.0, 4.0, 8.0, 15.0, 25.0]  # 각 단계별 목표 생존 시간 (초)
+        return phase_targets[phase] if phase < len(phase_targets) else 30.0
 
     def setup_logging(self):
         """로깅 시스템 설정
@@ -1626,6 +1874,12 @@ class GamePPOAgent:
         # 🔧 에피소드 종료 직전에 survival_time 저장 (게임 리셋 전에)
         self.episode_final_survival_time = game_state.survival_time
 
+        # 🔍 디버깅: 저장된 값 확인
+        if game_state.survival_time > 0:
+            print(
+                f"🔧 Saving survival time: {game_state.survival_time} frames = {self._convert_survival_time_to_seconds(game_state.survival_time):.2f}s"
+            )
+
         # 🚨 최우선: 게임 인스턴스에서 직접 게임 상태 확인 (플레이어 사망 즉시 감지)
         if self.game_instance and hasattr(self.game_instance, "game"):
             game = self.game_instance.game
@@ -1876,10 +2130,15 @@ class GamePPOAgent:
 
         # 생존 시간 계산 및 기록 업데이트 (실제 플레이 시간)
         # 🔧 우선: 에피소드 종료 직전에 저장된 survival_time 사용
-        if (
-            hasattr(self, "episode_final_survival_time")
-            and self.episode_final_survival_time > 0
-        ):
+
+        # 🔍 디버깅: 저장된 값 상태 확인
+        has_saved_time = hasattr(self, "episode_final_survival_time")
+        saved_time_value = getattr(self, "episode_final_survival_time", 0)
+        print(
+            f"🔍 Checking saved survival time: has_attr={has_saved_time}, value={saved_time_value}"
+        )
+
+        if has_saved_time and saved_time_value > 0:
             survival_seconds = self._convert_survival_time_to_seconds(
                 self.episode_final_survival_time
             )
@@ -2364,7 +2623,10 @@ def main():
         help="Path to the saved PPO model (default: auto-detect latest)",
     )
     parser.add_argument(
-        "--skill", type=float, default=0.7, help="Player skill level (0 to 1)"
+        "--skill",
+        type=float,
+        default=0.5,
+        help="Player skill level (0 to 1) - 0.5 for balanced learning",
     )
     parser.add_argument(
         "--personality",
@@ -2378,20 +2640,20 @@ def main():
     parser.add_argument(
         "--save-interval",
         type=int,
-        default=500,
-        help="Model save interval (steps) - reduced for curriculum learning",
+        default=400,
+        help="Model save interval (steps) - optimized for improved curriculum learning",
     )
     parser.add_argument(
         "--target-episodes",
         type=int,
-        default=1000,  # 커리큘럼 학습 전체 에피소드에 맞게 조정
-        help="Target number of episodes to run before auto-terminating (default: 1000 for full curriculum).",
+        default=1200,  # 새로운 5단계 커리큘럼에 맞게 조정 (150+200+250+300+300)
+        help="Target number of episodes to run before auto-terminating (default: 1200 for full 5-stage curriculum).",
     )
     parser.add_argument(
         "--speed",
         type=int,
-        default=2,  # 학습 시간 단축을 위해 기본 2배속
-        help="Game speed multiplier (1=normal, 2=2x speed, etc.). Higher values reduce training time.",
+        default=512,  # 기존 그래프에서 사용한 속도로 조정
+        help="Game speed multiplier (1=normal, 512=512x speed, etc.). Higher values reduce training time significantly.",
     )
     parser.add_argument(
         "--no-improved-rewards",
