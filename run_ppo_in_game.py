@@ -544,6 +544,9 @@ class GamePPOAgent:
         self.best_reward = float("-inf")
         self.best_survival_time = 0.0  # 최고 생존 시간 추가
         self.last_survival_time = 0.0  # 이전 에피소드 생존 시간 추가
+        self.episode_final_survival_time = (
+            0  # 🔧 에피소드 종료 직전 survival_time 저장용
+        )
         self.training_start_time = time.time()
 
         # 시각화를 위한 통계 히스토리
@@ -1620,6 +1623,9 @@ class GamePPOAgent:
             game_state.survival_time
         )
 
+        # 🔧 에피소드 종료 직전에 survival_time 저장 (게임 리셋 전에)
+        self.episode_final_survival_time = game_state.survival_time
+
         # 🚨 최우선: 게임 인스턴스에서 직접 게임 상태 확인 (플레이어 사망 즉시 감지)
         if self.game_instance and hasattr(self.game_instance, "game"):
             game = self.game_instance.game
@@ -1635,6 +1641,10 @@ class GamePPOAgent:
                         "GAMEOVER",
                         "GAME_END",
                     ]:
+                        # 🔧 게임 상태에서 survival_time 직접 저장
+                        if hasattr(game.state, "state_time"):
+                            self.episode_final_survival_time = game.state.state_time
+
                         print(
                             f"🏁 Episode done: Game state is {state_name} (immediate termination)"
                         )
@@ -1865,8 +1875,18 @@ class GamePPOAgent:
             self.best_score = final_score
 
         # 생존 시간 계산 및 기록 업데이트 (실제 플레이 시간)
-        # 🔧 수정: 실제 게임 adapter에서 생존 시간 추출
-        if self.game_instance and hasattr(self.game_instance, "game"):
+        # 🔧 우선: 에피소드 종료 직전에 저장된 survival_time 사용
+        if (
+            hasattr(self, "episode_final_survival_time")
+            and self.episode_final_survival_time > 0
+        ):
+            survival_seconds = self._convert_survival_time_to_seconds(
+                self.episode_final_survival_time
+            )
+            print(
+                f"🔧 Using saved survival time: {self.episode_final_survival_time} frames = {survival_seconds:.2f}s"
+            )
+        elif self.game_instance and hasattr(self.game_instance, "game"):
             try:
                 # game_adapter를 통해 실제 게임 상태 추출
                 from rl.game_adapter import GameStateAdapter
@@ -1885,14 +1905,29 @@ class GamePPOAgent:
                             f"🔍 Real survival time: {real_game_state.survival_time} frames = {survival_seconds:.2f}s (speed: {self.speed_multiplier}x)"
                         )
                 else:
-                    # fallback: 에이전트 액션 수 기반 계산 (배속 모드 고려)
-                    survival_seconds = episode_length / (60.0 * self.speed_multiplier)
+                    # 🚨 GameStateAdapter가 None을 반환한 경우
+                    print(
+                        f"⚠️ GameStateAdapter returned None - using current game state"
+                    )
+                    current_game_state = self._extract_current_game_state()
+                    survival_seconds = self._convert_survival_time_to_seconds(
+                        current_game_state.survival_time
+                    )
             except Exception as e:
+                # 🚨 자세한 오류 정보 출력
                 print(f"⚠️ Error extracting real game state: {e}")
-                survival_seconds = episode_length / (60.0 * self.speed_multiplier)
+                print(f"   Using current game state as fallback")
+                current_game_state = self._extract_current_game_state()
+                survival_seconds = self._convert_survival_time_to_seconds(
+                    current_game_state.survival_time
+                )
         else:
-            # fallback: 에이전트 액션 수 기반 계산 (배속 모드 고려)
-            survival_seconds = episode_length / (60.0 * self.speed_multiplier)
+            # 🚨 게임 인스턴스가 없는 경우
+            print(f"⚠️ No game instance available - using current game state")
+            current_game_state = self._extract_current_game_state()
+            survival_seconds = self._convert_survival_time_to_seconds(
+                current_game_state.survival_time
+            )
 
         if survival_seconds > self.best_survival_time:
             self.best_survival_time = survival_seconds
