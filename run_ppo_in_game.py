@@ -633,7 +633,20 @@ class GamePPOAgent:
                 max_lives=original_env.max_lives,
                 final_stage_num=original_env.final_stage_num,
             )
+            # 스킬 레벨 설정하여 learning_profile 초기화
+            improved_env.set_skill_level(skill_level)
             self.ppo_agent.env = improved_env
+            # learning_profile 참조 설정
+            self.learning_profile = improved_env.learning_profile
+        else:
+            # 기본 환경 사용 시에는 기본 learning_profile 설정
+            self.learning_profile = {
+                "skill_name": "STANDARD",
+                "learning_rate_multiplier": 1.0,
+                "exploration_bonus": 0.2,
+                "reward_patience": 1.0,
+                "curriculum_acceleration": 1.0,
+            }
 
         # 게임 상태 어댑터
         self.adapter = GameStateAdapter()
