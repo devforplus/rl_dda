@@ -74,6 +74,7 @@ def load_configuration() -> Dict[str, Any]:
             DEBUG_MODE,
             FORCE_WEB_MODE,
             ENABLE_AI_AGENT,
+            ENABLE_IMAGE_CAPTURE_IN_AGENT_MODE,
             GAME_WIDTH,
             GAME_HEIGHT,
             GAME_FPS,
@@ -89,6 +90,7 @@ def load_configuration() -> Dict[str, Any]:
             "DEBUG_MODE": DEBUG_MODE,
             "FORCE_WEB_MODE": FORCE_WEB_MODE,
             "ENABLE_AI_AGENT": ENABLE_AI_AGENT,
+            "ENABLE_IMAGE_CAPTURE_IN_AGENT_MODE": ENABLE_IMAGE_CAPTURE_IN_AGENT_MODE,
             "GAME_WIDTH": GAME_WIDTH,
             "GAME_HEIGHT": GAME_HEIGHT,
             "GAME_FPS": GAME_FPS,
@@ -127,6 +129,8 @@ def get_default_config() -> Dict[str, Any]:
         "DEBUG_MODE": False,
         "FORCE_WEB_MODE": False,
         "ENABLE_AI_AGENT": False,
+        # AI Agent settings / AI 에이전트 설정
+        "ENABLE_IMAGE_CAPTURE_IN_AGENT_MODE": False,
         # Game settings / 게임 설정
         "GAME_WIDTH": 256,
         "GAME_HEIGHT": 192,

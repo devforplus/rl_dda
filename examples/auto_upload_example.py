@@ -109,12 +109,12 @@ class MockGame:
         return screen
 
     def get_player_position(self) -> Dict:
-        """플레이어 위치 반환 (YOLO 형식)"""
+        """플레이어 위치 반환 (객체 탐지 형식)"""
         return {
-            "x": self.player_x / 800,  # 정규화된 x 좌표
-            "y": self.player_y / 600,  # 정규화된 y 좌표
-            "width": 20 / 800,
-            "height": 20 / 600,
+            "x": self.player_x / 256.0,  # 정규화된 좌표
+            "y": self.player_y / 192.0,
+            "width": 0.05,  # 플레이어 크기 (정규화)
+            "height": 0.08,
         }
 
 
@@ -234,7 +234,7 @@ def example_sync_usage():
             asyncio.run(
                 client.upload_legacy_data(
                     game_screen_base64=frame_data.image_base64,
-                    labeling_code="\n".join(client._generate_yolo_labels(frame_data)),
+                    labeling_code="\n".join(client._generate_labels(frame_data)),
                     metadata={"manual_upload": True, "frame_number": i},
                 )
             )

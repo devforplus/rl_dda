@@ -1,560 +1,330 @@
+"""
+PPO 트레이너 구현
+
+PPO 에이전트의 학습 및 평가를 관리하는 클래스
+"""
+
 import os
 import time
 import numpy as np
-from typing import Dict, Any, Optional, Callable, List
+from typing import Dict, Any, Optional, List
 from collections import deque
 import torch
 
-from .agents.ppo_agent import PPOAgent
+from .ppo_agent import PPOAgent
 from .environment import GameEnvironment
-from .game_adapter import GameStateAdapter
+from .data_types import GameLogData
 
 
 class PPOTrainer:
     """PPO 에이전트 학습 및 평가를 위한 트레이너 클래스
 
     에이전트의 학습, 평가, 모델 저장 등을 관리합니다.
-
-    Attributes:
-        agent: PPO 에이전트
-        game_adapter: 게임 상태 어댑터
-        save_dir: 모델 저장 디렉토리
-
-    ---
-
-    PPO 에이전트의 전체 학습 파이프라인을 관리하는 클래스
     """
 
     def __init__(
         self,
         agent: PPOAgent,
-        save_dir: str = "models",
+        environment: GameEnvironment,
+        save_dir: str = "src/models/ppo",
         log_interval: int = 10,
         save_interval: int = 100,
-        eval_interval: int = 50,
+        max_episode_steps: int = 1000,
     ):
         """트레이너 초기화
 
         Args:
             agent: PPO 에이전트
+            environment: 게임 환경
             save_dir: 모델 저장 디렉토리
             log_interval: 로그 출력 간격 (에피소드)
             save_interval: 모델 저장 간격 (에피소드)
-            eval_interval: 평가 수행 간격 (에피소드)
-
-        ---
-
-        학습 환경과 로깅 시스템을 초기화
+            max_episode_steps: 에피소드당 최대 스텝 수
         """
         self.agent = agent
-        self.game_adapter = GameStateAdapter()
+        self.environment = environment
         self.save_dir = save_dir
         self.log_interval = log_interval
         self.save_interval = save_interval
-        self.eval_interval = eval_interval
+        self.max_episode_steps = max_episode_steps
 
-        # 디렉토리 생성
-        os.makedirs(save_dir, exist_ok=True)
+        # 학습 통계
+        self.episode_rewards = deque(maxlen=100)
+        self.episode_lengths = deque(maxlen=100)
+        self.episode_kills = deque(maxlen=100)
+        self.episode_scores = deque(maxlen=100)
 
-        # 학습 통계 추적
+        # 학습 상태
         self.total_episodes = 0
         self.total_steps = 0
         self.best_reward = float("-inf")
 
-        # 최근 성능 추적
-        self.recent_rewards = deque(maxlen=100)
-        self.recent_episode_lengths = deque(maxlen=100)
+        # 디렉토리 생성
+        os.makedirs(save_dir, exist_ok=True)
 
-        # 텐서보드 로거 (옵션)
-        self.tensorboard_logger = None
-        try:
-            from torch.utils.tensorboard import SummaryWriter
-
-            log_dir = os.path.join(save_dir, "logs")
-            self.tensorboard_logger = SummaryWriter(log_dir)
-        except ImportError:
-            print("TensorBoard not available. Logging will be done to console only.")
-
-    def train_episode(
-        self,
-        game_instance,
-        skill_level: float = 0.5,
-        personality: int = 0,
-        max_steps: int = 5000,
-    ) -> Dict[str, float]:
+    def train_episode(self, game_instance, skill_level: float) -> Dict[str, Any]:
         """단일 에피소드 학습
 
         Args:
             game_instance: 게임 인스턴스
-            skill_level: 플레이어 실력 수준
-            personality: 플레이어 성향
-            max_steps: 최대 스텝 수
+            skill_level: 실력값 (0.0 ~ 1.0)
 
         Returns:
-            에피소드 통계
-
-        ---
-
-        하나의 에피소드를 실행하며 경험을 수집하고 모델을 업데이트
+            에피소드 결과 통계
         """
-        self.agent.set_train_mode()
-        self.game_adapter.reset_tracking()
+        # 환경 및 에이전트 초기화
+        self.environment.reset()
+        self.agent.reset_buffer()
 
         episode_reward = 0.0
-        episode_length = 0
-        done = False
+        episode_steps = 0
+        episode_kills = 0
+        episode_score = 0
 
-        # 에피소드 시작
-        start_time = time.time()
-
-        while not done and episode_length < max_steps:
+        # 게임 루프
+        for step in range(self.max_episode_steps):
             # 현재 게임 상태 추출
-            current_state = self.game_adapter.extract_game_state(
-                game_instance, skill_level, personality
+            game_log_data = self.environment.extract_game_log_data(
+                game_instance, skill_level
             )
 
-            # 에이전트 액션 선택 (탐험 포함)
-            action, log_prob, value = self.agent.select_action_with_exploration(
-                current_state
-            )
+            # 에이전트 액션 선택
+            action_id = self.agent.get_action(game_log_data)
 
-            # 게임에 액션 적용
-            self.game_adapter.apply_action_to_game(game_instance, action)
+            # 게임에 액션 적용 (실제 게임과의 연동은 상위 레벨에서 처리)
+            action_input = self.environment.get_action_input(action_id)
 
-            # 게임 한 스텝 실행
-            game_instance.step()
-
-            # 다음 상태 추출
-            next_state = self.game_adapter.extract_game_state(
-                game_instance, skill_level, personality
-            )
+            # 한 스텝 진행 (여기서는 가정적으로 처리, 실제로는 게임 루프에서 처리)
+            # game_instance.update(action_input)  # 실제 구현 시 필요
 
             # 보상 계산
-            reward = self.agent.env._calculate_reward_original(next_state, action)
+            reward = self.environment.calculate_reward(game_instance, skill_level)
 
-            # 에피소드 종료 조건 확인
-            done = self._check_episode_done(
-                game_instance, next_state, episode_length, max_steps
-            )
+            # 종료 조건 확인
+            done = self.environment.is_episode_done(game_instance)
 
-            # 경험 저장
-            self.agent.store_experience(
-                current_state, action, reward, log_prob, value, done
-            )
+            # 에이전트에 보상과 종료 상태 저장
+            self.agent.store_reward_and_done(reward, done)
 
+            # 통계 업데이트
             episode_reward += reward
-            episode_length += 1
-            self.total_steps += 1
+            episode_steps += 1
 
-        # 에피소드 종료 후 학습
-        training_stats = self.agent.train()
+            if done:
+                break
 
-        # 통계 업데이트
+        # 에피소드 종료 후 통계 수집
+        if hasattr(game_instance, "game") and game_instance.game:
+            game_vars = getattr(game_instance.game, "game_vars", None)
+            if game_vars:
+                episode_kills = getattr(game_vars, "kills", 0)
+                episode_score = getattr(game_vars, "score", 0)
+
+        # 에이전트 업데이트
+        update_info = self.agent.update()
+
+        # 통계 저장
+        self.episode_rewards.append(episode_reward)
+        self.episode_lengths.append(episode_steps)
+        self.episode_kills.append(episode_kills)
+        self.episode_scores.append(episode_score)
+
         self.total_episodes += 1
-        self.recent_rewards.append(episode_reward)
-        self.recent_episode_lengths.append(episode_length)
+        self.total_steps += episode_steps
 
-        # 최고 성능 업데이트
+        # 최고 보상 업데이트
         if episode_reward > self.best_reward:
             self.best_reward = episode_reward
-            self._save_best_model()
 
-        episode_time = time.time() - start_time
-
-        # 에피소드 통계 반환
-        stats = {
-            "episode_reward": episode_reward,
-            "episode_length": episode_length,
-            "episode_time": episode_time,
-            "total_episodes": self.total_episodes,
-            "total_steps": self.total_steps,
-            "best_reward": self.best_reward,
+        return {
+            "episode": self.total_episodes,
+            "reward": episode_reward,
+            "steps": episode_steps,
+            "kills": episode_kills,
+            "score": episode_score,
+            "update_info": update_info,
         }
 
-        # 학습 통계 추가
-        if training_stats:
-            stats.update(training_stats)
+    def train(
+        self, game_instance, skill_level: float, num_episodes: int
+    ) -> List[Dict[str, Any]]:
+        """다중 에피소드 학습
 
-        return stats
+        Args:
+            game_instance: 게임 인스턴스
+            skill_level: 실력값
+            num_episodes: 학습할 에피소드 수
 
-    def evaluate_agent(
-        self,
-        game_instance,
-        skill_level: float = 0.5,
-        personality: int = 0,
-        num_episodes: int = 5,
-        max_steps: int = 5000,
-    ) -> Dict[str, float]:
+        Returns:
+            모든 에피소드 결과 리스트
+        """
+        results = []
+
+        print(f"PPO 학습 시작: {num_episodes} 에피소드, 실력값 = {skill_level:.2f}")
+
+        for episode in range(num_episodes):
+            start_time = time.time()
+
+            # 에피소드 학습
+            episode_result = self.train_episode(game_instance, skill_level)
+
+            episode_time = time.time() - start_time
+            episode_result["time"] = episode_time
+
+            results.append(episode_result)
+
+            # 로그 출력
+            if episode % self.log_interval == 0:
+                self._log_progress(episode_result)
+
+            # 모델 저장
+            if episode % self.save_interval == 0 and episode > 0:
+                self.agent.save_model(self.save_dir)
+
+        # 최종 모델 저장
+        self.agent.save_model(self.save_dir)
+
+        print(f"학습 완료! 총 {num_episodes} 에피소드")
+        self._print_final_stats()
+
+        return results
+
+    def evaluate(
+        self, game_instance, skill_level: float, num_episodes: int = 10
+    ) -> Dict[str, Any]:
         """에이전트 평가
 
         Args:
             game_instance: 게임 인스턴스
-            skill_level: 플레이어 실력 수준
-            personality: 플레이어 성향
-            num_episodes: 평가 에피소드 수
-            max_steps: 에피소드당 최대 스텝 수
+            skill_level: 실력값
+            num_episodes: 평가할 에피소드 수
 
         Returns:
-            평가 통계
-
-        ---
-
-        학습된 에이전트를 여러 에피소드에 걸쳐 평가
+            평가 결과 통계
         """
-        self.agent.set_eval_mode()
-
         eval_rewards = []
-        eval_lengths = []
-        eval_survival_times = []
+        eval_kills = []
+        eval_scores = []
+        eval_steps = []
+
+        print(f"PPO 에이전트 평가 시작: {num_episodes} 에피소드")
 
         for episode in range(num_episodes):
-            self.game_adapter.reset_tracking()
+            # 환경 초기화
+            self.environment.reset()
+
             episode_reward = 0.0
-            episode_length = 0
-            done = False
+            episode_steps = 0
 
-            while not done and episode_length < max_steps:
-                # 현재 상태 추출
-                current_state = self.game_adapter.extract_game_state(
-                    game_instance, skill_level, personality
+            # 평가 루프 (학습 없이)
+            for step in range(self.max_episode_steps):
+                game_log_data = self.environment.extract_game_log_data(
+                    game_instance, skill_level
                 )
 
-                # 결정적 액션 선택 (탐험 없음)
-                action = self.agent.select_action(current_state)
-
-                # 액션 적용
-                self.game_adapter.apply_action_to_game(game_instance, action)
-
-                # 게임 스텝 실행
-                time.sleep(0.016)
-
-                # 다음 상태와 보상
-                next_state = self.game_adapter.extract_game_state(
-                    game_instance, skill_level, personality
+                # 액션 선택 (탐험 없이)
+                state_vector = game_log_data.to_state_vector()
+                state_tensor = (
+                    torch.FloatTensor(state_vector).unsqueeze(0).to(self.agent.device)
                 )
-                reward = self.agent.env._calculate_reward_original(next_state, action)
+
+                with torch.no_grad():
+                    action_logits, _ = self.agent.network.forward(state_tensor)
+                    action = torch.argmax(action_logits, dim=-1)
+
+                action_id = action.cpu().item()
+                action_input = self.environment.get_action_input(action_id)
+
+                # 보상 계산
+                reward = self.environment.calculate_reward(game_instance, skill_level)
+                episode_reward += reward
+                episode_steps += 1
 
                 # 종료 조건 확인
-                done = self._check_episode_done(
-                    game_instance, next_state, episode_length, max_steps
-                )
+                if self.environment.is_episode_done(game_instance):
+                    break
 
-                episode_reward += reward
-                episode_length += 1
+            # 통계 수집
+            episode_kills = 0
+            episode_score = 0
+            if hasattr(game_instance, "game") and game_instance.game:
+                game_vars = getattr(game_instance.game, "game_vars", None)
+                if game_vars:
+                    episode_kills = getattr(game_vars, "kills", 0)
+                    episode_score = getattr(game_vars, "score", 0)
 
             eval_rewards.append(episode_reward)
-            eval_lengths.append(episode_length)
-            eval_survival_times.append(current_state.survival_time)
+            eval_kills.append(episode_kills)
+            eval_scores.append(episode_score)
+            eval_steps.append(episode_steps)
 
-        # 평가 통계 계산
-        return {
-            "eval_mean_reward": np.mean(eval_rewards),
-            "eval_std_reward": np.std(eval_rewards),
-            "eval_max_reward": np.max(eval_rewards),
-            "eval_min_reward": np.min(eval_rewards),
-            "eval_mean_length": np.mean(eval_lengths),
-            "eval_mean_survival_time": np.mean(eval_survival_times),
+        # 평가 결과 계산
+        eval_stats = {
+            "mean_reward": np.mean(eval_rewards),
+            "std_reward": np.std(eval_rewards),
+            "mean_kills": np.mean(eval_kills),
+            "mean_score": np.mean(eval_scores),
+            "mean_steps": np.mean(eval_steps),
+            "episodes": num_episodes,
         }
 
-    def train(
-        self,
-        game_factory: Callable,
-        num_episodes: int = 1000,
-        skill_level: float = 0.5,
-        personality: int = 0,
-        max_steps_per_episode: int = 5000,
-    ) -> Dict[str, List[float]]:
-        """전체 학습 프로세스 실행
-
-        Args:
-            game_factory: 게임 인스턴스를 생성하는 팩토리 함수
-            num_episodes: 총 학습 에피소드 수
-            skill_level: 플레이어 실력 수준
-            personality: 플레이어 성향
-            max_steps_per_episode: 에피소드당 최대 스텝 수
-
-        Returns:
-            학습 과정의 통계 히스토리
-
-        ---
-
-        지정된 에피소드 수만큼 학습을 수행하고 주기적으로 평가 및 저장
-        """
-        print(f"Starting PPO training for {num_episodes} episodes...")
-        print(f"Skill Level: {skill_level}, Personality: {personality}")
-        print(f"Save Directory: {self.save_dir}")
-
-        # 통계 히스토리
-        history = {
-            "episode_rewards": [],
-            "episode_lengths": [],
-            "training_losses": [],
-            "eval_rewards": [],
-        }
-
-        for episode in range(num_episodes):
-            # 게임 인스턴스 생성
-            game_instance = game_factory()
-
-            # 에피소드 학습
-            episode_stats = self.train_episode(
-                game_instance, skill_level, personality, max_steps_per_episode
-            )
-
-            # 통계 기록
-            history["episode_rewards"].append(episode_stats["episode_reward"])
-            history["episode_lengths"].append(episode_stats["episode_length"])
-            if "total_loss" in episode_stats:
-                history["training_losses"].append(episode_stats["total_loss"])
-
-            # 주기적 로깅
-            if episode % self.log_interval == 0:
-                self._log_training_progress(episode, episode_stats)
-
-            # 주기적 평가
-            if episode % self.eval_interval == 0 and episode > 0:
-                eval_game = game_factory()
-                eval_stats = self.evaluate_agent(eval_game, skill_level, personality)
-                history["eval_rewards"].append(eval_stats["eval_mean_reward"])
-                self._log_evaluation_results(episode, eval_stats)
-
-            # 주기적 모델 저장
-            if episode % self.save_interval == 0 and episode > 0:
-                self._save_checkpoint(episode)
-
-            # 텐서보드 로깅
-            if self.tensorboard_logger:
-                self._log_to_tensorboard(episode, episode_stats)
-
-        # 최종 모델 저장
-        self._save_final_model()
-
-        print(f"Training completed! Best reward: {self.best_reward:.2f}")
-        return history
-
-    def _check_episode_done(
-        self, game_instance, game_state, episode_length: int, max_steps: int
-    ) -> bool:
-        """에피소드 종료 조건 확인
-
-        Args:
-            game_instance: 게임 인스턴스
-            game_state: 현재 게임 상태
-            episode_length: 현재 에피소드 길이
-            max_steps: 최대 스텝 수
-
-        Returns:
-            에피소드 종료 여부
-
-        ---
-
-        게임 종료 상태와 최대 스텝 수를 고려하여 에피소드 종료 여부 결정
-        """
-        # 최대 스텝 수 도달
-        if episode_length >= max_steps:
-            return True
-
-        # 플레이어 체력이 0 이하
-        if game_state.player_hp <= 0:
-            return True
-
-        # 게임 상태에 따른 종료 조건 (게임마다 다를 수 있음)
-        if hasattr(game_instance, "game") and game_instance.game:
-            game_state_obj = getattr(game_instance.game, "state", None)
-            if game_state_obj and hasattr(game_state_obj, "state"):
-                # 게임오버 상태인지 확인
-                if hasattr(game_state_obj, "state") and str(
-                    game_state_obj.state
-                ).endswith("GAME_OVER"):
-                    return True
-
-        return False
-
-    def _log_training_progress(self, episode: int, stats: Dict[str, float]):
-        """학습 진행 상황 로깅
-
-        Args:
-            episode: 에피소드 번호
-            stats: 에피소드 통계
-
-        ---
-
-        콘솔에 학습 진행 상황을 출력
-        """
-        recent_mean_reward = np.mean(self.recent_rewards) if self.recent_rewards else 0
-        recent_mean_length = (
-            np.mean(self.recent_episode_lengths) if self.recent_episode_lengths else 0
+        print(f"평가 완료:")
+        print(
+            f"  평균 보상: {eval_stats['mean_reward']:.2f} ± {eval_stats['std_reward']:.2f}"
         )
+        print(f"  평균 킬수: {eval_stats['mean_kills']:.2f}")
+        print(f"  평균 점수: {eval_stats['mean_score']:.2f}")
+
+        return eval_stats
+
+    def _log_progress(self, episode_result: Dict[str, Any]):
+        """학습 진행 상황 로그 출력"""
+        episode = episode_result["episode"]
+        reward = episode_result["reward"]
+        steps = episode_result["steps"]
+        kills = episode_result["kills"]
+        score = episode_result["score"]
+
+        # 최근 통계
+        recent_rewards = list(self.episode_rewards)[-10:]
+        recent_kills = list(self.episode_kills)[-10:]
+
+        avg_reward = np.mean(recent_rewards) if recent_rewards else 0
+        avg_kills = np.mean(recent_kills) if recent_kills else 0
 
         print(
             f"Episode {episode:4d} | "
-            f"Reward: {stats['episode_reward']:6.2f} | "
-            f"Length: {stats['episode_length']:4d} | "
-            f"Recent Avg: {recent_mean_reward:6.2f} | "
-            f"Best: {self.best_reward:6.2f}"
+            f"Reward: {reward:7.2f} | "
+            f"Steps: {steps:4d} | "
+            f"Kills: {kills:3d} | "
+            f"Score: {score:6d} | "
+            f"Avg10: {avg_reward:6.2f} | "
+            f"AvgKills: {avg_kills:4.1f}"
         )
 
-        if "total_loss" in stats:
-            print(
-                f"         Loss: {stats['total_loss']:8.4f} | "
-                f"Policy: {stats.get('policy_loss', 0):8.4f} | "
-                f"Value: {stats.get('value_loss', 0):8.4f}"
-            )
+    def _print_final_stats(self):
+        """최종 학습 통계 출력"""
+        if len(self.episode_rewards) > 0:
+            print(f"\n=== 학습 완료 통계 ===")
+            print(f"총 에피소드: {self.total_episodes}")
+            print(f"총 스텝: {self.total_steps}")
+            print(f"최고 보상: {self.best_reward:.2f}")
+            print(f"평균 보상 (최근 100): {np.mean(self.episode_rewards):.2f}")
+            print(f"평균 킬수 (최근 100): {np.mean(self.episode_kills):.2f}")
+            print(f"평균 점수 (최근 100): {np.mean(self.episode_scores):.2f}")
+            print(f"평균 스텝 (최근 100): {np.mean(self.episode_lengths):.2f}")
 
-    def _log_evaluation_results(self, episode: int, eval_stats: Dict[str, float]):
-        """평가 결과 로깅
+    def get_training_stats(self) -> Dict[str, Any]:
+        """현재 학습 통계 반환"""
+        if len(self.episode_rewards) == 0:
+            return {}
 
-        Args:
-            episode: 에피소드 번호
-            eval_stats: 평가 통계
-
-        ---
-
-        평가 결과를 콘솔에 출력
-        """
-        print(f"=== Evaluation at Episode {episode} ===")
-        print(
-            f"Mean Reward: {eval_stats['eval_mean_reward']:6.2f} ± {eval_stats['eval_std_reward']:6.2f}"
-        )
-        print(f"Max Reward:  {eval_stats['eval_max_reward']:6.2f}")
-        print(f"Mean Length: {eval_stats['eval_mean_length']:6.2f}")
-        print(f"Mean Survival: {eval_stats['eval_mean_survival_time']:6.2f}")
-        print("=" * 40)
-
-    def _log_to_tensorboard(self, episode: int, stats: Dict[str, float]):
-        """텐서보드에 통계 로깅
-
-        Args:
-            episode: 에피소드 번호
-            stats: 통계 정보
-
-        ---
-
-        텐서보드를 사용한 시각적 로깅
-        """
-        if not self.tensorboard_logger:
-            return
-
-        # 기본 통계
-        self.tensorboard_logger.add_scalar(
-            "Training/EpisodeReward", stats["episode_reward"], episode
-        )
-        self.tensorboard_logger.add_scalar(
-            "Training/EpisodeLength", stats["episode_length"], episode
-        )
-
-        # 학습 손실
-        if "total_loss" in stats:
-            self.tensorboard_logger.add_scalar(
-                "Training/TotalLoss", stats["total_loss"], episode
-            )
-            self.tensorboard_logger.add_scalar(
-                "Training/PolicyLoss", stats.get("policy_loss", 0), episode
-            )
-            self.tensorboard_logger.add_scalar(
-                "Training/ValueLoss", stats.get("value_loss", 0), episode
-            )
-            self.tensorboard_logger.add_scalar(
-                "Training/Entropy", stats.get("entropy", 0), episode
-            )
-
-        # 최근 평균 성능
-        if self.recent_rewards:
-            recent_mean = np.mean(self.recent_rewards)
-            self.tensorboard_logger.add_scalar(
-                "Training/RecentMeanReward", recent_mean, episode
-            )
-
-    def _save_checkpoint(self, episode: int):
-        """체크포인트 저장
-
-        Args:
-            episode: 에피소드 번호
-
-        ---
-
-        주기적으로 모델 체크포인트를 저장
-        """
-        checkpoint_path = os.path.join(
-            self.save_dir, f"checkpoint_episode_{episode}.pth"
-        )
-        self.agent.save_model(checkpoint_path)
-        print(f"Checkpoint saved: {checkpoint_path}")
-
-    def _save_best_model(self):
-        """최고 성능 모델 저장
-
-        ---
-
-        현재까지 최고 성능을 기록한 모델을 저장
-        """
-        best_path = os.path.join(self.save_dir, "best_model.pth")
-        self.agent.save_model(best_path)
-
-    def _save_final_model(self):
-        """최종 모델 저장
-
-        ---
-
-        학습 완료 후 최종 모델을 저장
-        """
-        final_path = os.path.join(self.save_dir, "final_model.pth")
-        self.agent.save_model(final_path)
-        print(f"Final model saved: {final_path}")
-
-    def load_checkpoint(self, checkpoint_path: str):
-        """체크포인트 불러오기
-
-        Args:
-            checkpoint_path: 체크포인트 파일 경로
-
-        ---
-
-        저장된 체크포인트로부터 모델을 복원
-        """
-        self.agent.load_model(checkpoint_path)
-        print(f"Model loaded from: {checkpoint_path}")
-
-    def close(self):
-        """트레이너 종료
-
-        ---
-
-        텐서보드 로거 등 리소스를 정리
-        """
-        if self.tensorboard_logger:
-            self.tensorboard_logger.close()
-
-
-def create_trainer(
-    skill_level: float = 0.5,
-    personality: int = 0,
-    save_dir: str = "models/ppo",
-    **agent_kwargs,
-) -> PPOTrainer:
-    """PPO 트레이너 생성 헬퍼 함수
-
-    Args:
-        skill_level: 플레이어 실력 수준
-        personality: 플레이어 성향
-        save_dir: 모델 저장 디렉토리
-        **agent_kwargs: PPO 에이전트 하이퍼파라미터
-
-    Returns:
-        초기화된 PPO 트레이너
-
-    ---
-
-    간편하게 PPO 트레이너를 생성하는 팩토리 함수
-    """
-    from .agents.ppo_agent import create_ppo_agent
-
-    # PPO 에이전트 생성
-    agent = create_ppo_agent(
-        skill_level=skill_level, personality=personality, **agent_kwargs
-    )
-
-    # 트레이너 생성
-    trainer = PPOTrainer(agent, save_dir=save_dir)
-
-    return trainer
+        return {
+            "total_episodes": self.total_episodes,
+            "total_steps": self.total_steps,
+            "best_reward": self.best_reward,
+            "recent_avg_reward": np.mean(list(self.episode_rewards)[-10:]),
+            "recent_avg_kills": np.mean(list(self.episode_kills)[-10:]),
+            "recent_avg_score": np.mean(list(self.episode_scores)[-10:]),
+            "recent_avg_steps": np.mean(list(self.episode_lengths)[-10:]),
+        }

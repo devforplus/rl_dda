@@ -34,6 +34,9 @@ try:
     ENV_GAME_HEIGHT = config.get("GAME_HEIGHT", 192)
     ENV_GAME_FPS = config.get("GAME_FPS", 60)
     ENV_DISPLAY_SCALE = config.get("DISPLAY_SCALE", 3)
+    ENABLE_IMAGE_CAPTURE_IN_AGENT_MODE = config.get(
+        "ENABLE_IMAGE_CAPTURE_IN_AGENT_MODE", False
+    )
 
     print("✅ 적응형 환경 설정 로드 완료")
 
@@ -50,6 +53,9 @@ try:
     print(f"  📺 DISPLAY_SCALE: {ENV_DISPLAY_SCALE}")
     print(f"  🎯 GAME_FPS: {ENV_GAME_FPS}")
     print(f"  💾 AUTO_COLLECT_DATA: {AUTO_COLLECT_DATA}")
+    print(
+        f"  🤖 ENABLE_IMAGE_CAPTURE_IN_AGENT_MODE: {ENABLE_IMAGE_CAPTURE_IN_AGENT_MODE}"
+    )
 
     if DEBUG_MODE:
         print_environment_info()
@@ -70,6 +76,7 @@ except ImportError as e:
     ENV_GAME_HEIGHT = 192
     ENV_GAME_FPS = 60
     ENV_DISPLAY_SCALE = 3
+    ENABLE_IMAGE_CAPTURE_IN_AGENT_MODE = False
 
     # 기본값들도 출력
     print("📋 기본 환경 변수 (fallback):")
@@ -84,6 +91,9 @@ except ImportError as e:
     print(f"  📺 DISPLAY_SCALE: {ENV_DISPLAY_SCALE}")
     print(f"  🎯 GAME_FPS: {ENV_GAME_FPS}")
     print(f"  💾 AUTO_COLLECT_DATA: {AUTO_COLLECT_DATA}")
+    print(
+        f"  🤖 ENABLE_IMAGE_CAPTURE_IN_AGENT_MODE: {ENABLE_IMAGE_CAPTURE_IN_AGENT_MODE}"
+    )
 
 # 웹 환경 감지 (환경 변수로 강제 설정 가능)
 IS_WEB = FORCE_WEB_MODE or platform.system() == "Emscripten"
@@ -162,6 +172,7 @@ class App:
     def __init__(self, agent=None) -> None:
         try:
             self.agent = agent
+
             # Data collection variables
             self.collecting_data = AUTO_COLLECT_DATA  # 환경 변수로 설정
             self.collected_data = []
@@ -210,8 +221,19 @@ class App:
                     print(f"📸 일반 캡쳐 모드 사용 (이유: {', '.join(reasons)})")
 
             # 에이전트가 있거나 환경 변수로 설정된 경우 데이터 수집 자동 활성화
+            # 단, 에이전트는 이미지 데이터를 사용하지 않으므로 기본적으로 이미지 캡처는 비활성화
             if self.agent is not None or ENABLE_AI_AGENT:
-                self.collecting_data = True
+                # PPO 에이전트는 구조화된 상태 정보만 사용하므로 이미지 캡처 불필요
+                # 성능 최적화를 위해 에이전트 모드에서는 기본적으로 이미지 캡처 비활성화
+                # 하지만 환경 변수로 강제 활성화 가능 (디버그/분석 목적)
+                self.collecting_data = ENABLE_IMAGE_CAPTURE_IN_AGENT_MODE
+                if ENABLE_PERFORMANCE_LOGGING:
+                    if self.collecting_data:
+                        print(
+                            "🎯 에이전트 모드: 이미지 캡처 활성화 (ENABLE_IMAGE_CAPTURE_IN_AGENT_MODE=True)"
+                        )
+                    else:
+                        print("🎯 에이전트 모드: 이미지 캡처 비활성화 (성능 최적화)")
 
             if IS_WEB:
                 px.init(
@@ -271,13 +293,18 @@ class App:
                         f"[DEBUG] App ({id(self)}): Agent {id(self.agent)} does not have a connect_game method or it is not callable."
                     )
 
-            px.run(self.update, self.draw)
+            # px.run()을 별도의 run() 메서드로 분리
+            # px.run(self.update, self.draw)
         except Exception as e:
             error_message = f"Error in App.__init__: {type(e).__name__}: {e}\n{traceback.format_exc()}"
             if IS_WEB and "js" in globals():
                 js.console.error(error_message)
             print(error_message, file=sys.stderr)
             raise
+
+    def run(self):
+        """게임 루프를 시작합니다."""
+        px.run(self.update, self.draw)
 
     def toggle_data_collection(self):
         """데이터 수집 상태를 토글합니다."""
@@ -324,6 +351,7 @@ class App:
 
     def update(self):
         try:
+            # 입력 처리는 프레임당 한 번만 (배속 영향 없음)
             if self.agent:
                 agent_action = self.agent.select_action(state=None)
                 self.apply_agent_action(agent_action)
@@ -343,7 +371,7 @@ class App:
                     self.frames_since_last_capture = 0
                     collected_info = self._collect_current_frame_data()
                     if collected_info:
-                        frame_data, pil_image, yolo_data_rows = collected_info
+                        frame_data, pil_image, label_data_rows = collected_info
                         if (
                             frame_data
                             and isinstance(frame_data, dict)
@@ -352,11 +380,10 @@ class App:
                             self.collected_data.append(frame_data)
 
                             # 데이터 수집 완료 로그 출력 (플레이어 정보는 참고용으로만 출력)
-                            yolo_labels = frame_data.get("yolo_labels", [])
-                            yolo_count = (
-                                len(yolo_labels) - 1
-                                if isinstance(yolo_labels, list)
-                                and len(yolo_labels) > 0
+                            labels = frame_data.get("labels", [])
+                            label_count = (
+                                len(labels) - 1
+                                if isinstance(labels, list) and len(labels) > 0
                                 else 0
                             )
 
@@ -368,7 +395,7 @@ class App:
                                     "image_size_chars": len(
                                         str(frame_data.get("image_png_base64", ""))
                                     ),
-                                    "yolo_objects_count": yolo_count,
+                                    "objects_count": label_count,
                                 },
                             }
 
@@ -440,10 +467,10 @@ class App:
     def _collect_current_frame_data(self):
         """
         현재 프레임의 이미지 및 게임 오브젝트 정보를 수집합니다.
-        YOLO 라벨 생성을 위한 데이터를 생성합니다.
+        게임 객체 라벨 생성을 위한 데이터를 생성합니다.
 
         Returns:
-            tuple: (frame_data, pil_image, yolo_data_rows) 또는 None
+            tuple: (frame_data, pil_image, label_data_rows) 또는 None
         """
         try:
             start_time = time.time()
@@ -490,15 +517,15 @@ class App:
                     print("❌ 이미지 캡쳐 실패")
                 return None
 
-            # YOLO 데이터 생성 (기존 로직 유지)
-            yolo_data = self._generate_yolo_data()
+            # 라벨 데이터 생성 (기존 로직 유지)
+            label_data = self._generate_label_data()
 
             # 프레임 데이터 생성 (로컬 수집용)
             frame_data = {
                 "timestamp": time.time(),
                 "image_png_base64": image_data_b64,
-                "yolo_labels": ["header"]
-                + [f"{obj[0]} {obj[1].x} {obj[1].y}" for obj in yolo_data],
+                "labels": ["header"]
+                + [f"{obj[0]} {obj[1].x} {obj[1].y}" for obj in label_data],
                 "game_state": {
                     "score": getattr(self.game.game_vars, "score", 0)
                     if hasattr(self.game, "game_vars")
@@ -518,8 +545,8 @@ class App:
                 except Exception as e:
                     pass
 
-            # YOLO 데이터 행 형태로 변환
-            yolo_data_rows = frame_data["yolo_labels"]
+            # 라벨 데이터 행 형태로 변환
+            label_data_rows = frame_data["labels"]
 
             # 성능 통계 출력 (FastCapture의 performance stats 제거)
             capture_time = time.time() - start_time
@@ -531,7 +558,7 @@ class App:
                         f"📊 캡쳐 성능: {capture_time:.3f}s, 메서드: {capture_method}"
                     )
 
-            return (frame_data, pil_image, yolo_data_rows)
+            return (frame_data, pil_image, label_data_rows)
 
         except Exception as e:
             if not self.agent:  # 학습 모드가 아닐 때만 출력
@@ -592,33 +619,33 @@ class App:
         """픽셀별 캡쳐 방법 - legacy와 동일"""
         return self._capture_frame_legacy()
 
-    def _generate_yolo_data(self):
-        """YOLO 라벨 데이터 생성"""
-        yolo_objects = []
+    def _generate_label_data(self):
+        """게임 객체 라벨 데이터 생성"""
+        game_objects = []
 
         # 게임 상태에서 오브젝트들 가져오기
         if hasattr(self.game, "state") and self.game.state:
-            # 플레이어 (클래스 0)
+            # 플레이어
             if hasattr(self.game.state, "player") and self.game.state.player:
                 player = self.game.state.player
-                yolo_objects.append(("player", player))
+                game_objects.append(("player", player))
 
-            # 적들 (클래스 1)
+            # 적들
             if hasattr(self.game.state, "enemies"):
                 for enemy in self.game.state.enemies:
-                    yolo_objects.append(("enemy", enemy))
+                    game_objects.append(("enemy", enemy))
 
-            # 파워업들 (클래스 2)
+            # 파워업들
             if hasattr(self.game.state, "powerups"):
                 for powerup in self.game.state.powerups:
-                    yolo_objects.append(("powerup", powerup))
+                    game_objects.append(("powerup", powerup))
 
-            # 폭발들 (클래스 3)
+            # 폭발들
             if hasattr(self.game.state, "explosions"):
                 for explosion in self.game.state.explosions:
-                    yolo_objects.append(("explosion", explosion))
+                    game_objects.append(("explosion", explosion))
 
-        return yolo_objects
+        return game_objects
 
     def download_collected_data_web(self):
         if not IS_WEB or not self.collected_data:

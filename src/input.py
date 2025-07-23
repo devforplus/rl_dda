@@ -9,7 +9,6 @@ BUTTON_1 = 4  # 버튼 1 입력 (Z, U, 게임패드 A 버튼)
 BUTTON_2 = 5  # 버튼 2 입력 (X, 게임패드 B 버튼)
 INVINCIBLE = 6  # 무적 모드 토글 입력 (I 키)
 COLLECT_DATA = 7  # 데이터 수집 토글 입력 (C 키)
-YOLO_DEBUG = 8  # YOLO 디버그 그리기 토글 (D 키)
 
 # 매핑: 키 코드 -> 입력 상수
 KEY_MAPPINGS = {
@@ -22,7 +21,7 @@ KEY_MAPPINGS = {
     px.KEY_W: UP,
     px.KEY_S: DOWN,
     px.KEY_A: LEFT,
-    px.KEY_D: YOLO_DEBUG,
+    px.KEY_D: RIGHT,  # D 키를 오른쪽 방향으로 재매핑
     px.KEY_I: INVINCIBLE,
     px.KEY_C: COLLECT_DATA,
     px.GAMEPAD1_BUTTON_DPAD_UP: UP,
@@ -117,10 +116,6 @@ class Input:
         if px.btn(px.KEY_C):
             self.pressing.append(COLLECT_DATA)
 
-        # 무적 모드 토글 입력
-        if px.btn(px.KEY_D):
-            self.pressing.append(YOLO_DEBUG)
-
         # 현재 프레임에서 눌린 입력 처리
         for key, value in KEY_MAPPINGS.items():
             if px.btnp(key):
@@ -138,7 +133,3 @@ class Input:
         # 데이터 수집 토글 입력
         if px.btnp(px.KEY_C, 0, 0):
             self.tapped.append(COLLECT_DATA)
-
-        # 무적 모드 토글 입력
-        if px.btnp(px.KEY_D):
-            self.tapped.append(YOLO_DEBUG)

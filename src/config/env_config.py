@@ -102,6 +102,13 @@ DEBUG_MODE = get_env_bool("DEBUG_MODE", False)
 FORCE_WEB_MODE = get_env_bool("FORCE_WEB_MODE", False)
 ENABLE_AI_AGENT = get_env_bool("ENABLE_AI_AGENT", False)
 
+# ===== AI 에이전트 전용 설정 =====
+# PPO 에이전트는 이미지 데이터를 사용하지 않으므로 기본적으로 비활성화
+# 디버그/분석 목적으로만 활성화 권장
+ENABLE_IMAGE_CAPTURE_IN_AGENT_MODE = get_env_bool(
+    "ENABLE_IMAGE_CAPTURE_IN_AGENT_MODE", False
+)
+
 # ===== 게임 설정 =====
 GAME_WIDTH = get_env_int("GAME_WIDTH", 256)
 GAME_HEIGHT = get_env_int("GAME_HEIGHT", 192)

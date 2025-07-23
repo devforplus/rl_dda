@@ -1,30 +1,19 @@
-# This file makes src/rl a Python package
+"""
+새로운 PPO 강화학습 모듈
 
-# RL 패키지 초기화
+게임 로그 데이터와 실력값을 입력으로 받는 PPO 모델을 구현합니다.
+"""
 
-from rl.environment import GameEnvironment, GameState, EntityData, ActionType
-from rl.networks import ActorCriticNetwork, PolicyNetwork, ValueNetwork
-from rl.agents.ppo_agent import PPOAgent, create_ppo_agent
-from rl.game_adapter import GameStateAdapter, ActionMapper
-from rl.trainer import PPOTrainer, create_trainer
+from .data_types import GameLogData, PlayerState, ActionType
+from .environment import GameEnvironment
+from .ppo_agent import PPOAgent
+from .trainer import PPOTrainer
 
 __all__ = [
-    # Environment
-    "GameEnvironment",
-    "GameState",
-    "EntityData",
+    "GameLogData",
+    "PlayerState",
     "ActionType",
-    # Networks
-    "ActorCriticNetwork",
-    "PolicyNetwork",
-    "ValueNetwork",
-    # Agents
+    "GameEnvironment",
     "PPOAgent",
-    "create_ppo_agent",
-    # Adapters
-    "GameStateAdapter",
-    "ActionMapper",
-    # Training
     "PPOTrainer",
-    "create_trainer",
 ]

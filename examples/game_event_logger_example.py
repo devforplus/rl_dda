@@ -42,7 +42,7 @@ def basic_game_events_example():
         lives=3, score=1250, stage="1-1", hp=PlayerHp(current=85, max=100)
     )
 
-    additional_data = {"image_size_chars": 12345, "yolo_objects_count": 5}
+    additional_data = {"image_size_chars": 12345, "objects_count": 5}
 
     log_frame_data(player_data, additional_data)
 
