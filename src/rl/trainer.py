@@ -10,6 +10,12 @@ import numpy as np
 from typing import Dict, Any, Optional, List
 from collections import deque
 import torch
+import matplotlib.pyplot as plt
+import matplotlib
+from datetime import datetime
+
+# 백엔드 설정 (GUI 없는 환경 대응)
+matplotlib.use("Agg")
 
 from .ppo_agent import PPOAgent
 from .environment import GameEnvironment
@@ -184,6 +190,9 @@ class PPOTrainer:
         # 최종 모델 저장
         self.agent.save_model(self.save_dir)
 
+        # 학습 진행 그래프 생성
+        plot_path = self.plot_training_progress()
+
         print(f"학습 완료! 총 {num_episodes} 에피소드")
         self._print_final_stats()
 
@@ -328,3 +337,118 @@ class PPOTrainer:
             "recent_avg_score": np.mean(list(self.episode_scores)[-10:]),
             "recent_avg_steps": np.mean(list(self.episode_lengths)[-10:]),
         }
+
+    def plot_training_progress(self, save_dir: str = "plots") -> str:
+        """학습 진행 상황 그래프 생성
+
+        Args:
+            save_dir: 그래프 저장 디렉토리
+
+        Returns:
+            저장된 그래프 파일 경로
+        """
+        if len(self.episode_rewards) == 0:
+            print("저장할 학습 데이터가 없습니다.")
+            return ""
+
+        # 디렉토리 생성
+        os.makedirs(save_dir, exist_ok=True)
+
+        # 타임스탬프로 고유한 파일명 생성
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        plot_path = os.path.join(save_dir, f"training_progress_{timestamp}.png")
+
+        # 데이터 준비
+        episodes = list(range(1, len(self.episode_rewards) + 1))
+        rewards = list(self.episode_rewards)
+        survival_times = list(self.episode_lengths)
+
+        # 이동 평균 계산 (스무딩)
+        window_size = min(10, len(rewards))
+        if len(rewards) >= window_size:
+            rewards_smooth = []
+            survival_smooth = []
+            for i in range(len(rewards)):
+                start_idx = max(0, i - window_size + 1)
+                end_idx = i + 1
+                rewards_smooth.append(np.mean(rewards[start_idx:end_idx]))
+                survival_smooth.append(np.mean(survival_times[start_idx:end_idx]))
+        else:
+            rewards_smooth = rewards
+            survival_smooth = survival_times
+
+        # 그래프 생성
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10))
+
+        # Reward 그래프
+        ax1.plot(episodes, rewards, alpha=0.3, color="blue", label="Episode Reward")
+        ax1.plot(
+            episodes,
+            rewards_smooth,
+            color="blue",
+            linewidth=2,
+            label=f"Moving Average ({window_size})",
+        )
+        ax1.set_xlabel("Episode")
+        ax1.set_ylabel("Reward")
+        ax1.set_title(f"Training Progress - Reward (Total Episodes: {len(episodes)})")
+        ax1.legend()
+        ax1.grid(True, alpha=0.3)
+
+        # 최고 보상 표시
+        if rewards:
+            max_reward_ep = episodes[rewards.index(max(rewards))]
+            ax1.axhline(
+                y=max(rewards),
+                color="red",
+                linestyle="--",
+                alpha=0.7,
+                label=f"Best: {max(rewards):.2f}",
+            )
+            ax1.legend()
+
+        # Survival Time 그래프
+        ax2.plot(
+            episodes,
+            survival_times,
+            alpha=0.3,
+            color="green",
+            label="Episode Survival Time",
+        )
+        ax2.plot(
+            episodes,
+            survival_smooth,
+            color="green",
+            linewidth=2,
+            label=f"Moving Average ({window_size})",
+        )
+        ax2.set_xlabel("Episode")
+        ax2.set_ylabel("Survival Time (Steps)")
+        ax2.set_title("Training Progress - Survival Time")
+        ax2.legend()
+        ax2.grid(True, alpha=0.3)
+
+        # 최대 생존 시간 표시
+        if survival_times:
+            max_survival = max(survival_times)
+            ax2.axhline(
+                y=max_survival,
+                color="orange",
+                linestyle="--",
+                alpha=0.7,
+                label=f"Best: {max_survival} steps",
+            )
+            ax2.legend()
+
+        # 전체 제목 추가
+        fig.suptitle("PPO Training Progress", fontsize=16, fontweight="bold")
+
+        # 레이아웃 조정
+        plt.tight_layout()
+
+        # 저장
+        plt.savefig(plot_path, dpi=300, bbox_inches="tight")
+        plt.close()
+
+        print(f"학습 진행 그래프가 저장되었습니다: {plot_path}")
+        return plot_path
