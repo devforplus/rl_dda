@@ -35,6 +35,9 @@ dependencies = [
     "matplotlib>=3.10.3",
     "tqdm>=4.67.1",
     "gymnasium>=1.1.1",
+    "optuna>=4.1.0",
+    "plotly>=5.18.0",
+    "seaborn>=0.13.0",
 ]
 readme = "README.md"
 requires-python = ">= 3.8"
@@ -105,6 +108,21 @@ extract-config = { call = "scripts.extract_config" }
 build-all = { chain = ["build", "build-agent"] }
 cleanup-config = { call = "scripts.cleanup_config" }
 upload_data = { call = "src.upload_game_data" }
+
+# 🤖 PPO 학습 (Mock 환경)
+train-ppo = { cmd = "python train_ppo_simple.py", env = { PYTHONPATH = "." } }
+train-ppo-quick = { cmd = "python train_ppo_simple.py --skill-level 0.5 --episodes 10 --skip-test", env = { PYTHONPATH = "." } }
+train-ppo-long = { cmd = "python train_ppo_simple.py --skill-level 0.5 --episodes 100", env = { PYTHONPATH = "." } }
+train-ppo-beginner = { cmd = "python train_ppo_simple.py --skill-level 0.2 --episodes 50", env = { PYTHONPATH = "." } }
+train-ppo-expert = { cmd = "python train_ppo_simple.py --skill-level 0.8 --episodes 50", env = { PYTHONPATH = "." } }
+train-ppo-all-levels = { cmd = "python train_ppo_simple.py --test-all-levels --episodes 30", env = { PYTHONPATH = "." } }
+
+# 🎮 PPO 학습 (실제 게임 환경)
+train-ppo-real-game = { cmd = "python train_ppo_real_game.py", env = { PYTHONPATH = "." } }
+train-ppo-real-quick = { cmd = "python train_ppo_real_game.py --skill-level 0.5 --episodes 50 --update-interval 30", env = { PYTHONPATH = "." } }
+train-ppo-real-beginner = { cmd = "python train_ppo_real_game.py --skill-level 0.2 --episodes 100", env = { PYTHONPATH = "." } }
+train-ppo-real-expert = { cmd = "python train_ppo_real_game.py --skill-level 0.8 --episodes 100", env = { PYTHONPATH = "." } }
+train-ppo-real-hardcore = { cmd = "python train_ppo_real_game.py --skill-level 0.9 --episodes 200 --learning-rate 1e-4", env = { PYTHONPATH = "." } }
 
 # 웹 빌드 스크립트
 build-web-manual = { cmd = "python scripts/build_web.py manual_game web/manual-game --copy-assets" }
