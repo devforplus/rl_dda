@@ -188,6 +188,16 @@ class GameStateStage:
         audio_manager.play_music(self.music, True, num_channels=3)
 
     def update_game_over(self):
+        # 에이전트 모드에서는 자동 리셋하지 않음 (PPO가 직접 제어)
+        if (
+            hasattr(self.game, "app")
+            and hasattr(self.game.app, "agent")
+            and self.game.app.agent
+        ):
+            print(f"🤖 에이전트 모드: 게임 오버 상태 유지 (자동 리셋 비활성화)")
+            return  # 에이전트가 직접 리셋할 때까지 대기
+
+        # 일반 모드에서는 즉시 리셋
         self.game.restart_game()
 
     def update_player_spawned(self):
