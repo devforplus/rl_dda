@@ -4,12 +4,12 @@ import json
 
 from .sprite import Sprite
 from .entity_types import EntityType
-from config.enemy.enemy_config import EnemyConfig
-from config.score.score_config import ENEMY_SCORE_NORMAL
+from src.config.enemy.enemy_config import EnemyConfig
+from src.config.score.score_config import ENEMY_SCORE_NORMAL
 from .enemy_shot import EnemyShot
-import powerup
-from config.sound import SoundType
-from audio import AudioManager
+from src import powerup
+from src.config.sound import SoundType
+from src.audio import AudioManager
 
 # 적 설정 인스턴스 생성
 enemy_config = EnemyConfig()
