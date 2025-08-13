@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import List, Tuple
 from enum import IntEnum
 import numpy as np
+from .targets import get_survival_target_steps
 
 
 class ActionType(IntEnum):
@@ -63,16 +64,23 @@ class GameLogData:
     - 적 탄환 좌표
     - 플레이어 체력 및 목숨 데이터
     - 실력값 (0~1)
+    - 목표 달성 현황 (새로 추가)
 
     Args:
         entities: 모든 엔티티 위치 리스트
         player_state: 플레이어 상태
         skill_level: 실력값 (0.0 ~ 1.0)
+        current_step: 현재 스텝 수
+        current_kills: 현재 킬 수
+        current_score: 현재 점수
     """
 
     entities: List[EntityPosition]
     player_state: PlayerState
     skill_level: float  # 0.0 ~ 1.0 사이 값
+    current_step: int = 0  # 현재 스텝 수 (새로 추가)
+    current_kills: int = 0  # 현재 킬 수 (새로 추가)
+    current_score: int = 0  # 현재 점수 (새로 추가)
 
     def to_state_vector(self, max_entities: int = 50) -> np.ndarray:
         """게임 로그 데이터를 PPO 모델용 상태 벡터로 변환
@@ -81,7 +89,7 @@ class GameLogData:
             max_entities: 최대 엔티티 수 (패딩용)
 
         Returns:
-            1차원 상태 벡터 [entities(max_entities*3) + player_state(2) + skill_level(1)]
+            1차원 상태 벡터 [entities + player_state + skill_level + targets + performance]
         """
         # 엔티티 데이터를 고정 크기 배열로 변환 (entity당 3개 값: x, y, type)
         entity_data = np.zeros(max_entities * 3)
@@ -103,7 +111,36 @@ class GameLogData:
         # 실력값 (이미 0~1 사이)
         skill_data = np.array([self.skill_level])
 
+        # 목표 및 성과 정보 (새로 추가) - 에이전트가 목표를 인식하도록 도움
+        target_kills_per_100_steps = self.skill_level * 2.0  # 목표 킬 레이트
+        target_survival_steps = get_survival_target_steps(self.skill_level)
+
+        # 현재 성과 계산
+        current_kill_rate = self.current_kills / max(self.current_step / 100.0, 1.0)
+        survival_progress = min(
+            self.current_step / target_survival_steps, 2.0
+        )  # 최대 2.0으로 제한
+        kill_progress = current_kill_rate / max(
+            target_kills_per_100_steps, 0.1
+        )  # 0으로 나누기 방지
+
+        # 목표 관련 데이터 정규화
+        target_data = np.array(
+            [
+                self.skill_level,  # 실력값 (목표 설정의 기준)
+                target_kills_per_100_steps / 2.0,  # 목표 킬 레이트 정규화 (0~1)
+                target_survival_steps / 1500.0,  # 목표 생존 스텝 정규화 (0~1)
+                min(survival_progress, 1.0),  # 생존 목표 달성도 (0~1)
+                min(kill_progress, 2.0) / 2.0,  # 킬 목표 달성도 (0~1)
+                self.current_step / 1000.0,  # 현재 스텝 정규화
+                self.current_kills / 10.0,  # 현재 킬 수 정규화
+                min(self.current_score / 1000.0, 1.0),  # 현재 점수 정규화
+            ]
+        )
+
         # 전체 상태 벡터 결합
-        state_vector = np.concatenate([entity_data, player_data, skill_data])
+        state_vector = np.concatenate(
+            [entity_data, player_data, skill_data, target_data]
+        )
 
         return state_vector.astype(np.float32)

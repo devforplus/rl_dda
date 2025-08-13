@@ -7,7 +7,7 @@ PPO 에이전트의 학습 및 평가를 관리하는 클래스
 import os
 import time
 import numpy as np
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Callable, Tuple
 from collections import deque
 import torch
 import matplotlib.pyplot as plt
@@ -20,6 +20,7 @@ matplotlib.use("Agg")
 from .ppo_agent import PPOAgent
 from .environment import GameEnvironment
 from .data_types import GameLogData
+from .curriculum import StepCurriculum, LinearCurriculum, CurriculumStage
 
 
 class PPOTrainer:
@@ -36,6 +37,8 @@ class PPOTrainer:
         log_interval: int = 10,
         save_interval: int = 100,
         max_episode_steps: int = 1000,
+        batch_size: int = 256,  # Optuna 최적화: 64 → 256 (안정성 4배 향상)
+        num_epochs: int = 4,  # 이미 최적값
     ):
         """트레이너 초기화
 
@@ -46,6 +49,8 @@ class PPOTrainer:
             log_interval: 로그 출력 간격 (에피소드)
             save_interval: 모델 저장 간격 (에피소드)
             max_episode_steps: 에피소드당 최대 스텝 수
+            batch_size: PPO 업데이트 배치 크기
+            num_epochs: PPO 업데이트 에포크 수
         """
         self.agent = agent
         self.environment = environment
@@ -53,6 +58,8 @@ class PPOTrainer:
         self.log_interval = log_interval
         self.save_interval = save_interval
         self.max_episode_steps = max_episode_steps
+        self.batch_size = batch_size
+        self.num_epochs = num_epochs
 
         # 학습 통계
         self.episode_rewards = deque(maxlen=100)
@@ -126,8 +133,10 @@ class PPOTrainer:
                 episode_kills = getattr(game_vars, "kills", 0)
                 episode_score = getattr(game_vars, "score", 0)
 
-        # 에이전트 업데이트
-        update_info = self.agent.update()
+        # 에이전트 업데이트 (하이퍼파라미터 전달)
+        update_info = self.agent.update(
+            num_epochs=self.num_epochs, batch_size=self.batch_size
+        )
 
         # 통계 저장
         self.episode_rewards.append(episode_reward)
@@ -152,7 +161,10 @@ class PPOTrainer:
         }
 
     def train(
-        self, game_instance, skill_level: float, num_episodes: int
+        self,
+        game_instance,
+        skill_level: float,
+        num_episodes: int,
     ) -> List[Dict[str, Any]]:
         """다중 에피소드 학습
 
@@ -196,6 +208,57 @@ class PPOTrainer:
         print(f"학습 완료! 총 {num_episodes} 에피소드")
         self._print_final_stats()
 
+        return results
+
+    def train_with_curriculum(
+        self,
+        game_instance,
+        num_episodes: int,
+        curriculum: "StepCurriculum | LinearCurriculum",
+    ) -> List[Dict[str, Any]]:
+        """커리큘럼 기반 다중 에피소드 학습
+
+        Args:
+            game_instance: 게임 인스턴스
+            num_episodes: 학습할 에피소드 수
+            curriculum: skill_level 스케줄러 (단계형/선형)
+
+        Returns:
+            모든 에피소드 결과 리스트
+        """
+        results: List[Dict[str, Any]] = []
+
+        print(
+            f"PPO 커리큘럼 학습 시작: {num_episodes} 에피소드, 스케줄러={type(curriculum).__name__}"
+        )
+
+        for episode in range(num_episodes):
+            skill_level, stage_name = curriculum.skill_for_episode(episode)
+
+            # 로그: 단계와 스킬 표시
+            if episode % self.log_interval == 0:
+                print(
+                    f"[Curriculum] Ep {episode:4d} | Stage: {stage_name} | skill={skill_level:.2f}"
+                )
+
+            start_time = time.time()
+            episode_result = self.train_episode(game_instance, skill_level)
+            episode_time = time.time() - start_time
+            episode_result["time"] = episode_time
+            episode_result["skill_level"] = skill_level
+            episode_result["stage"] = stage_name
+            results.append(episode_result)
+
+            if episode % self.log_interval == 0:
+                self._log_progress(episode_result)
+
+            if episode % self.save_interval == 0 and episode > 0:
+                self.agent.save_model(self.save_dir)
+
+        self.agent.save_model(self.save_dir)
+        plot_path = self.plot_training_progress()
+        print(f"학습 완료! 총 {num_episodes} 에피소드 (커리큘럼)")
+        self._print_final_stats()
         return results
 
     def evaluate(

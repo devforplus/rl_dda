@@ -20,42 +20,63 @@ class PPONetwork(nn.Module):
     """
 
     def __init__(
-        self, state_size: int = 153, action_size: int = 9, hidden_size: int = 256
+        self,
+        state_size: int = 153,
+        action_size: int = 10,  # 9 → 10: ACTION_MAPPING에 0~9까지 10개 액션 존재
+        hidden_size: int = 256,
+        num_layers: int = 3,
+        activation: str = "relu",
     ):
         """네트워크 초기화
 
         Args:
-            state_size: 상태 벡터 크기 (엔티티 50*3 + 플레이어 2 + 실력값 1 = 153)
-            action_size: 액션 공간 크기 (8방향 + 공격 = 9)
-            hidden_size: 은닉층 크기
+            state_size: 상태 벡터 크기
+            action_size: 액션 공간 크기 (0~9: 8방향 + 정지 + 공격 = 10)
+            hidden_size: 은닉층 뉴런 수
+            num_layers: 은닉층 개수
+            activation: 활성화 함수 ("relu", "tanh", "leaky_relu")
         """
         super(PPONetwork, self).__init__()
 
         self.state_size = state_size
         self.action_size = action_size
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
 
-        # 공통 특성 추출 네트워크
-        self.shared_layers = nn.Sequential(
-            nn.Linear(state_size, hidden_size),
-            nn.ReLU(),
-            nn.Linear(hidden_size, hidden_size),
-            nn.ReLU(),
-            nn.Linear(hidden_size, hidden_size // 2),
-            nn.ReLU(),
-        )
+        # 활성화 함수 선택
+        if activation == "relu":
+            self.activation = nn.ReLU()
+        elif activation == "tanh":
+            self.activation = nn.Tanh()
+        elif activation == "leaky_relu":
+            self.activation = nn.LeakyReLU()
+        else:
+            self.activation = nn.ReLU()
 
-        # Actor 네트워크 (정책)
+        # 공통 특성 추출 네트워크 (동적 생성)
+        shared_layers = []
+
+        # 첫 번째 레이어
+        shared_layers.extend([nn.Linear(state_size, hidden_size), self.activation])
+
+        # 중간 레이어들
+        for _ in range(num_layers - 1):
+            shared_layers.extend([nn.Linear(hidden_size, hidden_size), self.activation])
+
+        self.shared_layers = nn.Sequential(*shared_layers)
+
+        # Actor 네트워크 (정책) - 더 간단하게
         self.actor = nn.Sequential(
-            nn.Linear(hidden_size // 2, hidden_size // 4),
-            nn.ReLU(),
-            nn.Linear(hidden_size // 4, action_size),
+            nn.Linear(hidden_size, hidden_size // 2),
+            self.activation,
+            nn.Linear(hidden_size // 2, action_size),
         )
 
-        # Critic 네트워크 (가치)
+        # Critic 네트워크 (가치) - 더 간단하게
         self.critic = nn.Sequential(
-            nn.Linear(hidden_size // 2, hidden_size // 4),
-            nn.ReLU(),
-            nn.Linear(hidden_size // 4, 1),
+            nn.Linear(hidden_size, hidden_size // 2),
+            self.activation,
+            nn.Linear(hidden_size // 2, 1),
         )
 
     def forward(self, state: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:

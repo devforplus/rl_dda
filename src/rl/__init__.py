@@ -8,6 +8,7 @@ from .data_types import GameLogData, PlayerState, ActionType
 from .environment import GameEnvironment
 from .ppo_agent import PPOAgent
 from .trainer import PPOTrainer
+from .curriculum import CurriculumStage, StepCurriculum, LinearCurriculum
 
 __all__ = [
     "GameLogData",
@@ -16,4 +17,7 @@ __all__ = [
     "GameEnvironment",
     "PPOAgent",
     "PPOTrainer",
+    "CurriculumStage",
+    "StepCurriculum",
+    "LinearCurriculum",
 ]
