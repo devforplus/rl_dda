@@ -25,16 +25,20 @@ class GameVars:
         return self.stage_num % 2 == 0
 
     def new_game(self):
+        print(f"🎮 new_game() 호출 - 현재 목숨: {self.lives}")
         self.continue_game()
         self.stage_num = StageNum.STAGE_1
         self.kills = 0
+        print(f"🎮 new_game() 완료 - 최종 목숨: {self.lives}")
 
     def continue_game(self):
+        print(f"🔄 continue_game() 호출 - 현재 목숨: {self.lives}")
         self.score = 0
         self.current_weapon = 0
         for i in range(len(self.weapon_levels)):
             self.weapon_levels[i] = 0
         self.lives = STARTING_LIVES
+        print(f"🔄 continue_game() - 목숨을 {STARTING_LIVES}로 리셋")
         self.kills = 0
 
     def go_to_next_stage(self):
@@ -47,7 +51,9 @@ class GameVars:
         self.lives = min(MAX_LIVES, self.lives + 1)
 
     def subtract_life(self):
+        print(f"🔥 subtract_life() 호출 - 현재: {self.lives}")
         self.lives = max(0, self.lives - 1)
+        print(f"🔥 subtract_life() 완료 - 변경 후: {self.lives}")
 
     def add_score(self, s):
         self.score = min(MAX_SCORE, self.score + s)

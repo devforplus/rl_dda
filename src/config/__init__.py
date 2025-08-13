@@ -1,6 +1,6 @@
 """Configuration package for RL DDA Game."""
 
-from config.player import player_config
+from src.config.player import player_config
 
 # 웹 환경 호환을 위해 enemy_config 추가
 try:
