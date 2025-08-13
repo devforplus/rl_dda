@@ -8,6 +8,7 @@
 
 import sys
 import os
+import argparse
 
 # 프로젝트 루트를 Python 경로에 추가
 sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
@@ -104,17 +105,40 @@ class MockEnemyShot:
         self.remove = False
 
 
+def parse_arguments():
+    """명령줄 인자 파싱"""
+    parser = argparse.ArgumentParser(description="PPO 모델 학습")
+    parser.add_argument(
+        "--skill-level", type=float, default=0.5, help="실력값 (0.0 ~ 1.0, 기본값: 0.5)"
+    )
+    parser.add_argument(
+        "--episodes", type=int, default=10, help="학습할 에피소드 수 (기본값: 10)"
+    )
+    parser.add_argument(
+        "--test-all-levels",
+        action="store_true",
+        help="모든 실력값 (0.2, 0.5, 0.8) 테스트",
+    )
+    parser.add_argument("--skip-test", action="store_true", help="초기 테스트 건너뛰기")
+
+    return parser.parse_args()
+
+
 def main():
     """메인 함수"""
+    args = parse_arguments()
+
     print("=== 새로운 PPO 시스템 테스트 ===")
+    print(f"실력값: {args.skill_level}")
+    print(f"에피소드: {args.episodes}")
 
     # 1. 컴포넌트 초기화
     print("1. PPO 컴포넌트 초기화 중...")
 
     # PPO 에이전트 생성
     agent = PPOAgent(
-        state_size=153,  # 엔티티 50*3 + 플레이어 2 + 실력값 1
-        action_size=9,  # 8방향 + 공격
+        state_size=161,  # 엔티티 50*3 + 플레이어 2 + 실력값 1 + 목표/성과 데이터 8
+        action_size=10,  # 8방향 + 공격 + 정지
         learning_rate=3e-4,
     )
 
@@ -134,50 +158,58 @@ def main():
     print(f"   - 액션 크기: {agent.network.action_size}")
     print(f"   - 디바이스: {agent.device}")
 
-    # 2. 다양한 실력값으로 테스트
-    skill_levels = [0.2, 0.5, 0.8]  # 낮음, 중간, 높음
+    # 2. 실력값 테스트
+    if not args.skip_test:
+        if args.test_all_levels:
+            skill_levels = [0.2, 0.5, 0.8]  # 낮음, 중간, 높음
+        else:
+            skill_levels = [args.skill_level]
 
-    for skill_level in skill_levels:
-        print(f"\n2. 실력값 {skill_level} 테스트 중...")
+        for skill_level in skill_levels:
+            print(f"\n2. 실력값 {skill_level} 테스트 중...")
 
-        # 게임 로그 데이터 추출 테스트
-        game_log_data = environment.extract_game_log_data(game_instance, skill_level)
+            # 게임 로그 데이터 추출 테스트
+            game_log_data = environment.extract_game_log_data(
+                game_instance, skill_level
+            )
 
-        print(f"   - 엔티티 수: {len(game_log_data.entities)}")
-        print(f"   - 플레이어 체력: {game_log_data.player_state.hp}")
-        print(f"   - 실력값: {game_log_data.skill_level}")
+            print(f"   - 엔티티 수: {len(game_log_data.entities)}")
+            print(f"   - 플레이어 체력: {game_log_data.player_state.hp}")
+            print(f"   - 실력값: {game_log_data.skill_level}")
 
-        # 상태 벡터 변환 테스트
-        state_vector = game_log_data.to_state_vector()
-        print(f"   - 상태 벡터 크기: {state_vector.shape}")
+            # 상태 벡터 변환 테스트
+            state_vector = game_log_data.to_state_vector()
+            print(f"   - 상태 벡터 크기: {state_vector.shape}")
 
-        # 액션 선택 테스트
-        action_id = agent.get_action(game_log_data)
-        action_input = environment.get_action_input(action_id)
+            # 액션 선택 테스트
+            action_id = agent.get_action(game_log_data)
+            action_input = environment.get_action_input(action_id)
 
-        print(f"   - 선택된 액션: {action_id}")
-        print(f"   - 게임 입력: {action_input}")
+            print(f"   - 선택된 액션: {action_id}")
+            print(f"   - 게임 입력: {action_input}")
 
-        # 보상 계산 테스트
-        reward = environment.calculate_reward(game_instance, skill_level)
-        print(f"   - 계산된 보상: {reward:.3f}")
+            # 보상 계산 테스트
+            reward = environment.calculate_reward(game_instance, skill_level)
+            print(f"   - 계산된 보상: {reward:.3f}")
 
-    # 3. 짧은 학습 테스트
-    print(f"\n3. 짧은 학습 테스트 (10 에피소드)...")
-
-    skill_level = 0.5  # 중간 실력값으로 테스트
+    # 3. 학습 실행
+    print(
+        f"\n3. PPO 학습 시작 (실력값: {args.skill_level}, {args.episodes} 에피소드)..."
+    )
 
     try:
         results = trainer.train(
-            game_instance=game_instance, skill_level=skill_level, num_episodes=10
+            game_instance=game_instance,
+            skill_level=args.skill_level,
+            num_episodes=args.episodes,
         )
 
-        print(f"✅ 학습 테스트 완료!")
+        print(f"✅ 학습 완료!")
         print(f"   - 마지막 에피소드 보상: {results[-1]['reward']:.3f}")
         print(f"   - 평균 스텝: {np.mean([r['steps'] for r in results]):.1f}")
 
     except Exception as e:
-        print(f"❌ 학습 테스트 실패: {e}")
+        print(f"❌ 학습 실패: {e}")
         import traceback
 
         traceback.print_exc()
@@ -202,7 +234,7 @@ def main():
     print(f"\n=== PPO 시스템 테스트 완료 ===")
     print(f"새로운 PPO 시스템이 사용자 요구사항에 맞게 구현되었습니다:")
     print(f"  ✅ 게임 로그 데이터 입력 (적/플레이어/탄환 좌표, 체력/목숨)")
-    print(f"  ✅ 실력값 입력 (0~1 사이)")
+    print(f"  ✅ 실력값 입력 (0~1 사이): {args.skill_level}")
     print(f"  ✅ 동일한 환경에서 학습")
     print(f"  ✅ 간결하고 효율적인 구조")
 
