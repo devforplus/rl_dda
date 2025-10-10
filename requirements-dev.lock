@@ -16,6 +16,8 @@ aiohttp==3.12.6
     # via rl-dda-game
 aiosignal==1.3.2
     # via aiohttp
+alembic==1.16.4
+    # via optuna
 async-timeout==5.0.1
     # via aiohttp
 attrs==25.3.0
@@ -34,9 +36,12 @@ cloudpickle==3.1.1
     # via tensordict
     # via torchrl
 colorama==0.4.6
+    # via colorlog
     # via loguru
     # via pytest
     # via tqdm
+colorlog==6.9.0
+    # via optuna
 contourpy==1.3.2
     # via matplotlib
 cycler==0.12.1
@@ -58,6 +63,7 @@ fsspec==2025.3.0
     # via torch
 greenlet==3.1.1
     # via playwright
+    # via sqlalchemy
 gymnasium==1.1.1
     # via rl-dda-game
 h11==0.16.0
@@ -78,11 +84,14 @@ kiwisolver==1.4.7
     # via matplotlib
 loguru==0.7.3
     # via rl-dda-game
+mako==1.3.10
+    # via alembic
 markupsafe==2.1.5
     # via jinja2
+    # via mako
 matplotlib==3.10.3
     # via rl-dda-game
-    # via ultralytics
+    # via seaborn
 micropip==0.1.0
     # via rl-dda-game
 mouseinfo==0.1.3
@@ -92,6 +101,8 @@ mpmath==1.3.0
 multidict==6.4.4
     # via aiohttp
     # via yarl
+narwhals==2.0.1
+    # via plotly
 networkx==3.1
     # via torch
 numpy==2.2.6
@@ -99,17 +110,16 @@ numpy==2.2.6
     # via gymnasium
     # via matplotlib
     # via opencv-python
+    # via optuna
     # via pandas
     # via rl-dda-game
-    # via scipy
+    # via seaborn
     # via tensordict
     # via torchrl
-    # via torchvision
-    # via ultralytics
-    # via ultralytics-thop
 opencv-python==4.11.0.86
     # via rl-dda-game
-    # via ultralytics
+optuna==4.4.0
+    # via rl-dda-game
 orjson==3.10.15
     # via tensordict
 outcome==1.3.0.post0
@@ -117,25 +127,27 @@ outcome==1.3.0.post0
     # via trio-websocket
 packaging==25.0
     # via matplotlib
+    # via optuna
+    # via plotly
     # via pytest
     # via tensordict
     # via torchrl
     # via webdriver-manager
 pandas==2.2.3
     # via rl-dda-game
-    # via ultralytics
+    # via seaborn
 pillow==10.4.0
     # via matplotlib
     # via pyscreeze
     # via rl-dda-game
-    # via torchvision
-    # via ultralytics
 pip==25.1.1
     # via rl-dda-game
 pipe==2.2
     # via rl-dda-game
 playwright==1.48.0
     # via pytest-playwright
+    # via rl-dda-game
+plotly==6.2.0
     # via rl-dda-game
 pluggy==1.5.0
     # via pytest
@@ -144,10 +156,6 @@ polars==1.30.0
 propcache==0.3.1
     # via aiohttp
     # via yarl
-psutil==7.0.0
-    # via ultralytics
-py-cpuinfo==9.0.0
-    # via ultralytics
 pyautogui==0.9.54
     # via rl-dda-game
 pycparser==2.22
@@ -194,14 +202,13 @@ pywin32==310
 pyxel==2.3.18
     # via rl-dda-game
 pyyaml==6.0.2
-    # via ultralytics
+    # via optuna
 requests==2.32.3
     # via pytest-base-url
     # via rl-dda-game
-    # via ultralytics
     # via webdriver-manager
-scipy==1.15.3
-    # via ultralytics
+seaborn==0.13.2
+    # via rl-dda-game
 selenium==4.33.0
     # via helium
     # via rl-dda-game
@@ -213,6 +220,9 @@ sniffio==1.3.1
     # via trio
 sortedcontainers==2.4.0
     # via trio
+sqlalchemy==2.0.42
+    # via alembic
+    # via optuna
 sympy==1.13.3
     # via torch
 tensordict==0.8.3
@@ -221,6 +231,7 @@ tensordict==0.8.3
 text-unidecode==1.3
     # via python-slugify
 tomli==2.2.1
+    # via alembic
     # via pytest
 toolz==1.0.0
     # via rl-dda-game
@@ -228,34 +239,27 @@ torch==2.4.1
     # via rl-dda-game
     # via tensordict
     # via torchrl
-    # via torchvision
-    # via ultralytics
-    # via ultralytics-thop
 torchrl==0.8.1
     # via rl-dda-game
-torchvision==0.19.1
-    # via ultralytics
 tqdm==4.67.1
+    # via optuna
     # via rl-dda-game
-    # via ultralytics
 trio==0.30.0
     # via selenium
     # via trio-websocket
 trio-websocket==0.12.2
     # via selenium
 typing-extensions==4.13.2
+    # via alembic
     # via exceptiongroup
     # via gymnasium
     # via multidict
     # via pyee
     # via selenium
+    # via sqlalchemy
     # via torch
 tzdata==2025.2
     # via pandas
-ultralytics==8.3.145
-    # via rl-dda-game
-ultralytics-thop==2.0.14
-    # via ultralytics
 urllib3==2.4.0
     # via requests
     # via selenium
