@@ -26,17 +26,17 @@ class PPOAgent:
     def __init__(
         self,
         state_size: int = 161,
-        action_size: int = 10,  # 9 → 10: ACTION_MAPPING에 0~9까지 10개 액션 존재
-        learning_rate: float = 7.672115813828463e-05,  # Optuna 최적화: 3e-4 → 0.007887
-        gamma: float = 0.9658767382045985,  # Optuna 최적화: 0.99 → 0.9800
-        gae_lambda: float = 0.9592342803721876,  # Optuna 최적화: 0.95 → 0.8548
-        clip_epsilon: float = 0.23713775795384281,  # Optuna 최적화: 0.2 → 0.1195
-        value_coef: float = 0.16579175341634528,  # Optuna 최적화: 0.5 → 0.7158
-        entropy_coef: float = 0.001669841290831729,  # Optuna 최적화: 0.01 → 0.0076
-        hidden_size: int = 128,  # Optuna 최적화: 256 → 64 (효율성 4배 향상)
-        num_layers: int = 2,  # Optuna 최적화: 3 → 2 (더 간결한 네트워크)
+        action_size: int = 10,
+        learning_rate: float = 7.672115813828463e-05,
+        gamma: float = 0.9658767382045985,
+        gae_lambda: float = 0.9592342803721876,
+        clip_epsilon: float = 0.23713775795384281,
+        value_coef: float = 0.16579175341634528,
+        entropy_coef: float = 0.001669841290831729,
+        hidden_size: int = 128,
+        num_layers: int = 2,
         activation: str = "relu",
-        grad_clip_norm: float = 1.5008088126812362,  # Optuna 최적화: 0.2 → 0.9726
+        grad_clip_norm: float = 1.5008088126812362,
         device: str = "cuda" if torch.cuda.is_available() else "cpu",
     ):
         """PPO 에이전트 초기화
