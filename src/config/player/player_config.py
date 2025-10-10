@@ -6,10 +6,11 @@ from typing import List, Dict, Tuple
 """
 
 # 플레이어 기본 설정
-STARTING_LIVES = 3  # 시작 생명 수
+STARTING_LIVES = 1  # 시작 생명 수 (3에서 1로 변경)
 MAX_LIVES = 5  # 최대 생명 수
 MAX_WEAPONS = 3  # 최대 무기 수
 MAX_WEAPON_LEVEL = 5  # 최대 무기 레벨
+
 
 @dataclass
 class PlayerConfig:
@@ -60,7 +61,7 @@ class PlayerConfig:
     weapon_names: List[str] = field(
         default_factory=lambda: ["A", "B", "C"]
     )  # 무기 이름 목록
-    
+
     # 발사체 관련 설정
     max_shots: int = 4  # 최대 발사체 수
     uv_frame_offset: int = 1  # UV 프레임 오프셋
@@ -78,7 +79,7 @@ class PlayerConfig:
     )
 
     # HP 관련 설정
-    max_hp: int = 3  # 최대 체력
+    max_hp: int = 2  # 최대 체력 (3에서 2로 변경)
     invincibility_frames: int = 120  # 초기 무적 시간
     damage_invincibility_frames: int = 60  # 피격 후 무적 시간
 

@@ -1,4 +1,4 @@
-from ..stage import StageNum
+from config.stage import StageNum
 
 
 class MusicConfig:

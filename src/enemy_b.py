@@ -21,12 +21,12 @@ class EnemyB(Enemy):
     def update(self):
         super().update()  # hit frames
 
-        self.x -= SPEED
+        self.x -= int(SPEED)
         if self.x + self.w < 0:
-            self.remove = True
+            self.remove_out_of_bounds("moved_off_screen_left")
             return
 
-        self.y += px.sin(self.lifetime * pi)
+        self.y += int(px.sin(self.lifetime * pi))
 
         if self.lifetime == 20:
             self.shoot_at_player(BULLET_SPEED)

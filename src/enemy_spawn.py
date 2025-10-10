@@ -1,3 +1,5 @@
+import time
+import json
 from enemy_a import EnemyA
 from enemy_b import EnemyB
 from enemy_c import EnemyC
@@ -49,9 +51,37 @@ def create(state, tile_x, x, y):
     :param x: x좌표
     :param y: y좌표
     """
+    current_time = time.time()
+
     if tile_x in ENEMY_BOSS_SPAWN_TILE_X:
         f = ENEMY_BOSS_SPAWN_TILE_X[tile_x]
-        state.add_boss(f(state, x, y))  # 보스 적 추가
+        enemy = f(state, x, y)
+        state.add_boss(enemy)  # 보스 적 추가
+        boss_type = f.__name__  # 클래스 이름 사용
+        # PPO 학습 시 로그 출력 비활성화
+        # print(
+        #     json.dumps(
+        #         {
+        #             "type": "entity",
+        #             "event": "boss_created",
+        #             "timestamp": current_time,
+        #             "data": {"entity_type": boss_type, "position": {"x": x, "y": y}},
+        #         }
+        #     )
+        # )
     elif tile_x in ENEMY_SPAWN_TILE_X:
         f = ENEMY_SPAWN_TILE_X[tile_x]
-        state.add_enemy(f(state, x, y))  # 일반 적 추가
+        enemy = f(state, x, y)
+        state.add_enemy(enemy)  # 일반 적 추가
+        enemy_type = f.__name__  # 클래스 이름 사용
+        # PPO 학습 시 로그 출력 비활성화
+        # print(
+        #     json.dumps(
+        #         {
+        #             "type": "entity",
+        #             "event": "enemy_created",
+        #             "timestamp": current_time,
+        #             "data": {"entity_type": enemy_type, "position": {"x": x, "y": y}},
+        #         }
+        #     )
+        # )

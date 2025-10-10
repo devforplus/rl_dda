@@ -14,7 +14,7 @@ from dataclasses import dataclass, asdict
 import numpy as np
 
 try:
-    from .server_client import GameDataServerClient, IS_WEB
+    from src.server_client import GameDataServerClient, IS_WEB
 except ImportError:
     # 패키지 외부에서 실행되는 경우
     from server_client import GameDataServerClient, IS_WEB
@@ -35,7 +35,7 @@ class GameFrameData:
     quality_score: float = 0.8
     is_training_data: bool = True
     description: str = ""
-    yolo_labels: Optional[List[str]] = None
+    labels: Optional[List[str]] = None
 
 
 @dataclass
@@ -232,12 +232,12 @@ class RLDDAAutoClient:
             str: 업로드 성공 시 데이터 ID, 실패 시 None
         """
         try:
-            # YOLO 라벨이 없으면 자동 생성
-            if not frame_data.yolo_labels:
-                frame_data.yolo_labels = self._generate_yolo_labels(frame_data)
+            # 라벨이 없으면 자동 생성
+            if not frame_data.labels:
+                frame_data.labels = self._generate_labels(frame_data)
 
             # 라벨 문자열 생성
-            label_content = "\n".join(frame_data.yolo_labels)
+            label_content = "\n".join(frame_data.labels)
 
             # 메타데이터 구성
             metadata = {
@@ -410,15 +410,15 @@ class RLDDAAutoClient:
 
         return False
 
-    def _generate_yolo_labels(self, frame_data: GameFrameData) -> List[str]:
+    def _generate_labels(self, frame_data: GameFrameData) -> List[str]:
         """
-        게임 상태에서 YOLO 라벨 자동 생성
+        게임 상태에서 객체 라벨 자동 생성
 
         Args:
             frame_data: 프레임 데이터
 
         Returns:
-            List[str]: YOLO 형식 라벨 목록
+            List[str]: 객체 탐지 형식 라벨 목록
         """
         labels = []
 
@@ -540,7 +540,10 @@ class RLDDAAutoClient:
         return current_stats
 
     async def upload_legacy_data(
-        self, game_screen_base64: str, labeling_code: str, metadata: Dict = None
+        self,
+        game_screen_base64: str,
+        labeling_code: str,
+        metadata: Optional[Dict] = None,
     ) -> Optional[str]:
         """
         레거시 형식으로 데이터 업로드 (기존 코드와 호환)

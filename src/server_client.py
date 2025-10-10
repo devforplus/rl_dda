@@ -109,8 +109,8 @@ else:
                         response_json = response.json()
                     except httpx.JSONDecodeError:  # httpx의 경우 httpx.JSONDecodeError
                         response_json = {}
-                    except (
-                        json.JSONDecodeError
+                    except getattr(
+                        json, "JSONDecodeError", ValueError
                     ):  # json 모듈의 경우 json.JSONDecodeError
                         response_json = {}
 
@@ -178,7 +178,7 @@ class NewServerClient:
                 for key, value in first_item.items():
                     if key == "image_png_base64":
                         print(f"[ServerClient] {key}: {len(str(value))} chars")
-                    elif key == "yolo_labels":
+                    elif key == "labels":
                         print(
                             f"[ServerClient] {key}: {len(value) if isinstance(value, list) else 'not list'} items"
                         )
@@ -222,7 +222,7 @@ class NewServerClient:
             "timestamp",
             "image_original_shape",
             "image_png_base64",
-            "yolo_labels",
+            "labels",
         ]
         missing_fields = [
             field
@@ -243,10 +243,10 @@ class NewServerClient:
         image_data = entry.get("image_png_base64", "")
         print(f"[ServerClient] Entry image_png_base64 length: {len(str(image_data))}")
 
-        # YOLO 라벨 수 확인
-        yolo_labels = entry.get("yolo_labels", [])
+        # 라벨 수 확인
+        labels = entry.get("labels", [])
         print(
-            f"[ServerClient] Entry yolo_labels count: {len(yolo_labels) if isinstance(yolo_labels, list) else 'not list'}"
+            f"[ServerClient] Entry labels count: {len(labels) if isinstance(labels, list) else 'not list'}"
         )
 
         # 서버가 기대하는 형식: 단일 객체 (dataset 래핑 없음)
@@ -387,7 +387,7 @@ async def main_test():
             "timestamp": datetime.now().timestamp(),  # 숫자형 타임스탬프
             "image_original_shape": [192, 256, 3],
             "image_png_base64": "dummy_base64_string_for_testing_create",
-            "yolo_labels": ["header", "label1", "label2"],
+            "labels": ["header", "label1", "label2"],
         }
     ]
     created_id = await client.create_data(sample_dataset_entry)
@@ -427,14 +427,14 @@ async def main_test():
     # 4. 데이터 업데이트 테스트
     print("\n--- Testing Update Data ---")
     if created_id and created_id != "unknown_id_on_201":
-        update_payload = {"yolo_labels": ["header", "updated_label1", "updated_label2"]}
+        update_payload = {"labels": ["header", "updated_label1", "updated_label2"]}
         update_success = await client.update_data(created_id, update_payload)
         if update_success:
             print(f"Data with ID {created_id} updated successfully.")
             # 업데이트 확인을 위해 다시 읽어오기
             updated_data = await client.get_data_by_id(created_id)
             if updated_data:
-                print(f"Updated yolo_labels: {updated_data.get('yolo_labels')}")
+                print(f"Updated labels: {updated_data.get('labels')}")
         else:
             print(f"Failed to update data with ID {created_id}.")
     else:

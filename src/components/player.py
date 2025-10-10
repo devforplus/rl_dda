@@ -1,7 +1,7 @@
 import pyxel as px
+from .entity_types import EntityType
+from .sprite import Sprite
 from config.app import APP_WIDTH, APP_HEIGHT
-from components.entity_types import EntityType
-from components.sprite import Sprite
 import player_shot
 import input as input
 
@@ -67,11 +67,28 @@ class Player(Sprite):
         self.shot_delay = 0
 
         # 초기 무적 상태 설정
-        self.invincibility_frames = INVINCIBILITY_FRAMES
+        # 에이전트 모드에서는 무적 시간을 대폭 단축 (학습을 위해)
+        agent_mode = False
+        try:
+            if (
+                hasattr(state, "game")
+                and hasattr(state.game, "app")
+                and hasattr(state.game.app, "agent")
+                and state.game.app.agent is not None
+            ):
+                agent_mode = True
+        except:
+            pass
+
+        if agent_mode:
+            self.invincibility_frames = 30  # 에이전트 모드: 0.5초 무적
+            pass  # 에이전트 모드: 무적 시간 단축 (30 프레임)
+        else:
+            self.invincibility_frames = INVINCIBILITY_FRAMES  # 일반 모드: 2초 무적
         self.forced_invincible = False  # 강제 무적 상태는 아님
 
         # 체력 설정
-        self.max_hp = 3  # 기본 최대 체력
+        self.max_hp = 2  # 기본 최대 체력 (3에서 2로 변경)
         self.current_hp = self.max_hp  # 현재 체력
 
     def take_damage(self, damage: int) -> None:
@@ -81,10 +98,15 @@ class Player(Sprite):
         :param damage: 받은 데미지
         """
         if self.is_invincible():
+            print(
+                f"🛡️ 플레이어 무적 상태 (무적 프레임: {self.invincibility_frames}, 강제 무적: {self.forced_invincible})"
+            )
             return
 
+        print(f"💥 플레이어 데미지! HP: {self.current_hp} → {self.current_hp - damage}")
         self.current_hp -= damage
         if self.current_hp <= 0:
+            print(f"💀 플레이어 사망! kill() 호출")
             self.kill()
         else:
             self.invincibility_frames = DAMAGE_INVINCIBILITY_FRAMES  # 피격 무적
@@ -101,20 +123,12 @@ class Player(Sprite):
         플레이어가 무적 상태인지 확인.
 
         초기 무적 상태, 강제 무적 상태, 또는 에이전트가 있을 때 True를 반환합니다.
-        에이전트 사용 시에는 항상 무적 모드로 동작하여 안전한 학습 환경을 제공합니다.
+        단, 에이전트가 학습 모드인 경우에는 무적 모드를 비활성화하여 적절한 학습이 가능하도록 합니다.
         """
         # 기본 무적 상태 확인 (초기 무적 또는 강제 무적)
         base_invincible = self.invincibility_frames > 0 or self.forced_invincible
 
-        # 에이전트가 있을 때는 항상 무적 상태 (랜덤 에이전트의 안전한 플레이를 위함)
-        agent_invincible = (
-            hasattr(self.game_state, "game")
-            and hasattr(self.game_state.game, "app")
-            and hasattr(self.game_state.game.app, "agent")
-            and self.game_state.game.app.agent is not None
-        )
-
-        return base_invincible or agent_invincible
+        return base_invincible
 
     def collide_background(self, bg) -> bool:
         """
@@ -129,9 +143,11 @@ class Player(Sprite):
 
     def kill(self) -> None:
         """플레이어 제거 처리."""
+        print(f"☠️ 플레이어 kill() 실행 - 목숨 감소 전: {self.game_vars.lives}")
         self.remove = True
         self.explode()
         self.game_vars.subtract_life()  # 생명 수 감소
+        print(f"💔 목숨 감소 후: {self.game_vars.lives}")
         self.game_vars.decrease_all_weapon_levels(2)  # 모든 무기 레벨 감소
         self.game_vars.change_weapon(0)  # 기본 무기로 변경
         self.current_hp = self.max_hp  # 체력 초기화
@@ -147,11 +163,18 @@ class Player(Sprite):
             or other.type == EntityType.ENEMY_SHOT
             or other.type == EntityType.BACKGROUND
         ):
+            print(f"💥 플레이어 충돌 감지! 타입: {other.type}")
             if not self.is_invincible():
                 if other.type == EntityType.ENEMY_SHOT:
-                    self.take_damage(other.damage)  # 적 총알의 데미지 적용
+                    print(f"🎯 적 총알 충돌 - 데미지: {getattr(other, 'damage', 1)}")
+                    self.take_damage(
+                        getattr(other, "damage", 1)
+                    )  # 적 총알의 데미지 적용
                 else:
+                    print(f"⚡ 적/배경 충돌 - 즉사")
                     self.kill()  # 적이나 배경과 충돌 시 즉사
+            else:
+                print(f"🛡️ 무적 상태로 충돌 무시")
 
     def move(self) -> None:
         """플레이어 이동 처리."""

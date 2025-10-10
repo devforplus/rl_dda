@@ -1,6 +1,6 @@
 from enum import IntEnum, auto
 from math import pi
-
+import random
 import pyxel as px
 from components.sprite import Sprite
 from components.entity_types import EntityType
@@ -13,6 +13,7 @@ SPEED = 1
 
 # 오디오 매니저 인스턴스 생성
 audio_manager = AudioManager()
+
 
 class PowerupType(IntEnum):
     NONE = 0

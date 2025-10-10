@@ -1,0 +1,145 @@
+[project]
+name = "rl-dda-game"
+version = "0.1.0"
+description = "Add your description here"
+authors = [
+    { name = "devforplus", email = "devforplus@gmail.com" }
+]
+dependencies = [
+    "pipe>=2.2",
+        "toolz>=1.0.0",
+    "opencv-python>=4.11.0.86",
+    "torch>=2.4.1",
+    "torchrl>=0.8.1",
+    "pyautogui>=0.9.54",
+    "pillow>=10.4.0",
+    "wasm>=1.2",
+    "playwright>=1.48.0",
+    "pytest-playwright>=0.5.2",
+    "pywin32>=310; platform_system=='Windows'",
+    "tensordict>=0.8.3",
+    "requests>=2.32.3",
+    "micropip>=0.1.0",
+    "websockets>=12.0",
+    "aiohttp>=3.9.0",
+    "helium>=5.1.0",
+    "selenium>=4.24.0",
+    "webdriver-manager>=4.0.2",
+    "polars>=1.30.0",
+    "pyxel>=2.3.18",
+    "pystache>=0.6.8",
+    "loguru>=0.7.3",
+    "numpy>=2.2.6",
+    "pip>=25.1.1",
+    "pandas>=2.2.3",
+    "matplotlib>=3.10.3",
+    "tqdm>=4.67.1",
+    "gymnasium>=1.1.1",
+    "optuna>=4.1.0",
+    "plotly>=5.18.0",
+    "seaborn>=0.13.0",
+]
+readme = "README.md"
+requires-python = ">= 3.8"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.game]
+app_name = "VORTEXION"
+app_version = "1.0"
+
+[tool.rye]
+managed = true
+dev-dependencies = [
+    "pytest>=8.3.5",
+    "pygbag>=0.9.2",
+    "tomli>=2.2.1",
+]
+
+[tool.rye.scripts]
+
+# 🚀 자주 사용하는 명령어 (EventLogger 통합)
+collect-quick = { cmd = "python -m scripts.cli --url http://localhost:5176/ --namespace quick-test --duration 30 --headless --verbose", env = { PYTHONPATH = "." } }
+collect-full = { cmd = "python -m scripts.cli --url http://localhost:5176/ --namespace full-test --duration 60 --headless --collect-all --save-raw --verbose", env = { PYTHONPATH = "." } }
+dev = { call = "scripts.dev" }
+test = { call = "pytest" }
+help = { cmd = "rye run --list" }
+
+# 📊 JSON 로그 추출 도구 (JSON Log Extraction)
+# 사용법: rye run extract-from <입력파일> <출력파일> [옵션]
+# 예시:
+#   rye run extract-from data/infinite/events_log.log test_output/extracted.ndjson
+#   rye run extract-from logs/game.log output.ndjson --verbose
+#   rye run extract-from /path/to/logfile.log /path/to/output.ndjson --metadata
+extract-from = { cmd = "python scripts/cli/extract_json_logs.py", env = { PYTHONPATH = "." } }
+
+# 🎮 Pyxel 데이터 수집 (EventLogger 통합)
+collect = { call = "scripts.cli" }
+collect-demo = { cmd = "python -m scripts.cli --url http://localhost:5176/ --namespace demo --duration 30 --headless --verbose", env = { PYTHONPATH = "." } }
+collect-game = { cmd = "python -m scripts.cli --url http://localhost:5176/ --namespace gameplay --duration 120 --headless --collect-all --save-raw --verbose", env = { PYTHONPATH = "." } }
+collect-infinite = { cmd = "python -m scripts.cli --url http://localhost:5176/ --namespace infinite --headless --collect-all --save-raw --verbose", env = { PYTHONPATH = "." } }
+
+# 🧪 테스트 및 예제
+test-event-logger = { call = "examples.event_logger_example" }
+test-collector = { cmd = "python -m scripts.cli --url http://localhost:5176/ --namespace test --duration 10 --headless --verbose", env = { PYTHONPATH = "." } }
+
+# 🌐 서버 (http.server는 표준 라이브러리이므로 기존 방식 유지)
+serve = { cmd = "python -m http.server 5175 -d web/game" }
+serve-agent = { cmd = "python -m http.server 5176 -d web/agentic-game" }
+serve-test = { cmd = "python -m http.server 8000" }
+
+# 🏗️ 빌드
+build = { call = "scripts.build" }
+build-agent = { call = "scripts.build_agent" }
+clean = { call = "scripts.clean" }
+
+# 🔄 워크플로우
+dev-setup = { chain = ["clean", "build", "test"] }
+game-workflow = { chain = ["serve-agent", "collect-demo"] }
+full-workflow = { chain = ["clean", "build", "serve-agent", "collect-full"] }
+
+# 🛠️ 기타
+check-deps = { cmd = "python -c \"from scripts.cli.simple_pyxel_collector import check_selenium_dependency, check_websockets_dependency; print('✅ 모든 의존성 확인됨' if check_selenium_dependency() and check_websockets_dependency() else '❌ 의존성 오류')\"", env = { PYTHONPATH = "." } }
+
+# 🔧 고급 명령어
+extract-config = { call = "scripts.extract_config" }
+build-all = { chain = ["build", "build-agent"] }
+cleanup-config = { call = "scripts.cleanup_config" }
+upload_data = { call = "src.upload_game_data" }
+
+# 🤖 PPO 학습 (Mock 환경)
+train-ppo = { cmd = "python train_ppo_simple.py", env = { PYTHONPATH = "." } }
+train-ppo-quick = { cmd = "python train_ppo_simple.py --skill-level 0.5 --episodes 10 --skip-test", env = { PYTHONPATH = "." } }
+train-ppo-long = { cmd = "python train_ppo_simple.py --skill-level 0.5 --episodes 100", env = { PYTHONPATH = "." } }
+train-ppo-beginner = { cmd = "python train_ppo_simple.py --skill-level 0.2 --episodes 50", env = { PYTHONPATH = "." } }
+train-ppo-expert = { cmd = "python train_ppo_simple.py --skill-level 0.8 --episodes 50", env = { PYTHONPATH = "." } }
+train-ppo-all-levels = { cmd = "python train_ppo_simple.py --test-all-levels --episodes 30", env = { PYTHONPATH = "." } }
+
+# 🎮 PPO 학습 (실제 게임 환경)
+train-ppo-real-game = { cmd = "python train_ppo_real_game.py", env = { PYTHONPATH = "." } }
+train-ppo-real-quick = { cmd = "python train_ppo_real_game.py --skill-level 0.5 --episodes 50 --update-interval 30", env = { PYTHONPATH = "." } }
+train-ppo-real-beginner = { cmd = "python train_ppo_real_game.py --skill-level 0.2 --episodes 100", env = { PYTHONPATH = "." } }
+train-ppo-real-expert = { cmd = "python train_ppo_real_game.py --skill-level 0.8 --episodes 100", env = { PYTHONPATH = "." } }
+train-ppo-real-hardcore = { cmd = "python train_ppo_real_game.py --skill-level 0.9 --episodes 200 --learning-rate 1e-4", env = { PYTHONPATH = "." } }
+
+# 웹 빌드 스크립트
+build-web-manual = { cmd = "python scripts/build_web.py manual_game web/manual-game --copy-assets" }
+build-web-agent = { cmd = "python scripts/build_web.py agent_game web/agentic-game --copy-assets" }
+build-web-dev = { cmd = "python scripts/build_web.py development web/development --copy-assets" }
+build-web-all = { chain = ["build-web-manual", "build-web-agent", "build-web-dev"] }
+
+# 웹 서버 실행 (빌드된 파일 기준)
+serve-manual = { cmd = "python -m http.server 8000 --bind 127.0.0.1", cwd = "web/manual-game" }
+serve-dev = { cmd = "python -m http.server 8002 --bind 127.0.0.1", cwd = "web/development" }
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"] 

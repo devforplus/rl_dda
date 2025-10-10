@@ -73,12 +73,24 @@ def create(gs, player_x, player_y, wpn_type, wlvl):
     if wpn_type == 0:  # fwd
         addshot(
             PlayerShot(
-                gs, player_x + 12, player_y - 10, wpn_type, wlvl, player_config.speed_levels[wlvl], 0
+                gs,
+                player_x + 12,
+                player_y - 10,
+                wpn_type,
+                wlvl,
+                player_config.speed_levels[wlvl],
+                0,
             )
         )
         addshot(
             PlayerShot(
-                gs, player_x + 12, player_y + 4, wpn_type, wlvl, player_config.speed_levels[wlvl], 0
+                gs,
+                player_x + 12,
+                player_y + 4,
+                wpn_type,
+                wlvl,
+                player_config.speed_levels[wlvl],
+                0,
             )
         )
     elif wpn_type == 1:  # spread/diagonal
@@ -93,12 +105,24 @@ def create(gs, player_x, player_y, wpn_type, wlvl):
     elif wpn_type == 2:  # back and fwd
         addshot(
             PlayerShot(
-                gs, player_x + 12, player_y - 3, wpn_type, wlvl, player_config.speed_levels[wlvl], 0
+                gs,
+                player_x + 12,
+                player_y - 3,
+                wpn_type,
+                wlvl,
+                player_config.speed_levels[wlvl],
+                0,
             )
         )
         addshot(
             PlayerShot(
-                gs, player_x - 10, player_y - 3, wpn_type, wlvl, -player_config.speed_levels[wlvl], 0
+                gs,
+                player_x - 10,
+                player_y - 3,
+                wpn_type,
+                wlvl,
+                -player_config.speed_levels[wlvl],
+                0,
             )
         )
 

@@ -1,7 +1,7 @@
 # game_config.py
 
 # 객체 탐지 모델 학습을 위한 클래스 목록
-# 이 순서가 YOLO 학습 시 클래스 ID가 됩니다.
+# 이 순서가 객체 탐지 학습 시 클래스 ID가 됩니다.
 CLASS_LIST = [
     "player",
     "player_shot",
@@ -30,8 +30,8 @@ CLASS_LIST = [
 # 클래스 이름을 클래스 ID로 매핑
 CLASS_MAP = {cls_name: i for i, cls_name in enumerate(CLASS_LIST)}
 
-# YOLO 라벨 헤더 (파싱 시 참조용)
-CLASS_MAP[-1] = "class_id x_center y_center width height"
+# 객체 탐지 라벨 헤더 (파싱 시 참조용)
+LABEL_HEADER = "class_id x_center y_center width height"
 
 # 게임 내 엔티티 타입(EntityType enum)을 문자열 클래스 이름으로 매핑
 # src/components/entity_types.py 의 EntityType을 참고하여 작성해야 합니다.

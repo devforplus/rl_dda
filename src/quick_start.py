@@ -10,7 +10,7 @@ from typing import Optional, Callable, Dict, Any
 import platform
 
 try:
-    from .auto_game_client import (
+    from src.auto_game_client import (
         RLDDAAutoClient,
         GameFrameData,
         create_auto_client_sync,
@@ -257,7 +257,7 @@ def finish_upload():
 
 
 # 데코레이터 방식
-def auto_upload_frame(action_name: str = None):
+def auto_upload_frame(action_name: Optional[str] = None):
     """
     함수 데코레이터로 자동 업로드 적용
 

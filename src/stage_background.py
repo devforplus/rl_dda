@@ -1,5 +1,5 @@
 import pyxel as px
-
+import math
 from enemy_spawn import ENEMY_SPAWN_TILE_INDEX_Y
 import enemy_spawn
 from components.entity_types import EntityType
