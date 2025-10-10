@@ -82,8 +82,20 @@ def create_combined_skill_comparison():
     ]:
         np.clip(arr, 0, None, out=arr)
 
-    # 그래프 생성
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 10))
+    # 전역 폰트/스타일 살짝 키우기 (가독성 향상)
+    plt.rcParams.update(
+        {
+            "font.size": 14,
+            "axes.titlesize": 22,
+            "axes.labelsize": 16,
+            "legend.fontsize": 14,
+            "xtick.labelsize": 13,
+            "ytick.labelsize": 13,
+        }
+    )
+
+    # 그래프 생성 (2x2 서브플롯 - 기존 이미지 유지)
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 10))
 
     colors = ["#1f77b4", "#ff7f0e", "#2ca02c"]  # 파랑, 주황, 초록
     skills = [0.1, 0.5, 1.0]
@@ -98,7 +110,17 @@ def create_combined_skill_comparison():
     all_scores = [skill_01_scores, skill_05_scores, skill_10_scores]
     all_kills = [skill_01_kills, skill_05_kills, skill_10_kills]
 
-    def plot_with_ma(ax, x, y_data_list, labels, title, ylabel):
+    def plot_with_ma(
+        ax,
+        x,
+        y_data_list,
+        labels,
+        title,
+        ylabel,
+        title_fs: int = 22,
+        label_fs: int = 16,
+        legend_fs: int = 14,
+    ):
         """이동평균과 함께 플롯"""
         for i, (y, label, color) in enumerate(zip(y_data_list, labels, colors)):
             # 원본 데이터 (반투명)
@@ -112,14 +134,14 @@ def create_combined_skill_comparison():
                     x[window - 1 :],
                     ma,
                     color=color,
-                    linewidth=2,
+                    linewidth=2.5,
                     label=f"{label} (MA5)",
                 )
 
-        ax.set_title(title)
-        ax.set_xlabel("Episode")
-        ax.set_ylabel(ylabel)
-        ax.legend()
+        ax.set_title(title, fontsize=title_fs)
+        ax.set_xlabel("Episode", fontsize=label_fs)
+        ax.set_ylabel(ylabel, fontsize=label_fs)
+        ax.legend(fontsize=legend_fs)
         ax.grid(True, alpha=0.3)
 
     # 각 메트릭별 플롯
@@ -143,16 +165,62 @@ def create_combined_skill_comparison():
     plot_with_ma(ax4, episodes, all_kills, skill_names, "Kills by Skill Level", "Kills")
 
     plt.suptitle(
-        "PPO Training Results - Skill Level Comparison", fontsize=16, fontweight="bold"
+        "PPO Training Results - Skill Level Comparison", fontsize=22, fontweight="bold"
     )
     plt.tight_layout()
 
     # 저장
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_path = f"src/src/models/training_results_skill_comparison_{timestamp}.png"
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    output_dir = "src/src/models"
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = f"{output_dir}/training_results_skill_comparison_{timestamp}.png"
+    plt.savefig(output_path, dpi=350, bbox_inches="tight")
     plt.close()
+
+    # 개별 그래프도 각각 저장 (더 큰 해상도/폰트)
+    def save_single_plot(data_list, title, ylabel, filename):
+        fig_single, ax_single = plt.subplots(figsize=(12, 7))
+        plot_with_ma(
+            ax_single,
+            episodes,
+            data_list,
+            skill_names,
+            title,
+            ylabel,
+            title_fs=26,
+            label_fs=18,
+            legend_fs=16,
+        )
+        fig_single.tight_layout()
+        single_path = f"{output_dir}/{filename}_{timestamp}.png"
+        fig_single.savefig(single_path, dpi=400, bbox_inches="tight")
+        plt.close(fig_single)
+        print(f"개별 그래프 저장: {single_path}")
+
+    save_single_plot(
+        all_rewards,
+        "Rewards by Skill Level",
+        "Reward",
+        "training_results_rewards",
+    )
+    save_single_plot(
+        all_survival,
+        "Survival Time by Skill Level",
+        "Steps",
+        "training_results_survival_time",
+    )
+    save_single_plot(
+        all_scores,
+        "Scores by Skill Level",
+        "Score",
+        "training_results_scores",
+    )
+    save_single_plot(
+        all_kills,
+        "Kills by Skill Level",
+        "Kills",
+        "training_results_kills",
+    )
 
     print(f"스킬 비교 그래프 생성 완료: {output_path}")
     return output_path
