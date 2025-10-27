@@ -1,3 +1,4 @@
+import pyxel as px
 from config.app import APP_WIDTH
 from components.entity_types import EntityType
 from config.player.player_config import PlayerConfig

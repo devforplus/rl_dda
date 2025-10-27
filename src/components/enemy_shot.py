@@ -54,6 +54,7 @@ class EnemyShot(Sprite):
         self.u = 6
         self.v = 102
         self.colour = 8  # 초기 색상
+        
 
     def update(self) -> None:
         """적 발사체 상태 업데이트."""
@@ -61,16 +62,22 @@ class EnemyShot(Sprite):
             self.delay -= 1
             return
 
-        self.x = int(self.x + self.dx)
-        self.y = int(self.y + self.dy)
+        # 위치 업데이트 (참조 레포와 동일하게 int() 변환 제거)
+        self.x += self.dx
+        self.y += self.dy
 
-        # 색상 변경 (10프레임마다)
-        if px.frame_count % 10 == 0:
-            self.colour = 8 if (self.colour == 11) else 11
+        # 배경 충돌 검사 (참조 레포와 동일하게)
+        if self.collide_background(self.game_state.background):
+            return
 
         # 화면 밖으로 나가면 제거
         if self.x < -self.w or self.x > 256 or self.y < -self.h or self.y > 192:
             self.remove = True
+            return
+
+        # 색상 변경 (10프레임마다)
+        if px.frame_count % 10 == 0:
+            self.colour = 8 if (self.colour == 11) else 11
 
     def draw(self) -> None:
         """적 발사체 그리기 - 색상 이펙트 포함."""
@@ -80,6 +87,13 @@ class EnemyShot(Sprite):
         px.pal(15, self.colour)  # 색상 변경 (빨강/주황 교체)
         super().draw()
         px.pal()  # 색상 초기화
+
+    def collide_background(self, bg) -> bool:
+        """배경과의 충돌 확인"""
+        if bg.is_point_colliding(int(self.x + self.w/2), int(self.y + self.h/2)):  # 중심점
+            self.remove = True
+            return True
+        return False
 
     def collided_with(self, other) -> None:
         """
