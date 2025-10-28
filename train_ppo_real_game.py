@@ -508,15 +508,16 @@ class RealGameTrainer:
                 actual_state_size = 161  # 오류 메시지에서 확인된 크기
                 print(f"🔧 기본 상태 크기 사용: {actual_state_size}")
 
-            # PPO 컴포넌트 초기화 (안정화된 하이퍼파라미터 사용)
+            # PPO 컴포넌트 초기화 (Optuna 최적화된 하이퍼파라미터)
             print("🧠 PPO 에이전트 초기화 중...")
-            print("📊 안정화된 하이퍼파라미터를 기본값으로 사용합니다:")
-            print("   - Learning Rate: 5.0e-05 (낮춤 - 안정성 우선)")
+            print("📊 Optuna 최적화된 하이퍼파라미터를 사용합니다:")
+            print("   - Learning Rate: 7.67e-05 (Optuna 검증)")
             print("   - Gamma: 0.9659")
             print("   - GAE Lambda: 0.9592")
             print("   - Clip Epsilon: 0.2371")
             print("   - Value Coef: 0.1658")
-            print("   - Entropy Coef: 0.0015 (탐험 감소)")
+            print("   - Entropy Coef: 0.00167 (Optuna 검증)")
+            print("   - Batch Size: 64 (Optuna 검증)")
             print("   - Hidden Size: 128")
             print("   - Num Layers: 2")
             print("   - Grad Clip Norm: 1.5008")
@@ -627,7 +628,7 @@ class RealGameTrainer:
         print(f"\n🎮 실제 게임에서 PPO 학습 시작!")
         print(f"   - 최대 에피소드: {max_episodes}")
         print(f"   - 업데이트 간격: {self.update_interval} 스텝")
-        print(f"   - 안정화된 하이퍼파라미터 사용 (LR: 5e-5, Entropy: 0.0015)")
+        print(f"   - Optuna 최적화된 하이퍼파라미터 사용 (LR: 7.67e-05, Batch: 64)")
 
         # 신호 핸들러 설정 (Ctrl+C 처리)
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -704,7 +705,7 @@ class RealGameTrainer:
             update_info = self.ppo_agent.update()
 
             if update_info:
-                print(f"✅ PPO 업데이트 완료 (안정화된 하이퍼파라미터)")
+                print(f"✅ PPO 업데이트 완료 (Optuna 최적 파라미터)")
                 print(f"   - Policy Loss: {update_info.get('policy_loss', 0):.4f}")
                 print(f"   - Value Loss: {update_info.get('value_loss', 0):.4f}")
                 print(f"   - 에피소드 보상: {self.game_agent.episode_reward:.2f}")
@@ -1001,7 +1002,7 @@ class RealGameTrainer:
             training_time = time.time() - self.training_start_time
 
         print("\n" + "=" * 60)
-        print("🏆 PPO 학습 완료! (안정화된 하이퍼파라미터 사용)")
+        print("🏆 PPO 학습 완료! (Optuna 최적화된 하이퍼파라미터)")
         print("=" * 60)
         print(f"📈 학습 통계:")
         print(f"   - 총 학습 시간: {training_time:.1f}초 ({training_time / 60:.1f}분)")
@@ -1021,13 +1022,14 @@ class RealGameTrainer:
             print(f"   - 총 킬 수: {np.sum(self.episode_kills)}")
             print(f"   - 평균 킬/에피소드: {np.mean(self.episode_kills):.1f}")
 
-        print(f"\n🧠 사용된 안정화 하이퍼파라미터:")
-        print(f"   - Learning Rate: 5.0e-05 (안정성 우선)")
+        print(f"\n🧠 사용된 Optuna 최적화 하이퍼파라미터:")
+        print(f"   - Learning Rate: 7.67e-05 (Optuna 검증)")
+        print(f"   - Batch Size: 64 (Optuna 검증)")
         print(f"   - Gamma: 0.9659")
         print(f"   - GAE Lambda: 0.9592")
         print(f"   - Clip Epsilon: 0.2371")
         print(f"   - Value Coef: 0.1658")
-        print(f"   - Entropy Coef: 0.0015 (탐험 감소)")
+        print(f"   - Entropy Coef: 0.00167 (Optuna 검증)")
 
     def _generate_training_plots(self):
         """학습 결과 그래프 생성"""
@@ -1161,8 +1163,8 @@ class RealGameTrainer:
             ax4.grid(True, alpha=0.3)
 
             plt.suptitle(
-                f"PPO Training Results - Stabilized Hyperparameters\n"
-                f"(Skill: {self.skill_level}, Episodes: {len(episodes)}, LR: 5e-5)",
+                f"PPO Training Results - Optuna Optimized\n"
+                f"(Skill: {self.skill_level}, Episodes: {len(episodes)}, LR: 7.67e-05, Batch: 64)",
                 fontsize=16,
                 fontweight="bold",
             )
@@ -1171,7 +1173,7 @@ class RealGameTrainer:
             # 파일 저장
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             graph_file = os.path.join(
-                save_dir, f"training_results_stabilized_{timestamp}.png"
+                save_dir, f"training_results_optuna_{timestamp}.png"
             )
             plt.savefig(graph_file, dpi=300, bbox_inches="tight")
             plt.close()
@@ -1603,7 +1605,7 @@ class RealGameTrainer:
 def main():
     """메인 함수"""
     parser = argparse.ArgumentParser(
-        description="PPO를 사용한 실제 게임 학습 (안정화된 하이퍼파라미터)"
+        description="PPO를 사용한 실제 게임 학습 (Optuna 최적화된 하이퍼파라미터)"
     )
     parser.add_argument(
         "--skill-level",
@@ -1664,12 +1666,12 @@ def main():
 
     args = parser.parse_args()
 
-    print("🚀 실제 게임 PPO 학습 시작 - 안정화된 하이퍼파라미터 버전")
+    print("🚀 실제 게임 PPO 학습 시작 - Optuna 최적화된 하이퍼파라미터")
     print(f"📋 설정:")
     print(f"   - 실력값: {args.skill_level}")
     print(f"   - 최대 에피소드: {args.max_episodes}")
     print(f"   - 업데이트 간격: {args.update_interval}")
-    print(f"   - 안정화된 하이퍼파라미터 자동 적용 (LR: 5e-5, Entropy: 0.0015)")
+    print(f"   - Optuna 최적화 하이퍼파라미터 사용 (LR: 7.67e-05, Batch: 64)")
 
     try:
         # 커리큘럼 구성 (옵션)

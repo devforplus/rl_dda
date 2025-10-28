@@ -37,7 +37,7 @@ class PPOTrainer:
         log_interval: int = 10,
         save_interval: int = 100,
         max_episode_steps: int = 1000,
-        batch_size: int = 256,  # Optuna 최적화: 64 → 256 (안정성 4배 향상)
+        batch_size: int = 64,  # 안정성 우선: 256 → 64 (learning rate와 균형)
         num_epochs: int = 4,  # 이미 최적값
     ):
         """트레이너 초기화
