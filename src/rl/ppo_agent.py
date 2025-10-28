@@ -27,12 +27,12 @@ class PPOAgent:
         self,
         state_size: int = 161,
         action_size: int = 10,
-        learning_rate: float = 7.672115813828463e-05,
+        learning_rate: float = 5e-5,  # 최적화된 값보다 낮춤 (7.67e-05 → 5e-5, 안정성 우선)
         gamma: float = 0.9658767382045985,
         gae_lambda: float = 0.9592342803721876,
         clip_epsilon: float = 0.23713775795384281,
         value_coef: float = 0.16579175341634528,
-        entropy_coef: float = 0.001669841290831729,
+        entropy_coef: float = 0.0015,  # 최적화된 값 사용 (0.00166 → 0.0015, 탐험 감소)
         hidden_size: int = 128,
         num_layers: int = 2,
         activation: str = "relu",
@@ -373,16 +373,24 @@ class PPOAgent:
         print(f"모델이 저장되었습니다: {save_path}")
         return save_path
 
-    def load_model(self, model_path: str):
+    def load_model(self, model_path: str) -> bool:
         """모델 로드
 
         Args:
             model_path: 모델 파일 경로
+
+        Returns:
+            로드 성공 여부
         """
-        checkpoint = torch.load(model_path, map_location=self.device)
-        self.network.load_state_dict(checkpoint["network_state_dict"])
-        self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
-        print(f"모델이 로드되었습니다: {model_path}")
+        try:
+            checkpoint = torch.load(model_path, map_location=self.device)
+            self.network.load_state_dict(checkpoint["network_state_dict"])
+            self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            print(f"✅ 모델이 로드되었습니다: {model_path}")
+            return True
+        except Exception as e:
+            print(f"❌ 모델 로드 실패: {e}")
+            return False
 
     def _apply_skill_based_constraints(
         self, original_action: int, game_log_data: GameLogData, skill_level: float

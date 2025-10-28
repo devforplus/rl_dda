@@ -106,6 +106,10 @@ class RealGamePPOAgent:
         self.reset_requested = False
         self.reset_timer = 0  # 리셋 타이머 추가
 
+        # 리플레이 녹화
+        self.current_replay_frames = []
+        self.replay_save_callback = None  # 트레이너가 설정할 콜백
+
         print(f"✅ PPO 에이전트 초기화 완료 (실력값: {skill_level})")
 
     def connect_game(self, game_instance):
@@ -175,6 +179,10 @@ class RealGamePPOAgent:
                 action_id = self.ppo_agent.get_action(game_log_data)
                 self.previous_action_taken = True
                 self.step_count += 1
+
+                # 리플레이 프레임 기록
+                self._record_frame(game_log_data, action_id)
+
                 return action_id
 
             except Exception as e:
@@ -243,6 +251,15 @@ class RealGamePPOAgent:
                 print(f"❌ 최종 보상 저장 실패: {e}")
 
         self._print_episode_summary()
+
+        # 좋은 플레이 리플레이 저장 시도
+        if self.replay_save_callback:
+            try:
+                self.replay_save_callback(
+                    self.current_replay_frames, self.episode_steps, self.skill_level
+                )
+            except Exception as e:
+                print(f"❌ 리플레이 저장 실패: {e}")
 
         if self.trainer_callback:
             try:
@@ -341,6 +358,9 @@ class RealGamePPOAgent:
         self.previous_lives = self._get_current_lives()
         self.reset_requested = False
 
+        # 리플레이 버퍼 초기화
+        self.current_replay_frames = []
+
         print(f"✅ 에피소드 리셋 완료 (목숨: {self.previous_lives})")
 
     def _force_episode_reset(self):
@@ -358,7 +378,44 @@ class RealGamePPOAgent:
         self.previous_action_taken = False
         self.previous_lives = STARTING_LIVES  # 기본값으로 설정
 
+        # 리플레이 버퍼 초기화
+        self.current_replay_frames = []
+
         print("🔧 강제 리셋 완료 - 새로운 에피소드 시작")
+
+    def _record_frame(self, game_log: GameLogData, action: int):
+        """현재 프레임을 리플레이에 기록"""
+        try:
+            # 플레이어 위치 찾기
+            player_entity = next(
+                (e for e in game_log.entities if e.entity_type == 0), None
+            )
+
+            frame_data = {
+                "step": len(self.current_replay_frames),
+                "player": {
+                    "x": player_entity.x if player_entity else 0,
+                    "y": player_entity.y if player_entity else 0,
+                    "hp": game_log.player_state.hp,
+                    "lives": game_log.player_state.lives,
+                },
+                "enemies": [
+                    {"x": e.x, "y": e.y}
+                    for e in game_log.entities
+                    if e.entity_type == 1
+                ],
+                "bullets": [
+                    {"x": e.x, "y": e.y}
+                    for e in game_log.entities
+                    if e.entity_type == 2
+                ],
+                "score": game_log.current_score,
+                "action": action,
+            }
+            self.current_replay_frames.append(frame_data)
+        except Exception as e:
+            # 프레임 기록 실패는 조용히 무시 (학습에 영향 없음)
+            pass
 
     def _get_current_lives(self) -> int:
         """현재 목숨 수 반환"""
@@ -416,6 +473,22 @@ class RealGameTrainer:
         self.episode_kills = []
         self.training_start_time = None
 
+        # 리플레이 수집 관리
+        self.replay_save_dir = "web/agentic-game/replays"
+        os.makedirs(self.replay_save_dir, exist_ok=True)
+
+        # 각 스킬 레벨별 베스트 리플레이 추적 (각 1개씩, 계속 갱신)
+        self.collected_replays = {
+            0.1: {
+                "best_steps": 0,
+                "min_steps": 550,
+                "name": "beginner",
+                "saved": False,
+            },
+            0.5: {"best_steps": 0, "min_steps": 850, "name": "medium", "saved": False},
+            1.0: {"best_steps": 0, "min_steps": 1100, "name": "master", "saved": False},
+        }
+
         try:
             # 먼저 환경을 초기화하여 실제 상태 크기를 확인
             print("🌍 게임 환경 초기화 중...")
@@ -435,15 +508,15 @@ class RealGameTrainer:
                 actual_state_size = 161  # 오류 메시지에서 확인된 크기
                 print(f"🔧 기본 상태 크기 사용: {actual_state_size}")
 
-            # PPO 컴포넌트 초기화 (최적화된 하이퍼파라미터 사용)
+            # PPO 컴포넌트 초기화 (안정화된 하이퍼파라미터 사용)
             print("🧠 PPO 에이전트 초기화 중...")
-            print("📊 최적화된 하이퍼파라미터를 기본값으로 사용합니다:")
-            print("   - Learning Rate: 7.67e-05")
+            print("📊 안정화된 하이퍼파라미터를 기본값으로 사용합니다:")
+            print("   - Learning Rate: 5.0e-05 (낮춤 - 안정성 우선)")
             print("   - Gamma: 0.9659")
             print("   - GAE Lambda: 0.9592")
             print("   - Clip Epsilon: 0.2371")
             print("   - Value Coef: 0.1658")
-            print("   - Entropy Coef: 0.00167")
+            print("   - Entropy Coef: 0.0015 (탐험 감소)")
             print("   - Hidden Size: 128")
             print("   - Num Layers: 2")
             print("   - Grad Clip Norm: 1.5008")
@@ -479,6 +552,7 @@ class RealGameTrainer:
 
             # 콜백 설정
             self.game_agent.trainer_callback = self._on_episode_end
+            self.game_agent.replay_save_callback = self._try_save_replay
 
             self.game_app = None
 
@@ -553,7 +627,7 @@ class RealGameTrainer:
         print(f"\n🎮 실제 게임에서 PPO 학습 시작!")
         print(f"   - 최대 에피소드: {max_episodes}")
         print(f"   - 업데이트 간격: {self.update_interval} 스텝")
-        print(f"   - 최적화된 하이퍼파라미터 사용")
+        print(f"   - 안정화된 하이퍼파라미터 사용 (LR: 5e-5, Entropy: 0.0015)")
 
         # 신호 핸들러 설정 (Ctrl+C 처리)
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -630,7 +704,7 @@ class RealGameTrainer:
             update_info = self.ppo_agent.update()
 
             if update_info:
-                print(f"✅ PPO 업데이트 완료 (최적화된 하이퍼파라미터 사용)")
+                print(f"✅ PPO 업데이트 완료 (안정화된 하이퍼파라미터)")
                 print(f"   - Policy Loss: {update_info.get('policy_loss', 0):.4f}")
                 print(f"   - Value Loss: {update_info.get('value_loss', 0):.4f}")
                 print(f"   - 에피소드 보상: {self.game_agent.episode_reward:.2f}")
@@ -767,6 +841,9 @@ class RealGameTrainer:
             if stage_changed or final_episode_reached:
                 # 방금 끝난 스테이지 기준으로 저장/그래프 생성
                 stage_name = self.current_stage_name
+                prev_stage_name = stage_name  # 전이 학습용 저장
+                prev_stage_skill = self.skill_level  # 전이 학습용 저장
+
                 try:
                     self._save_model_for_stage(stage_name, self.skill_level)
                     self._generate_stage_plots(
@@ -774,6 +851,25 @@ class RealGameTrainer:
                     )
                 except Exception as e:
                     print(f"⚠️  스테이지 아티팩트 생성 중 오류: {e}")
+
+                # 🔥 전이 학습: 다음 스테이지로 전환하면서 이전 체크포인트 로드
+                if stage_changed and self.episode_count < self.max_episodes:
+                    print("\n" + "=" * 60)
+                    print(f"🎓 커리큘럼 러닝: 스테이지 전환 감지")
+                    print(f"   이전: {prev_stage_name} (skill={prev_stage_skill:.1f})")
+                    print(f"   다음: {next_stage} (skill={next_skill:.1f})")
+                    print("=" * 60)
+
+                    # 이전 스테이지의 학습 결과를 로드하여 전이 학습
+                    transfer_success = self._load_previous_stage_checkpoint(
+                        prev_stage_name, prev_stage_skill
+                    )
+
+                    if transfer_success:
+                        print("🚀 전이 학습으로 다음 스테이지 시작!")
+                    else:
+                        print("⚠️  전이 학습 없이 랜덤 초기화 상태에서 시작")
+                    print("=" * 60 + "\n")
 
                 # 다음 스테이지로 전환 준비
                 self.current_stage_name = next_stage
@@ -784,15 +880,115 @@ class RealGameTrainer:
                 prev_skill = self.skill_level
                 self.skill_level = next_skill
                 self.game_agent.skill_level = next_skill
-                print(
-                    f"🎓 커리큘럼 전환 → 다음 Ep {self.episode_count + 1}: Stage='{next_stage}', "
-                    f"skill {prev_skill:.2f} → {next_skill:.2f}"
-                )
+                if not stage_changed:  # 스테이지 전환이 아닌 경우에만 출력 (중복 방지)
+                    print(
+                        f"🎓 커리큘럼 업데이트 → 다음 Ep {self.episode_count + 1}: Stage='{next_stage}', "
+                        f"skill {prev_skill:.2f} → {next_skill:.2f}"
+                    )
 
         # 목표 달성 확인
         if self.episode_count >= self.max_episodes:
             print(f"🎯 목표 에피소드 달성! 학습을 종료합니다.")
             self.stop_training()
+
+    def _try_save_replay(self, frames: list, survival_steps: int, skill_level: float):
+        """베스트 플레이 리플레이 저장/갱신
+
+        목표 생존 시간을 넘긴 플레이 중에서 가장 오래 생존한 플레이를 저장합니다.
+        더 좋은 기록이 나오면 계속해서 덮어씁니다.
+
+        Args:
+            frames: 프레임 리스트
+            survival_steps: 생존 시간 (스텝)
+            skill_level: 현재 스킬 레벨
+        """
+        import json
+        import time
+
+        # 해당 스킬 레벨의 설정 찾기
+        replay_config = self.collected_replays.get(skill_level)
+        if not replay_config:
+            # 정확한 스킬 레벨이 아니면 무시 (커리큘럼 러닝 중 중간값들)
+            return
+
+        # 목표 생존 시간 미달이면 스킵
+        if survival_steps < replay_config["min_steps"]:
+            return
+
+        # 프레임이 없으면 스킵
+        if not frames:
+            return
+
+        # 이전 베스트보다 좋지 않으면 스킵
+        previous_best = replay_config["best_steps"]
+        if survival_steps <= previous_best:
+            return
+
+        # 새로운 베스트 기록! 저장
+        try:
+            # 베스트 기록 갱신
+            is_first_save = not replay_config["saved"]
+            replay_config["best_steps"] = survival_steps
+            replay_config["saved"] = True
+
+            # 저장 디렉토리 확인 및 생성
+            os.makedirs(self.replay_save_dir, exist_ok=True)
+
+            # 파일명 생성
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            filename = f"best_{replay_config['name']}_skill_{skill_level}.json"
+            filepath = os.path.join(self.replay_save_dir, filename)
+
+            # 리플레이 데이터 구성
+            replay_data = {
+                "metadata": {
+                    "model_name": replay_config["name"],
+                    "skill_level": skill_level,
+                    "total_steps": survival_steps,
+                    "episode_number": self.episode_count,
+                    "timestamp": timestamp,
+                },
+                "frames": frames,
+            }
+
+            # JSON 저장 (덮어쓰기)
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(replay_data, f, indent=2, ensure_ascii=False)
+
+            file_size = os.path.getsize(filepath) / 1024  # KB
+
+            if is_first_save:
+                print(f"\n🎬 베스트 리플레이 첫 저장!")
+            else:
+                print(
+                    f"\n🆕 베스트 기록 갱신! ({previous_best} → {survival_steps} 스텝)"
+                )
+
+            print(f"   - 스킬: {skill_level} ({replay_config['name']})")
+            print(f"   - 생존: {survival_steps} 스텝")
+            print(f"   - 에피소드: {self.episode_count}")
+            print(f"   - 파일: {filename}")
+            print(f"   - 크기: {file_size:.1f} KB\n")
+
+            # 모든 스킬의 리플레이가 수집되었는지 확인
+            all_saved = all(cfg["saved"] for cfg in self.collected_replays.values())
+            if all_saved and is_first_save:
+                print("🎉 모든 스킬 레벨의 베스트 리플레이 수집 완료!")
+                print(
+                    f"   - Beginner (0.1): {self.collected_replays[0.1]['best_steps']} 스텝 ✅"
+                )
+                print(
+                    f"   - Medium (0.5):   {self.collected_replays[0.5]['best_steps']} 스텝 ✅"
+                )
+                print(
+                    f"   - Master (1.0):   {self.collected_replays[1.0]['best_steps']} 스텝 ✅\n"
+                )
+
+        except Exception as e:
+            print(f"❌ 리플레이 저장 실패: {e}")
+            import traceback
+
+            traceback.print_exc()
 
     def _print_final_stats(self):
         """최종 통계 출력"""
@@ -805,7 +1001,7 @@ class RealGameTrainer:
             training_time = time.time() - self.training_start_time
 
         print("\n" + "=" * 60)
-        print("🏆 PPO 학습 완료! (최적화된 하이퍼파라미터 사용)")
+        print("🏆 PPO 학습 완료! (안정화된 하이퍼파라미터 사용)")
         print("=" * 60)
         print(f"📈 학습 통계:")
         print(f"   - 총 학습 시간: {training_time:.1f}초 ({training_time / 60:.1f}분)")
@@ -825,13 +1021,13 @@ class RealGameTrainer:
             print(f"   - 총 킬 수: {np.sum(self.episode_kills)}")
             print(f"   - 평균 킬/에피소드: {np.mean(self.episode_kills):.1f}")
 
-        print(f"\n🧠 사용된 최적화 하이퍼파라미터:")
-        print(f"   - Learning Rate: 7.67e-05")
+        print(f"\n🧠 사용된 안정화 하이퍼파라미터:")
+        print(f"   - Learning Rate: 5.0e-05 (안정성 우선)")
         print(f"   - Gamma: 0.9659")
         print(f"   - GAE Lambda: 0.9592")
         print(f"   - Clip Epsilon: 0.2371")
         print(f"   - Value Coef: 0.1658")
-        print(f"   - Entropy Coef: 0.00167")
+        print(f"   - Entropy Coef: 0.0015 (탐험 감소)")
 
     def _generate_training_plots(self):
         """학습 결과 그래프 생성"""
@@ -965,8 +1161,8 @@ class RealGameTrainer:
             ax4.grid(True, alpha=0.3)
 
             plt.suptitle(
-                f"PPO Training Results - Optimized Hyperparameters\n"
-                f"(Skill: {self.skill_level}, Episodes: {len(episodes)})",
+                f"PPO Training Results - Stabilized Hyperparameters\n"
+                f"(Skill: {self.skill_level}, Episodes: {len(episodes)}, LR: 5e-5)",
                 fontsize=16,
                 fontweight="bold",
             )
@@ -975,7 +1171,7 @@ class RealGameTrainer:
             # 파일 저장
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             graph_file = os.path.join(
-                save_dir, f"training_results_optimized_{timestamp}.png"
+                save_dir, f"training_results_stabilized_{timestamp}.png"
             )
             plt.savefig(graph_file, dpi=300, bbox_inches="tight")
             plt.close()
@@ -1005,6 +1201,7 @@ class RealGameTrainer:
                 return
 
             import matplotlib
+
             matplotlib.use("Agg")
             import matplotlib.pyplot as plt
             from datetime import datetime
@@ -1024,7 +1221,9 @@ class RealGameTrainer:
             total_eps = len(self.episode_rewards)
             for stage in stages:
                 start = cumulative  # 0-based inclusive
-                end = min(cumulative + max(0, stage.num_episodes), total_eps)  # 0-based exclusive
+                end = min(
+                    cumulative + max(0, stage.num_episodes), total_eps
+                )  # 0-based exclusive
                 cumulative += stage.num_episodes
                 if start >= end:
                     # 이 단계에 수집된 데이터가 없음
@@ -1038,8 +1237,12 @@ class RealGameTrainer:
                         "episodes": rel_eps,
                         "rewards": self.episode_rewards[start:end],
                         "survival": self.episode_survival_times[start:end],
-                        "scores": self.episode_scores[start:end] if self.episode_scores else [],
-                        "kills": self.episode_kills[start:end] if self.episode_kills else [],
+                        "scores": self.episode_scores[start:end]
+                        if self.episode_scores
+                        else [],
+                        "kills": self.episode_kills[start:end]
+                        if self.episode_kills
+                        else [],
                     }
                 )
 
@@ -1054,7 +1257,9 @@ class RealGameTrainer:
             fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 10))
 
             def plot_series(ax, x_vals, y_vals, color, label):
-                ax.plot(x_vals, y_vals, color=color, alpha=0.35, linewidth=1.0, label=label)
+                ax.plot(
+                    x_vals, y_vals, color=color, alpha=0.35, linewidth=1.0, label=label
+                )
                 if len(y_vals) >= 5:
                     window = min(5, len(y_vals))
                     ma = np.convolve(y_vals, np.ones(window) / window, mode="valid")
@@ -1079,7 +1284,13 @@ class RealGameTrainer:
             # 생존시간
             for idx, seg in enumerate(stage_segments):
                 color = base_colors[idx % len(base_colors)]
-                plot_series(ax2, seg["episodes"], seg["survival"], color, f"skill {seg['skill']:.1f}")
+                plot_series(
+                    ax2,
+                    seg["episodes"],
+                    seg["survival"],
+                    color,
+                    f"skill {seg['skill']:.1f}",
+                )
             ax2.set_title("Survival Time - (Overlaid by Skill)")
             ax2.set_xlabel("Episode (relative in stage)")
             ax2.set_ylabel("Steps")
@@ -1093,7 +1304,13 @@ class RealGameTrainer:
                     if not seg["scores"]:
                         continue
                     color = base_colors[idx % len(base_colors)]
-                    plot_series(ax3, seg["episodes"], seg["scores"], color, f"skill {seg['skill']:.1f}")
+                    plot_series(
+                        ax3,
+                        seg["episodes"],
+                        seg["scores"],
+                        color,
+                        f"skill {seg['skill']:.1f}",
+                    )
             ax3.set_title("Scores - (Overlaid by Skill)")
             ax3.set_xlabel("Episode (relative in stage)")
             ax3.set_ylabel("Score")
@@ -1107,7 +1324,13 @@ class RealGameTrainer:
                     if not seg["kills"]:
                         continue
                     color = base_colors[idx % len(base_colors)]
-                    plot_series(ax4, seg["episodes"], seg["kills"], color, f"skill {seg['skill']:.1f}")
+                    plot_series(
+                        ax4,
+                        seg["episodes"],
+                        seg["kills"],
+                        color,
+                        f"skill {seg['skill']:.1f}",
+                    )
             ax4.set_title("Kills - (Overlaid by Skill)")
             ax4.set_xlabel("Episode (relative in stage)")
             ax4.set_ylabel("Kills")
@@ -1115,7 +1338,9 @@ class RealGameTrainer:
             ax4.grid(True, alpha=0.3)
 
             # 제목 및 저장
-            stage_desc = ", ".join([f"{s['name']} (skill {s['skill']:.1f})" for s in stage_segments])
+            stage_desc = ", ".join(
+                [f"{s['name']} (skill {s['skill']:.1f})" for s in stage_segments]
+            )
             plt.suptitle(
                 f"PPO Training - Combined by Skill\n({stage_desc})",
                 fontsize=16,
@@ -1125,7 +1350,9 @@ class RealGameTrainer:
 
             os.makedirs("src/models", exist_ok=True)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            out_path = os.path.join("src/models", f"training_results_combined_by_skill_{timestamp}.png")
+            out_path = os.path.join(
+                "src/models", f"training_results_combined_by_skill_{timestamp}.png"
+            )
             plt.savefig(out_path, dpi=300, bbox_inches="tight")
             plt.close()
 
@@ -1290,22 +1517,93 @@ class RealGameTrainer:
             print(f"❌ 스테이지 그래프 생성 실패: {e}")
 
     def _save_model_for_stage(self, stage_name: str, skill: float):
-        """단계 종료 시 모델 저장 (스테이지별 디렉토리)."""
+        """단계 종료 시 모델 저장 (스테이지별 디렉토리).
+
+        전이학습을 위해 best.pth와 latest.pth를 모두 저장합니다.
+        """
         try:
             import os
+            import shutil
 
             slug = self._sanitize_stage_slug(stage_name, skill)
             save_dir = os.path.join("src/models/ppo/stages", slug)
+
+            # 1. timestamp 버전 저장 (기존 동작)
             path = self.ppo_agent.save_model(save_dir=save_dir)
             print(f"💾 스테이지 모델 저장 완료: {path}")
+
+            # 2. 전이학습을 위해 latest.pth로 복사
+            latest_path = os.path.join(save_dir, "latest.pth")
+            shutil.copy2(path, latest_path)
+            print(f"📋 전이학습용 체크포인트 저장: {latest_path}")
+
+            # 3. best.pth는 최고 성능일 때만 갱신 (향후 구현 가능)
+            # 지금은 latest.pth만으로도 전이학습 가능
+
         except Exception as e:
             print(f"❌ 스테이지 모델 저장 실패: {e}")
+
+    def _load_previous_stage_checkpoint(
+        self, prev_stage_name: str, prev_skill: float
+    ) -> bool:
+        """이전 스테이지의 체크포인트를 로드하여 전이 학습 수행
+
+        커리큘럼 러닝의 핵심: 이전 단계에서 배운 지식을 다음 단계로 전달
+
+        Args:
+            prev_stage_name: 이전 스테이지 이름
+            prev_skill: 이전 스킬 레벨
+
+        Returns:
+            체크포인트 로드 성공 여부
+        """
+        try:
+            import os
+
+            slug = self._sanitize_stage_slug(prev_stage_name, prev_skill)
+            checkpoint_dir = os.path.join("src/models/ppo/stages", slug)
+
+            # best.pth 우선 시도, 없으면 latest.pth 시도
+            best_path = os.path.join(checkpoint_dir, "best.pth")
+            latest_path = os.path.join(checkpoint_dir, "latest.pth")
+
+            checkpoint_path = None
+            if os.path.exists(best_path):
+                checkpoint_path = best_path
+                print(f"🔍 이전 스테이지 베스트 체크포인트 발견: {best_path}")
+            elif os.path.exists(latest_path):
+                checkpoint_path = latest_path
+                print(f"🔍 이전 스테이지 최신 체크포인트 발견: {latest_path}")
+            else:
+                print(f"⚠️  이전 스테이지 체크포인트 없음 (디렉토리: {checkpoint_dir})")
+                print(f"   → 랜덤 초기화 상태에서 학습 시작")
+                return False
+
+            # 체크포인트 로드
+            print(f"📥 전이 학습 시작: {checkpoint_path} 로드 중...")
+            success = self.ppo_agent.load_model(checkpoint_path)
+
+            if success:
+                print(f"✅ 전이 학습 성공!")
+                print(f"   - 이전 스테이지: {prev_stage_name} (skill={prev_skill:.1f})")
+                print(f"   - 학습된 지식을 기반으로 새로운 스테이지 학습 시작")
+                return True
+            else:
+                print(f"❌ 체크포인트 로드 실패")
+                return False
+
+        except Exception as e:
+            print(f"❌ 전이 학습 중 오류 발생: {e}")
+            import traceback
+
+            traceback.print_exc()
+            return False
 
 
 def main():
     """메인 함수"""
     parser = argparse.ArgumentParser(
-        description="PPO를 사용한 실제 게임 학습 (최적화된 하이퍼파라미터)"
+        description="PPO를 사용한 실제 게임 학습 (안정화된 하이퍼파라미터)"
     )
     parser.add_argument(
         "--skill-level",
@@ -1329,58 +1627,106 @@ def main():
     )
     parser.add_argument(
         "--curriculum-type",
-        choices=["step", "linear"],
+        choices=["step", "linear", "exponential", "sigmoid", "polynomial"],
         default="step",
         help="커리큘럼 유형 선택 (기본: step)",
     )
     parser.add_argument(
         "--linear-start",
         type=float,
-        default=0.2,
-        help="선형 커리큘럼 시작 skill (기본: 0.2)",
+        default=0.1,
+        help="연속 커리큘럼 시작 skill (기본: 0.1)",
     )
     parser.add_argument(
         "--linear-end",
         type=float,
         default=1.0,
-        help="선형 커리큘럼 종료 skill (기본: 1.0)",
+        help="연속 커리큘럼 종료 skill (기본: 1.0)",
+    )
+    parser.add_argument(
+        "--exp-rate",
+        type=float,
+        default=3.0,
+        help="지수 커리큘럼 증가 속도 (기본: 3.0, 범위: 1.0-5.0)",
+    )
+    parser.add_argument(
+        "--sigmoid-steepness",
+        type=float,
+        default=12.0,
+        help="시그모이드 커리큘럼 기울기 (기본: 12.0, 범위: 6.0-15.0)",
+    )
+    parser.add_argument(
+        "--poly-degree",
+        type=float,
+        default=2.0,
+        help="다항 커리큘럼 차수 (기본: 2.0, 범위: 1.0-4.0)",
     )
 
     args = parser.parse_args()
 
-    print("🚀 실제 게임 PPO 학습 시작 - 최적화된 하이퍼파라미터 버전")
+    print("🚀 실제 게임 PPO 학습 시작 - 안정화된 하이퍼파라미터 버전")
     print(f"📋 설정:")
     print(f"   - 실력값: {args.skill_level}")
     print(f"   - 최대 에피소드: {args.max_episodes}")
     print(f"   - 업데이트 간격: {args.update_interval}")
-    print(f"   - 최적화된 하이퍼파라미터 자동 적용")
+    print(f"   - 안정화된 하이퍼파라미터 자동 적용 (LR: 5e-5, Entropy: 0.0015)")
 
     try:
         # 커리큘럼 구성 (옵션)
         curriculum = None
         if args.use_curriculum:
             if args.curriculum_type == "step":
-                # Use only discrete skill levels: 0.1, 0.5, 1.0
-                # Distribute episodes evenly across the three stages
+                # 4단계 점진적 커리큘럼: 0.1 → 0.3 → 0.6 → 1.0
+                # 목표치만 증가, 보상 가중치는 고정 (생존 50%, 공격 50%)
+                # 연속 함수로 부드러운 전이학습 지원
                 total = max(1, args.max_episodes)
-                base = total // 3
-                remainder = total - (base * 3)
-                stage_episodes = [base, base, base]
+                base = total // 4
+                remainder = total - (base * 4)
+                stage_episodes = [base, base, base, base]
                 # Assign any remainder to the last stage to ensure sum == total
                 stage_episodes[-1] += remainder
 
                 stages = [
-                    CurriculumStage(stage_episodes[0], 0.1, "초급 생존 중심"),
-                    CurriculumStage(stage_episodes[1], 0.5, "중급 균형"),
-                    CurriculumStage(stage_episodes[2], 1.0, "고급 공격 중심"),
+                    CurriculumStage(stage_episodes[0], 0.1, "초급 (목표: 330스텝, 3킬)"),
+                    CurriculumStage(stage_episodes[1], 0.3, "중하급 (목표: 590스텝, 9킬)"),
+                    CurriculumStage(stage_episodes[2], 0.6, "중상급 (목표: 980스텝, 18킬)"),
+                    CurriculumStage(stage_episodes[3], 1.0, "고급 (목표: 1500스텝, 30킬)"),
                 ]
                 curriculum = StepCurriculum(stages)
-            else:
+            elif args.curriculum_type == "linear":
                 curriculum = LinearCurriculum(
                     start_skill=args.linear_start,
                     end_skill=args.linear_end,
                     total_episodes=args.max_episodes,
                 )
+                print(f"📐 선형 커리큘럼: {args.linear_start:.1f} → {args.linear_end:.1f}")
+            elif args.curriculum_type == "exponential":
+                from rl import ExponentialCurriculum
+                curriculum = ExponentialCurriculum(
+                    start_skill=args.linear_start,
+                    end_skill=args.linear_end,
+                    total_episodes=args.max_episodes,
+                    rate=args.exp_rate,
+                )
+                print(f"📈 지수 커리큘럼: {args.linear_start:.1f} → {args.linear_end:.1f} (rate={args.exp_rate})")
+            elif args.curriculum_type == "sigmoid":
+                from rl import SigmoidCurriculum
+                curriculum = SigmoidCurriculum(
+                    start_skill=args.linear_start,
+                    end_skill=args.linear_end,
+                    total_episodes=args.max_episodes,
+                    steepness=args.sigmoid_steepness,
+                )
+                print(f"〰️  시그모이드 커리큘럼: {args.linear_start:.1f} → {args.linear_end:.1f} (steepness={args.sigmoid_steepness})")
+            elif args.curriculum_type == "polynomial":
+                from rl import PolynomialCurriculum
+                curriculum = PolynomialCurriculum(
+                    start_skill=args.linear_start,
+                    end_skill=args.linear_end,
+                    total_episodes=args.max_episodes,
+                    degree=args.poly_degree,
+                )
+                print(f"📊 다항 커리큘럼: {args.linear_start:.1f} → {args.linear_end:.1f} (degree={args.poly_degree})")
 
         # 트레이너 생성 (최적화된 하이퍼파라미터는 PPOAgent에서 자동 적용)
         trainer = RealGameTrainer(skill_level=args.skill_level, curriculum=curriculum)
