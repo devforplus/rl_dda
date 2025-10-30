@@ -98,15 +98,10 @@ class Player(Sprite):
         :param damage: 받은 데미지
         """
         if self.is_invincible():
-            print(
-                f"🛡️ 플레이어 무적 상태 (무적 프레임: {self.invincibility_frames}, 강제 무적: {self.forced_invincible})"
-            )
             return
 
-        print(f"💥 플레이어 데미지! HP: {self.current_hp} → {self.current_hp - damage}")
         self.current_hp -= damage
         if self.current_hp <= 0:
-            print(f"💀 플레이어 사망! kill() 호출")
             self.kill()
         else:
             self.invincibility_frames = DAMAGE_INVINCIBILITY_FRAMES  # 피격 무적
@@ -143,11 +138,9 @@ class Player(Sprite):
 
     def kill(self) -> None:
         """플레이어 제거 처리."""
-        print(f"☠️ 플레이어 kill() 실행 - 목숨 감소 전: {self.game_vars.lives}")
         self.remove = True
         self.explode()
         self.game_vars.subtract_life()  # 생명 수 감소
-        print(f"💔 목숨 감소 후: {self.game_vars.lives}")
         self.game_vars.decrease_all_weapon_levels(2)  # 모든 무기 레벨 감소
         self.game_vars.change_weapon(0)  # 기본 무기로 변경
         self.current_hp = self.max_hp  # 체력 초기화
@@ -163,18 +156,13 @@ class Player(Sprite):
             or other.type == EntityType.ENEMY_SHOT
             or other.type == EntityType.BACKGROUND
         ):
-            print(f"💥 플레이어 충돌 감지! 타입: {other.type}")
             if not self.is_invincible():
                 if other.type == EntityType.ENEMY_SHOT:
-                    print(f"🎯 적 총알 충돌 - 데미지: {getattr(other, 'damage', 1)}")
                     self.take_damage(
                         getattr(other, "damage", 1)
                     )  # 적 총알의 데미지 적용
                 else:
-                    print(f"⚡ 적/배경 충돌 - 즉사")
                     self.kill()  # 적이나 배경과 충돌 시 즉사
-            else:
-                print(f"🛡️ 무적 상태로 충돌 무시")
 
     def move(self) -> None:
         """플레이어 이동 처리."""
