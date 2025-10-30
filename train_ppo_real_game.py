@@ -23,14 +23,9 @@ project_root = os.path.join(current_dir, "src")
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-print(f"🔍 프로젝트 루트 경로: {project_root}")
-print(f"🔍 Python 경로에 추가됨: {project_root in sys.path}")
-
 try:
     import torch
     import numpy as np
-
-    print("✅ PyTorch와 NumPy 임포트 성공")
 except ImportError as e:
     print(f"❌ 필수 라이브러리 임포트 실패: {e}")
     sys.exit(1)
@@ -38,8 +33,6 @@ except ImportError as e:
 # Pyxel 임포트 확인
 try:
     import pyxel as px
-
-    print("✅ Pyxel 임포트 성공")
 except ImportError as e:
     print(f"❌ Pyxel 임포트 실패: {e}")
     print("pip install pyxel로 설치해주세요.")
@@ -56,8 +49,6 @@ try:
         LinearCurriculum,
     )
     from rl.data_types import GameLogData, EntityPosition, PlayerState
-
-    print("✅ RL 모듈 임포트 성공")
 except ImportError as e:
     print(f"❌ RL 모듈 임포트 실패: {e}")
     print("RL 모듈이 src/rl/ 디렉토리에 있는지 확인해주세요.")
@@ -65,8 +56,6 @@ except ImportError as e:
 
 try:
     from main import App
-
-    print("✅ 메인 앱 클래스 임포트 성공")
 except ImportError as e:
     print(f"❌ 메인 앱 클래스 임포트 실패: {e}")
     print("main.py 파일이 src/ 디렉토리에 있는지 확인해주세요.")
@@ -74,11 +63,7 @@ except ImportError as e:
 
 try:
     from config.player.player_config import STARTING_LIVES
-
-    print("✅ 플레이어 설정 임포트 성공")
 except ImportError as e:
-    print(f"❌ 플레이어 설정 임포트 실패: {e}")
-    print("기본값 3으로 설정합니다.")
     STARTING_LIVES = 3
 
 
@@ -110,15 +95,10 @@ class RealGamePPOAgent:
         self.current_replay_frames = []
         self.replay_save_callback = None  # 트레이너가 설정할 콜백
 
-        print(f"✅ PPO 에이전트 초기화 완료 (실력값: {skill_level})")
-
     def connect_game(self, game_instance):
         """게임 인스턴스 연결"""
         self.connected_game = game_instance
         self.previous_lives = self._get_current_lives()
-        print(
-            f"✅ PPO 에이전트가 게임에 연결되었습니다. 초기 목숨: {self.previous_lives}"
-        )
 
     def select_action(self, state=None) -> int:
         """게임에서 호출되는 액션 선택 메서드"""
@@ -138,7 +118,6 @@ class RealGamePPOAgent:
 
                 # 100 프레임 후에도 리셋되지 않으면 강제 리셋
                 if self.reset_timer > 100:
-                    print("⏰ 타이머 만료 - 강제 에피소드 리셋 실행")
                     self._force_episode_reset()
                     return 4
 
@@ -219,13 +198,8 @@ class RealGamePPOAgent:
         current_lives = self._get_current_lives()
 
         if current_lives != self.previous_lives:
-            print(f"🔔 목숨 변화: {self.previous_lives} → {current_lives}")
-
             if current_lives < self.previous_lives:
-                print(f"💀 플레이어 사망!")
-
                 if current_lives <= 0:
-                    print(f"🏁 에피소드 종료 (목숨 0)")
                     self._finalize_episode()
                     self.episode_done = True
 
@@ -246,9 +220,8 @@ class RealGamePPOAgent:
                 self.ppo_agent.store_reward_and_done(reward, True)  # 에피소드 종료
                 self.episode_reward += reward
                 self.episode_steps += 1
-                print(f"💾 최종 보상 저장: {reward:.3f}")
             except Exception as e:
-                print(f"❌ 최종 보상 저장 실패: {e}")
+                pass
 
         self._print_episode_summary()
 
@@ -273,7 +246,6 @@ class RealGamePPOAgent:
         if self._is_game_reset():
             self._reset_for_new_episode()
             self.episode_done = False
-            print("✅ 새로운 에피소드 시작!")
         else:
             # 게임 리셋을 강제로 요청
             self._request_game_reset()
@@ -312,14 +284,11 @@ class RealGamePPOAgent:
 
                 # 게임에 리셋 메서드가 있다면 호출
                 if hasattr(game, "reset_game"):
-                    print("🔄 게임 강제 리셋 요청...")
                     game.reset_game()
                 elif hasattr(game, "restart_game"):
-                    print("🔄 게임 재시작 요청...")
                     game.restart_game()
                 elif hasattr(game, "game_vars"):
                     # 게임 변수 직접 초기화
-                    print("🔄 게임 상태 직접 초기화...")
                     game_vars = game.game_vars
                     game_vars.lives = STARTING_LIVES
                     game_vars.score = 0
@@ -330,8 +299,6 @@ class RealGamePPOAgent:
                         game_vars.game_over = False
                     if hasattr(game_vars, "game_started"):
                         game_vars.game_started = True
-
-                    print("✅ 게임 상태 초기화 완료")
 
                     # 강제로 에피소드 종료 해제
                     self.episode_done = False
@@ -349,8 +316,6 @@ class RealGamePPOAgent:
 
     def _reset_for_new_episode(self):
         """새로운 에피소드를 위한 상태 리셋"""
-        print("🔄 에피소드 리셋 중...")
-
         self.environment.reset_episode()
         self.episode_reward = 0.0
         self.episode_steps = 0
@@ -361,12 +326,8 @@ class RealGamePPOAgent:
         # 리플레이 버퍼 초기화
         self.current_replay_frames = []
 
-        print(f"✅ 에피소드 리셋 완료 (목숨: {self.previous_lives})")
-
     def _force_episode_reset(self):
         """강제 에피소드 리셋 (최후의 수단)"""
-        print("⚠️  강제 에피소드 리셋 실행...")
-
         # 에피소드 상태 강제 초기화
         self.episode_done = False
         self.reset_requested = False
@@ -380,8 +341,6 @@ class RealGamePPOAgent:
 
         # 리플레이 버퍼 초기화
         self.current_replay_frames = []
-
-        print("🔧 강제 리셋 완료 - 새로운 에피소드 시작")
 
     def _record_frame(self, game_log: GameLogData, action: int):
         """현재 프레임을 리플레이에 기록"""
@@ -435,29 +394,20 @@ class RealGamePPOAgent:
         return STARTING_LIVES
 
     def _print_debug_info(self):
-        """디버깅 정보 출력"""
-        buffer_sizes = {
-            "states": len(self.ppo_agent.states),
-            "actions": len(self.ppo_agent.actions),
-            "rewards": len(self.ppo_agent.rewards),
-            "dones": len(self.ppo_agent.dones),
-        }
-        print(f"🔍 Step {self.step_count} - 버퍼: {buffer_sizes}")
+        """디버깅 정보 출력 (비활성화)"""
+        # 학습 중 불필요한 로그 제거
+        pass
 
     def _print_episode_summary(self):
-        """에피소드 요약 출력"""
-        print(f"\n🏁 에피소드 종료")
-        print(f"   - 보상: {self.episode_reward:.2f}")
-        print(f"   - 스텝: {self.episode_steps}")
-        print(f"   - 총 스텝: {self.step_count}")
+        """에피소드 요약 출력 (비활성화)"""
+        # 학습 중 불필요한 로그 제거 (상위 레벨에서 출력)
+        pass
 
 
 class RealGameTrainer:
     """실제 게임에서의 PPO 학습 관리자 - 최적화된 하이퍼파라미터 사용"""
 
     def __init__(self, skill_level: float = 0.5, curriculum=None):
-        print(f"🚀 PPO 트레이너 초기화 시작...")
-
         self.curriculum = curriculum
         self.skill_level = skill_level
         self.is_training = False
@@ -490,43 +440,22 @@ class RealGameTrainer:
         }
 
         try:
-            # 먼저 환경을 초기화하여 실제 상태 크기를 확인
-            print("🌍 게임 환경 초기화 중...")
+            # 환경 초기화
             self.environment = GameEnvironment()
 
-            # 실제 상태 크기 확인
+            # 상태 크기 확인
             try:
-                # 더미 게임 상태로 상태 크기 측정
-                print("📏 실제 상태 크기 측정 중...")
                 dummy_game_log = self._create_dummy_game_log()
                 actual_state_size = len(
                     self.environment._extract_state_vector(dummy_game_log)
                 )
-                print(f"🔍 실제 상태 크기: {actual_state_size}")
             except Exception as e:
-                print(f"⚠️  상태 크기 자동 측정 실패: {e}")
-                actual_state_size = 161  # 오류 메시지에서 확인된 크기
-                print(f"🔧 기본 상태 크기 사용: {actual_state_size}")
+                actual_state_size = 161  # 기본값
 
-            # PPO 컴포넌트 초기화 (Optuna 최적화된 하이퍼파라미터)
-            print("🧠 PPO 에이전트 초기화 중...")
-            print("📊 Optuna 최적화된 하이퍼파라미터를 사용합니다:")
-            print("   - Learning Rate: 7.67e-05 (Optuna 검증)")
-            print("   - Gamma: 0.9659")
-            print("   - GAE Lambda: 0.9592")
-            print("   - Clip Epsilon: 0.2371")
-            print("   - Value Coef: 0.1658")
-            print("   - Entropy Coef: 0.00167 (Optuna 검증)")
-            print("   - Batch Size: 64 (Optuna 검증)")
-            print("   - Hidden Size: 128")
-            print("   - Num Layers: 2")
-            print("   - Grad Clip Norm: 1.5008")
-
-            # 최적화된 하이퍼파라미터는 PPOAgent의 기본값을 사용
+            # PPO 에이전트 초기화
             self.ppo_agent = PPOAgent(
                 state_size=actual_state_size,
-                action_size=10,  # 9 → 10으로 변경 (액션 매핑 0~9)
-                # 나머지 하이퍼파라미터들은 PPOAgent의 최적화된 기본값 사용
+                action_size=10,
             )
 
             # 커리큘럼이 있을 경우, 0번째 에피소드 스킬/스테이지 설정
@@ -535,14 +464,9 @@ class RealGameTrainer:
                 self.skill_level = init_skill
                 self.current_stage_name = init_stage
                 self.stage_start_episode = 1
-                print(
-                    f"🎓 커리큘럼 활성화 - 초기 Stage: {init_stage}, skill={self.skill_level:.2f}"
-                )
 
-            print("🌍 게임 환경 재초기화 중...")
             self.environment = GameEnvironment()
 
-            print("🤖 게임 에이전트 래퍼 초기화 중...")
             self.game_agent = RealGamePPOAgent(
                 self.ppo_agent, self.environment, self.skill_level
             )
@@ -556,13 +480,6 @@ class RealGameTrainer:
             self.game_agent.replay_save_callback = self._try_save_replay
 
             self.game_app = None
-
-            print(f"✅ PPO 트레이너 초기화 완료")
-            print(f"   - 실력값: {skill_level}")
-            print(f"   - 상태 크기: {actual_state_size}")
-            print(f"   - 액션 크기: 10 (0~9)")
-            print(f"   - 디바이스: {self.ppo_agent.device}")
-            print(f"   - 최적화된 하이퍼파라미터 적용됨")
 
         except Exception as e:
             print(f"❌ 트레이너 초기화 실패: {e}")
@@ -625,26 +542,20 @@ class RealGameTrainer:
         self.is_training = True
         self.training_start_time = time.time()
 
-        print(f"\n🎮 실제 게임에서 PPO 학습 시작!")
-        print(f"   - 최대 에피소드: {max_episodes}")
-        print(f"   - 업데이트 간격: {self.update_interval} 스텝")
-        print(f"   - Optuna 최적화된 하이퍼파라미터 사용 (LR: 7.67e-05, Batch: 64)")
+        print(f"\n🎮 PPO 학습 시작 (에피소드: {max_episodes}, LR: 7.67e-05, Batch: 64)")
 
         # 신호 핸들러 설정 (Ctrl+C 처리)
         signal.signal(signal.SIGINT, self._signal_handler)
 
         try:
             # 백그라운드 학습 스레드 시작
-            print("🧵 백그라운드 학습 스레드 시작...")
             self.training_thread = threading.Thread(target=self._training_loop)
             self.training_thread.daemon = True
             self.training_thread.start()
 
             # 게임 앱 생성 및 실행
-            print("🎮 게임 앱 생성 중...")
             self.game_app = App(agent=self.game_agent)
 
-            print("🎮 Pyxel 게임 실행...")
             # Pyxel 실행 (메인 스레드에서 실행)
             px.run(self.game_app.update, self.game_app.draw)
 
@@ -665,7 +576,6 @@ class RealGameTrainer:
 
     def _training_loop(self):
         """백그라운드 학습 루프"""
-        print("🔄 학습 루프 시작...")
         last_update_step = 0
         min_samples_for_update = 512  # 최소 샘플 수 감소
 
@@ -680,11 +590,6 @@ class RealGameTrainer:
                     if num_samples >= min_samples_for_update:
                         self._perform_ppo_update(current_step, num_samples)
                         last_update_step = current_step
-                    else:
-                        if current_step % 200 == 0:  # 덜 빈번한 메시지
-                            print(
-                                f"⏳ 학습 데이터 부족 ({num_samples}/{min_samples_for_update})"
-                            )
 
                 time.sleep(0.2)  # CPU 사용량 감소
 
@@ -695,26 +600,15 @@ class RealGameTrainer:
                 traceback.print_exc()
                 time.sleep(1)
 
-        print("🔄 학습 루프 종료")
-
     def _perform_ppo_update(self, current_step: int, num_samples: int):
-        """PPO 업데이트 수행"""
-        print(f"📈 PPO 업데이트 시작 (스텝 {current_step}, 샘플 {num_samples}개)")
-
+        """PPO 업데이트 수행 (로그 간소화)"""
         try:
             update_info = self.ppo_agent.update()
 
             if update_info:
-                print(f"✅ PPO 업데이트 완료 (Optuna 최적 파라미터)")
-                print(f"   - Policy Loss: {update_info.get('policy_loss', 0):.4f}")
-                print(f"   - Value Loss: {update_info.get('value_loss', 0):.4f}")
-                print(f"   - 에피소드 보상: {self.game_agent.episode_reward:.2f}")
-
-                # 주기적 모델 저장
+                # 주기적 모델 저장만 수행 (로그 제거)
                 if (current_step // self.update_interval) % 10 == 0:
                     self.save_model()
-            else:
-                print("⚠️  PPO 업데이트 건너뜀 (데이터 부족)")
 
         except Exception as e:
             print(f"❌ PPO 업데이트 실패: {e}")
@@ -752,7 +646,6 @@ class RealGameTrainer:
         if self.cleaned_up:
             return
         self.cleaned_up = True
-        print("🧹 정리 작업 시작...")
 
         # 최종 모델 저장
         self.save_model()
@@ -761,22 +654,13 @@ class RealGameTrainer:
         self._print_final_stats()
 
         # 그래프 생성
-        print(
-            f"🔍 그래프 생성 조건 확인: episode_rewards 길이 = {len(self.episode_rewards)}"
-        )
         if len(self.episode_rewards) > 0:
-            print("📊 그래프 생성 시작...")
             self._generate_training_plots()
-        else:
-            print("⚠️  에피소드 데이터가 없어 그래프를 생성할 수 없습니다.")
-
-        print("✅ 정리 작업 완료")
 
     def save_model(self):
-        """모델 저장"""
+        """모델 저장 (로그 간소화)"""
         try:
-            save_path = self.ppo_agent.save_model()
-            print(f"💾 모델 저장 완료: {save_path}")
+            self.ppo_agent.save_model()
         except Exception as e:
             print(f"❌ 모델 저장 실패: {e}")
 
@@ -855,22 +739,17 @@ class RealGameTrainer:
 
                 # 🔥 전이 학습: 다음 스테이지로 전환하면서 이전 체크포인트 로드
                 if stage_changed and self.episode_count < self.max_episodes:
-                    print("\n" + "=" * 60)
-                    print(f"🎓 커리큘럼 러닝: 스테이지 전환 감지")
-                    print(f"   이전: {prev_stage_name} (skill={prev_stage_skill:.1f})")
-                    print(f"   다음: {next_stage} (skill={next_skill:.1f})")
-                    print("=" * 60)
-
+                    print(f"\n🎓 스테이지 전환: {prev_stage_name} (skill {prev_stage_skill:.1f}) → {next_stage} (skill {next_skill:.1f})")
+                    
                     # 이전 스테이지의 학습 결과를 로드하여 전이 학습
                     transfer_success = self._load_previous_stage_checkpoint(
                         prev_stage_name, prev_stage_skill
                     )
 
                     if transfer_success:
-                        print("🚀 전이 학습으로 다음 스테이지 시작!")
+                        print("   ✅ 전이 학습 성공")
                     else:
-                        print("⚠️  전이 학습 없이 랜덤 초기화 상태에서 시작")
-                    print("=" * 60 + "\n")
+                        print("   ⚠️ 전이 학습 실패 - 랜덤 초기화")
 
                 # 다음 스테이지로 전환 준비
                 self.current_stage_name = next_stage
@@ -956,34 +835,7 @@ class RealGameTrainer:
             with open(filepath, "w", encoding="utf-8") as f:
                 json.dump(replay_data, f, indent=2, ensure_ascii=False)
 
-            file_size = os.path.getsize(filepath) / 1024  # KB
-
-            if is_first_save:
-                print(f"\n🎬 베스트 리플레이 첫 저장!")
-            else:
-                print(
-                    f"\n🆕 베스트 기록 갱신! ({previous_best} → {survival_steps} 스텝)"
-                )
-
-            print(f"   - 스킬: {skill_level} ({replay_config['name']})")
-            print(f"   - 생존: {survival_steps} 스텝")
-            print(f"   - 에피소드: {self.episode_count}")
-            print(f"   - 파일: {filename}")
-            print(f"   - 크기: {file_size:.1f} KB\n")
-
-            # 모든 스킬의 리플레이가 수집되었는지 확인
-            all_saved = all(cfg["saved"] for cfg in self.collected_replays.values())
-            if all_saved and is_first_save:
-                print("🎉 모든 스킬 레벨의 베스트 리플레이 수집 완료!")
-                print(
-                    f"   - Beginner (0.1): {self.collected_replays[0.1]['best_steps']} 스텝 ✅"
-                )
-                print(
-                    f"   - Medium (0.5):   {self.collected_replays[0.5]['best_steps']} 스텝 ✅"
-                )
-                print(
-                    f"   - Master (1.0):   {self.collected_replays[1.0]['best_steps']} 스텝 ✅\n"
-                )
+            # 리플레이 저장 로그 간소화 (불필요한 출력 제거)
 
         except Exception as e:
             print(f"❌ 리플레이 저장 실패: {e}")
@@ -994,54 +846,26 @@ class RealGameTrainer:
     def _print_final_stats(self):
         """최종 통계 출력"""
         if not self.episode_rewards:
-            print("📊 학습 통계가 없습니다.")
             return
 
         training_time = 0
         if self.training_start_time:
             training_time = time.time() - self.training_start_time
 
-        print("\n" + "=" * 60)
-        print("🏆 PPO 학습 완료! (Optuna 최적화된 하이퍼파라미터)")
-        print("=" * 60)
-        print(f"📈 학습 통계:")
-        print(f"   - 총 학습 시간: {training_time:.1f}초 ({training_time / 60:.1f}분)")
-        print(f"   - 총 에피소드: {self.episode_count}")
-        print(f"   - 총 스텝: {self.game_agent.step_count}")
-        print(f"   - 실력값: {self.skill_level}")
-
-        print(f"\n📊 성과 통계:")
-        print(f"   - 평균 보상: {np.mean(self.episode_rewards):.2f}")
-        print(f"   - 최고 보상: {np.max(self.episode_rewards):.2f}")
-        print(f"   - 평균 생존시간: {np.mean(self.episode_survival_times):.1f} 스텝")
-        print(f"   - 최장 생존시간: {np.max(self.episode_survival_times)} 스텝")
-        if self.episode_scores:
-            print(f"   - 평균 점수: {np.mean(self.episode_scores):.0f}")
-            print(f"   - 최고 점수: {np.max(self.episode_scores)}")
+        print(f"\n🏆 학습 완료 (시간: {training_time/60:.1f}분, 에피소드: {self.episode_count})")
+        print(f"   - 평균 보상: {np.mean(self.episode_rewards):.2f} (최고: {np.max(self.episode_rewards):.2f})")
+        print(f"   - 평균 생존: {np.mean(self.episode_survival_times):.1f} 스텝 (최장: {np.max(self.episode_survival_times)})")
         if self.episode_kills:
-            print(f"   - 총 킬 수: {np.sum(self.episode_kills)}")
-            print(f"   - 평균 킬/에피소드: {np.mean(self.episode_kills):.1f}")
-
-        print(f"\n🧠 사용된 Optuna 최적화 하이퍼파라미터:")
-        print(f"   - Learning Rate: 7.67e-05 (Optuna 검증)")
-        print(f"   - Batch Size: 64 (Optuna 검증)")
-        print(f"   - Gamma: 0.9659")
-        print(f"   - GAE Lambda: 0.9592")
-        print(f"   - Clip Epsilon: 0.2371")
-        print(f"   - Value Coef: 0.1658")
-        print(f"   - Entropy Coef: 0.00167 (Optuna 검증)")
+            print(f"   - 평균 킬: {np.mean(self.episode_kills):.1f} (총 {np.sum(self.episode_kills)}킬)")
 
     def _generate_training_plots(self):
         """학습 결과 그래프 생성"""
         try:
-            print("🔍 matplotlib 임포트 중...")
             import matplotlib
 
             matplotlib.use("Agg")  # GUI 없는 백엔드 사용
             import matplotlib.pyplot as plt
             from datetime import datetime
-
-            print("✅ matplotlib 임포트 성공")
 
             # 폰트 설정
             plt.rcParams["font.family"] = ["DejaVu Sans"]
@@ -1049,15 +873,7 @@ class RealGameTrainer:
 
             # 저장 디렉토리
             save_dir = "models"
-            print(f"🔍 저장 디렉토리 생성: {save_dir}")
             os.makedirs(save_dir, exist_ok=True)
-
-            # 데이터 상태 확인
-            print(f"🔍 데이터 상태:")
-            print(f"   - episode_rewards: {len(self.episode_rewards)}개")
-            print(f"   - episode_survival_times: {len(self.episode_survival_times)}개")
-            print(f"   - episode_scores: {len(self.episode_scores)}개")
-            print(f"   - episode_kills: {len(self.episode_kills)}개")
 
             # 그래프 생성
             fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 10))
@@ -1178,13 +994,10 @@ class RealGameTrainer:
             plt.savefig(graph_file, dpi=300, bbox_inches="tight")
             plt.close()
 
-            print(f"📊 학습 결과 그래프 저장: {graph_file}")
+            print(f"📊 그래프 저장: {graph_file}")
 
         except Exception as e:
             print(f"❌ 그래프 생성 실패: {e}")
-            import traceback
-
-            traceback.print_exc()
 
     def _generate_combined_skill_plots(self):
         """스킬 단계별 데이터를 한 그림에 오버레이하여 비교 그래프 생성.
@@ -1513,8 +1326,6 @@ class RealGameTrainer:
             plt.savefig(graph_file, dpi=300, bbox_inches="tight")
             plt.close()
 
-            print(f"📊 스테이지 그래프 저장: {graph_file}")
-
         except Exception as e:
             print(f"❌ 스테이지 그래프 생성 실패: {e}")
 
@@ -1532,15 +1343,10 @@ class RealGameTrainer:
 
             # 1. timestamp 버전 저장 (기존 동작)
             path = self.ppo_agent.save_model(save_dir=save_dir)
-            print(f"💾 스테이지 모델 저장 완료: {path}")
 
             # 2. 전이학습을 위해 latest.pth로 복사
             latest_path = os.path.join(save_dir, "latest.pth")
             shutil.copy2(path, latest_path)
-            print(f"📋 전이학습용 체크포인트 저장: {latest_path}")
-
-            # 3. best.pth는 최고 성능일 때만 갱신 (향후 구현 가능)
-            # 지금은 latest.pth만으로도 전이학습 가능
 
         except Exception as e:
             print(f"❌ 스테이지 모델 저장 실패: {e}")
@@ -1572,27 +1378,14 @@ class RealGameTrainer:
             checkpoint_path = None
             if os.path.exists(best_path):
                 checkpoint_path = best_path
-                print(f"🔍 이전 스테이지 베스트 체크포인트 발견: {best_path}")
             elif os.path.exists(latest_path):
                 checkpoint_path = latest_path
-                print(f"🔍 이전 스테이지 최신 체크포인트 발견: {latest_path}")
             else:
-                print(f"⚠️  이전 스테이지 체크포인트 없음 (디렉토리: {checkpoint_dir})")
-                print(f"   → 랜덤 초기화 상태에서 학습 시작")
                 return False
 
             # 체크포인트 로드
-            print(f"📥 전이 학습 시작: {checkpoint_path} 로드 중...")
             success = self.ppo_agent.load_model(checkpoint_path)
-
-            if success:
-                print(f"✅ 전이 학습 성공!")
-                print(f"   - 이전 스테이지: {prev_stage_name} (skill={prev_skill:.1f})")
-                print(f"   - 학습된 지식을 기반으로 새로운 스테이지 학습 시작")
-                return True
-            else:
-                print(f"❌ 체크포인트 로드 실패")
-                return False
+            return success
 
         except Exception as e:
             print(f"❌ 전이 학습 중 오류 발생: {e}")
