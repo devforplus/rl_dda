@@ -61,7 +61,6 @@ class GameEnvironment:
         self.episode_start_time = time.time()
         self.previous_nearby_bullets = []
         self.previous_player_pos = (0, 0)
-        print("🔄 환경 리셋 완료 - 새로운 에피소드 시작")
 
     def step(self):
         """매 스텝마다 호출하여 스텝 카운트 증가"""

@@ -172,9 +172,7 @@ class PPOAgent:
         # 배열 크기 차이 확인
         size_diff = max_size - min_size
         if size_diff > 0:
-            if is_early_training:
-                print(f"🔧 초기 학습 단계: 배열 크기 차이 {size_diff} 감지, 자동 조정")
-            else:
+            if not is_early_training:
                 print(f"⚠️  배열 크기 불일치: 최소={min_size}, 최대={max_size}")
 
         # 모든 배열을 최소 크기로 맞춤 (간단한 방법)
