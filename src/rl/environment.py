@@ -4,7 +4,8 @@
 게임과 PPO 에이전트 사이의 브리지 역할을 하는 환경 클래스
 """
 
-from typing import Dict
+from typing import Dict, List, Tuple
+import math
 
 from src.components.entity_types import EntityType
 from .data_types import GameLogData, EntityPosition, PlayerState, ActionType
@@ -26,9 +27,14 @@ class GameEnvironment:
         self.previous_hp = 3
         self.previous_lives = 3
 
-        # 에피소드 추적용 (새로 추가)
+        # 에피소드 추적용
         self.episode_steps = 0
         self.episode_start_time = None
+
+        # 탄환 회피 보상 계산을 위한 이전 프레임 추적
+        # Format: List[Tuple[x, y, distance_to_player]]
+        self.previous_nearby_bullets: List[Tuple[float, float, float]] = []
+        self.previous_player_pos: Tuple[float, float] = (0, 0)
 
         # 액션 매핑 (ActionType -> 게임 입력)
         self.action_mapping = {
@@ -53,6 +59,8 @@ class GameEnvironment:
         self.previous_lives = 3
         self.episode_steps = 0
         self.episode_start_time = time.time()
+        self.previous_nearby_bullets = []
+        self.previous_player_pos = (0, 0)
         print("🔄 환경 리셋 완료 - 새로운 에피소드 시작")
 
     def step(self):
@@ -62,18 +70,25 @@ class GameEnvironment:
     def extract_game_log_data(self, game_instance, skill_level: float) -> GameLogData:
         """게임 인스턴스에서 PPO 모델용 데이터를 추출
 
+        거리 기반 우선순위 시스템:
+        - 플레이어를 기준으로 모든 엔티티의 거리를 계산
+        - 가까운 엔티티부터 우선적으로 상태 벡터에 포함
+        - max_entities 제한 내에서 가장 위협적인(가까운) 정보를 우선 제공
+
         Args:
             game_instance: 게임 인스턴스
             skill_level: 실력값 (0.0~1.0)
 
         Returns:
-            추출된 게임 로그 데이터
+            추출된 게임 로그 데이터 (거리순 정렬된 엔티티)
         """
         entities = []
         player_state = PlayerState(hp=3, lives=3)
         current_step = self.episode_steps
         current_kills = 0
         current_score = 0
+        player_x = 0
+        player_y = 0
 
         # 게임 인스턴스에서 데이터 추출
         if hasattr(game_instance, "game") and game_instance.game:
@@ -84,24 +99,32 @@ class GameEnvironment:
                 # 플레이어 정보
                 player = getattr(game_state, "player", None)
                 if player:
+                    player_x = getattr(player, "x", 0)
+                    player_y = getattr(player, "y", 0)
                     player_hp = getattr(player, "current_hp", getattr(player, "hp", 3))
                     player_state = PlayerState(
                         hp=player_hp,
                         lives=getattr(game_vars, "lives", 3) if game_vars else 3,
                     )
 
+                # 플레이어 위치 저장 (탄환 회피 보상 계산용)
+                self.previous_player_pos = (player_x, player_y)
+
                 # 엔티티 수집 (플레이어, 적, 탄환)
-                # 플레이어 위치 추가
+                # 플레이어는 항상 첫 번째로 추가 (거리 0)
                 if player:
                     entities.append(
                         EntityPosition(
-                            x=getattr(player, "x", 0),
-                            y=getattr(player, "y", 0),
+                            x=player_x,
+                            y=player_y,
                             entity_type=EntityType.PLAYER,
                         )
                     )
 
-                # 적 정보 추가 (game_state의 모든 적 객체)
+                # 임시 리스트: (entity, distance) 형태로 저장
+                entities_with_distance: List[Tuple[EntityPosition, float]] = []
+
+                # 적 정보 수집
                 enemy_attrs = [
                     attr for attr in dir(game_state) if attr.startswith("enemy")
                 ]
@@ -111,32 +134,67 @@ class GameEnvironment:
                         try:
                             for enemy in enemy_group:
                                 if hasattr(enemy, "x") and hasattr(enemy, "y"):
-                                    entities.append(
-                                        EntityPosition(
-                                            x=getattr(enemy, "x", 0),
-                                            y=getattr(enemy, "y", 0),
-                                            entity_type=EntityType.ENEMY,
+                                    enemy_x = getattr(enemy, "x", 0)
+                                    enemy_y = getattr(enemy, "y", 0)
+                                    distance = math.sqrt(
+                                        (enemy_x - player_x) ** 2
+                                        + (enemy_y - player_y) ** 2
+                                    )
+                                    entities_with_distance.append(
+                                        (
+                                            EntityPosition(
+                                                x=enemy_x,
+                                                y=enemy_y,
+                                                entity_type=EntityType.ENEMY,
+                                            ),
+                                            distance,
                                         )
                                     )
                         except Exception:
                             pass
 
-                # 탄환 정보 추가
+                # 탄환 정보 수집 (이전 프레임 탄환도 저장)
+                nearby_bullets: List[Tuple[float, float, float]] = []
                 if hasattr(game_state, "enemy_shots"):
                     enemy_shots = getattr(game_state, "enemy_shots", [])
                     if enemy_shots and hasattr(enemy_shots, "__iter__"):
                         try:
                             for shot in enemy_shots:
                                 if hasattr(shot, "x") and hasattr(shot, "y"):
-                                    entities.append(
-                                        EntityPosition(
-                                            x=getattr(shot, "x", 0),
-                                            y=getattr(shot, "y", 0),
-                                            entity_type=EntityType.ENEMY_BULLET,
+                                    shot_x = getattr(shot, "x", 0)
+                                    shot_y = getattr(shot, "y", 0)
+                                    distance = math.sqrt(
+                                        (shot_x - player_x) ** 2
+                                        + (shot_y - player_y) ** 2
+                                    )
+                                    entities_with_distance.append(
+                                        (
+                                            EntityPosition(
+                                                x=shot_x,
+                                                y=shot_y,
+                                                entity_type=EntityType.ENEMY_BULLET,
+                                            ),
+                                            distance,
                                         )
                                     )
+                                    # 가까운 탄환만 추적 (40픽셀 이내)
+                                    # 탄환 회피 보상 계산에 사용
+                                    if distance < 40:
+                                        nearby_bullets.append(
+                                            (shot_x, shot_y, distance)
+                                        )
                         except Exception:
                             pass
+
+                # 이전 프레임 탄환 정보 업데이트
+                self.previous_nearby_bullets = nearby_bullets
+
+                # 거리순으로 정렬 (가까운 것부터)
+                entities_with_distance.sort(key=lambda x: x[1])
+
+                # 정렬된 순서대로 entities에 추가
+                for entity, _ in entities_with_distance:
+                    entities.append(entity)
 
             # 게임 변수에서 현재 성과 정보 추출
             if game_vars:
@@ -169,17 +227,23 @@ class GameEnvironment:
         - 0.6~0.8: 균형잡힌 전투 (50%→40% 생존, 50%→60% 공격)
         - 0.8~1.0: 공격적 플레이 (40%→35% 생존, 60%→65% 공격)
 
+        탄환 회피 보상 시스템 (신규 추가):
+        - 가까운 탄환(40픽셀 이내)을 성공적으로 회피했을 때 즉각적인 보상
+        - 회피 보상 = 0.01 * 회피한 탄환 수
+        - 학습 초기 단계에서 회피 행동을 강화하는 역할
+
         핵심 철학:
         - 실력값 입력 → 해당 수준의 플레이 스타일로 동작
         - 단계별 학습으로 안정적이고 자연스러운 성장 곡선
         - 초보자는 생존 중심, 고수는 공격 중심
+        - 탄환 회피를 통한 즉각적인 피드백 제공
 
         Args:
             game_instance: 게임 인스턴스
             skill_level: 실력값 (0.0 ~ 1.0)
 
         Returns:
-            커리큘럼 단계별 weighted sum 보상값 (0.0 ~ 1.0 스케일)
+            커리큘럼 단계별 weighted sum 보상값 + 탄환 회피 보상 (0.0 ~ 1.0+ 스케일)
         """
         if not (hasattr(game_instance, "game") and game_instance.game):
             return 0.0
@@ -194,7 +258,7 @@ class GameEnvironment:
 
         # 실력값 기반 적응적 목표 설정 (공유 타겟 맵 사용)
         target_survival_steps = get_survival_target_steps(skill_level)
-        target_kill_rate = skill_level * 3.0  # 0 ~ 3 킬/100스텝
+        target_kill_rate = skill_level * 0.8  # 0 ~ 0.8 킬/100스텝 (현실적 목표)
 
         # === 1. 생존 지표 (Survival Score) ===
         # 단순한 비율 기반, 연속적 점수 (0.0 ~ 1.0)
@@ -240,32 +304,33 @@ class GameEnvironment:
         # else:
         #     consistency_score = 1.0  # 초기 상태는 완벽한 일관성
 
-        # === Balanced Weight System for All-Round Agent ===
+        # === 4단계 세분화 커리큘럼 (Catastrophic Forgetting 방지) ===
         # 일관성 weight는 0으로 고정 (사용자 요청)
         w_consistency = 0.0
 
         # 커리큘럼 러닝 기반 실력값별 플레이 스타일 시뮬레이션
         # skill level에 따라 생존 중심 → 공격 중심으로 점진적 전환
-        if skill_level <= 0.3:
-            # 초보자: 생존 마스터 단계 (80% → 65% 생존)
-            progress = skill_level / 0.3  # 0.0 ~ 1.0
-            w_survival = 0.8 - (progress * 0.15)  # 0.8 → 0.65
-            w_attack = 0.2 + (progress * 0.15)  # 0.2 → 0.35
-        elif skill_level <= 0.6:
-            # 중급자: 안전한 공격 단계 (65% → 50% 생존)
-            progress = (skill_level - 0.3) / 0.3  # 0.0 ~ 1.0
-            w_survival = 0.65 - (progress * 0.15)  # 0.65 → 0.5
-            w_attack = 0.35 + (progress * 0.15)  # 0.35 → 0.5
-        elif skill_level <= 0.8:
-            # 중고급자: 균형잡힌 전투 단계 (50% → 40% 생존)
-            progress = (skill_level - 0.6) / 0.2  # 0.0 ~ 1.0
-            w_survival = 0.5 - (progress * 0.1)  # 0.5 → 0.4
-            w_attack = 0.5 + (progress * 0.1)  # 0.5 → 0.6
+        # 변화폭을 줄여서 안정적인 전이 학습 유도
+        if skill_level <= 0.2:
+            # 초급: 생존 마스터 (80% → 70% 생존)
+            progress = skill_level / 0.2  # 0.0 ~ 1.0
+            w_survival = 0.8 - (progress * 0.1)  # 0.8 → 0.7
+            w_attack = 0.2 + (progress * 0.1)  # 0.2 → 0.3
+        elif skill_level <= 0.4:
+            # 초중급: 생존 우선 (70% → 60% 생존)
+            progress = (skill_level - 0.2) / 0.2  # 0.0 ~ 1.0
+            w_survival = 0.7 - (progress * 0.1)  # 0.7 → 0.6
+            w_attack = 0.3 + (progress * 0.1)  # 0.3 → 0.4
+        elif skill_level <= 0.7:
+            # 중급: 균형 잡힌 플레이 (60% → 50% 생존)
+            progress = (skill_level - 0.4) / 0.3  # 0.0 ~ 1.0
+            w_survival = 0.6 - (progress * 0.1)  # 0.6 → 0.5
+            w_attack = 0.4 + (progress * 0.1)  # 0.4 → 0.5
         else:
-            # 고수: 공격적 플레이 단계 (40% → 35% 생존)
-            progress = (skill_level - 0.8) / 0.2  # 0.0 ~ 1.0
-            w_survival = 0.4 - (progress * 0.05)  # 0.4 → 0.35
-            w_attack = 0.6 + (progress * 0.05)  # 0.6 → 0.65
+            # 고급: 공격 중심 (50% → 45% 생존, 목표 완화)
+            progress = (skill_level - 0.7) / 0.3  # 0.0 ~ 1.0
+            w_survival = 0.5 - (progress * 0.05)  # 0.5 → 0.45
+            w_attack = 0.5 + (progress * 0.05)  # 0.5 → 0.55
 
         # 최종 보상 계산 (0.0 ~ 1.0 스케일)
         final_reward = (
@@ -274,14 +339,59 @@ class GameEnvironment:
             + w_consistency * consistency_score
         )
 
+        # === 탄환 회피 보상 (Bullet Dodge Reward) ===
+        # 이전 프레임의 가까운 탄환들이 현재 프레임에서 더 멀어졌는지 확인
+        dodge_reward = 0.0
+        if len(self.previous_nearby_bullets) > 0:
+            # 현재 게임 상태에서 탄환 위치 재확인
+            game_state = getattr(game_instance.game, "state", None)
+            current_player_x, current_player_y = self.previous_player_pos
+
+            dodged_count = 0
+            if game_state and hasattr(game_state, "enemy_shots"):
+                enemy_shots = getattr(game_state, "enemy_shots", [])
+                current_bullet_positions = set()
+
+                # 현재 탄환 위치들을 set으로 저장 (빠른 검색을 위해)
+                for shot in enemy_shots:
+                    if hasattr(shot, "x") and hasattr(shot, "y"):
+                        shot_x = getattr(shot, "x", 0)
+                        shot_y = getattr(shot, "y", 0)
+                        # 위치를 반올림하여 약간의 오차 허용
+                        current_bullet_positions.add((round(shot_x), round(shot_y)))
+
+                # 이전 프레임의 가까운 탄환들을 확인
+                for prev_x, prev_y, prev_distance in self.previous_nearby_bullets:
+                    # 현재 프레임에 이 탄환이 존재하는지 확인
+                    prev_pos_rounded = (round(prev_x), round(prev_y))
+
+                    # 탄환이 사라졌거나 (플레이어가 회피했거나 화면 밖으로 나감)
+                    # 거리가 증가했다면 회피 성공으로 간주
+                    if prev_pos_rounded not in current_bullet_positions:
+                        # 탄환이 사라짐 = 회피 성공
+                        dodged_count += 1
+                    else:
+                        # 탄환이 여전히 존재하면 거리 변화 확인
+                        current_distance = math.sqrt(
+                            (prev_x - current_player_x) ** 2
+                            + (prev_y - current_player_y) ** 2
+                        )
+                        # 거리가 5픽셀 이상 증가했으면 회피 중으로 간주
+                        if current_distance > prev_distance + 5:
+                            dodged_count += 1
+
+            # 회피 보상: 탄환 1개당 0.01 (작지만 즉각적인 피드백)
+            # 생존 초기 단계에서 특히 유용한 학습 신호
+            dodge_reward = min(0.05, dodged_count * 0.01)  # 최대 0.05로 제한
+
         # 사망 시 즉시 페널티 (기존 구조 유지하되 단순화)
         death_penalty = 0.0
         if current_lives < self.previous_lives:
             death_penalty = 0.2 + (skill_level * 0.3)  # 0.2 ~ 0.5 페널티
             self.previous_lives = current_lives
 
-        # 최종 보상 (페널티 적용 후 클리핑)
-        final_reward = max(0.0, final_reward - death_penalty)
+        # 최종 보상 (페널티 적용 + 회피 보상 추가)
+        final_reward = max(0.0, final_reward + dodge_reward - death_penalty)
 
         # 상태 업데이트
         self.previous_kills = current_kills
@@ -337,3 +447,5 @@ class GameEnvironment:
         self.previous_kills = 0
         self.previous_hp = 2  # 플레이어 기본 체력
         self.previous_lives = STARTING_LIVES
+        self.previous_nearby_bullets = []
+        self.previous_player_pos = (0, 0)

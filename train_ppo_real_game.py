@@ -1689,10 +1689,10 @@ def main():
                 stage_episodes[-1] += remainder
 
                 stages = [
-                    CurriculumStage(stage_episodes[0], 0.1, "초급 (목표: 330스텝, 3킬)"),
-                    CurriculumStage(stage_episodes[1], 0.3, "중하급 (목표: 590스텝, 9킬)"),
-                    CurriculumStage(stage_episodes[2], 0.6, "중상급 (목표: 980스텝, 18킬)"),
-                    CurriculumStage(stage_episodes[3], 1.0, "고급 (목표: 1500스텝, 30킬)"),
+                    CurriculumStage(stage_episodes[0], 0.1, "초급 (목표: 280스텝, 1.2킬)"),
+                    CurriculumStage(stage_episodes[1], 0.3, "중급 (목표: 440스텝, 3.6킬)"),
+                    CurriculumStage(stage_episodes[2], 0.6, "중상급 (목표: 680스텝, 7.2킬)"),
+                    CurriculumStage(stage_episodes[3], 1.0, "고급 (목표: 1000스텝, 12킬)"),
                 ]
                 curriculum = StepCurriculum(stages)
             elif args.curriculum_type == "linear":
