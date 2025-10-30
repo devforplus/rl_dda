@@ -1679,20 +1679,23 @@ def main():
         if args.use_curriculum:
             if args.curriculum_type == "step":
                 # 4단계 점진적 커리큘럼: 0.1 → 0.3 → 0.6 → 1.0
-                # 목표치만 증가, 보상 가중치는 고정 (생존 50%, 공격 50%)
-                # 연속 함수로 부드러운 전이학습 지원
+                # 후반부 집중 학습: 초급은 빠르게, 고급은 충분히
+                # 비율: 10% → 20% → 30% → 40% (어려울수록 많은 시간)
                 total = max(1, args.max_episodes)
-                base = total // 4
-                remainder = total - (base * 4)
-                stage_episodes = [base, base, base, base]
-                # Assign any remainder to the last stage to ensure sum == total
+                
+                # 후반 집중 비율 (초급 → 고급으로 갈수록 증가)
+                stage_ratios = [0.1, 0.2, 0.3, 0.4]  # 합계 = 1.0
+                stage_episodes = [int(total * ratio) for ratio in stage_ratios]
+                
+                # 반올림 오차 보정 (마지막 단계에 추가)
+                remainder = total - sum(stage_episodes)
                 stage_episodes[-1] += remainder
 
                 stages = [
-                    CurriculumStage(stage_episodes[0], 0.1, "초급 (목표: 280스텝, 1.2킬)"),
-                    CurriculumStage(stage_episodes[1], 0.3, "중급 (목표: 440스텝, 3.6킬)"),
-                    CurriculumStage(stage_episodes[2], 0.6, "중상급 (목표: 680스텝, 7.2킬)"),
-                    CurriculumStage(stage_episodes[3], 1.0, "고급 (목표: 1000스텝, 12킬)"),
+                    CurriculumStage(stage_episodes[0], 0.1, f"초급 (목표: 280스텝, 1.2킬, {stage_episodes[0]}ep)"),
+                    CurriculumStage(stage_episodes[1], 0.3, f"중급 (목표: 440스텝, 3.6킬, {stage_episodes[1]}ep)"),
+                    CurriculumStage(stage_episodes[2], 0.6, f"중상급 (목표: 680스텝, 7.2킬, {stage_episodes[2]}ep)"),
+                    CurriculumStage(stage_episodes[3], 1.0, f"고급 (목표: 1000스텝, 12킬, {stage_episodes[3]}ep)"),
                 ]
                 curriculum = StepCurriculum(stages)
             elif args.curriculum_type == "linear":
