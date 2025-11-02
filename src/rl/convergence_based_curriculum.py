@@ -140,28 +140,61 @@ class ConvergenceBasedCurriculum:
         convergence_info = self._analyze_convergence()
         achievement_info.update(convergence_info)
         
+        # 🚨 절대 한계선: max_episodes의 1.5배 초과 시 무조건 전환 (학습 붕괴 방지)
+        absolute_limit = int(current_stage.max_episodes * 1.5)
+        if self.stage_episode_count >= absolute_limit:
+            print(f"\n{'='*70}")
+            print(f"🚨 절대 한계선 도달! ({absolute_limit} 에피소드)")
+            print(f"{'='*70}")
+            print(f"단계: {current_stage.name} (Skill {current_stage.skill_level:.1f})")
+            print(f"현재 에피소드: {self.stage_episode_count}회")
+            print(f"생존 달성률: {achievement_info['step_achievement']:.1%} (목표: {current_stage.success_threshold:.1%})")
+            print(f"킬 달성률: {achievement_info['kill_achievement']:.1%} (목표: {current_stage.success_threshold:.1%})")
+            print(f"\n⚠️ 목표 미달성이지만 학습 붕괴 방지를 위해 강제 전환합니다.")
+            print(f"   권장 사항:")
+            print(f"   1. 목표가 너무 높을 수 있습니다 (success_threshold를 0.70으로 낮추기)")
+            print(f"   2. 하이퍼파라미터 튜닝이 필요할 수 있습니다")
+            print(f"   3. 보상 함수를 검토해보세요")
+            print(f"{'='*70}")
+            
+            # 최종 단계인 경우 훈련 종료
+            if current_stage.is_final:
+                self.training_complete = True
+                self.completion_reason = f"절대 한계선 도달 (목표 미달성: 생존 {achievement_info['step_achievement']:.1%}, 킬 {achievement_info['kill_achievement']:.1%})"
+                self._save_stage_history(achievement_info)
+                return {
+                    'stage_changed': False,
+                    'training_complete': True,
+                    'reason': self.completion_reason,
+                    'achievement': achievement_info,
+                }
+            
+            # 중간 단계는 강제 전환
+            return self._advance_stage(achievement_info, forced=True)
+        
         # 경고: 최대 에피소드 근처 (목표 미달성 시)
         if self.stage_episode_count >= current_stage.max_episodes:
             if not achievement_info['goal_achieved']:
-                # 목표 미달성 - 경고만 하고 계속 학습
+                # 목표 미달성 - 경고하고 제한된 추가 학습 허용
                 if self.stage_episode_count % 100 == 0:  # 100 에피소드마다 경고
+                    remaining = absolute_limit - self.stage_episode_count
                     print(f"\n{'='*70}")
                     print(f"⚠️  경고: 권장 최대 에피소드({current_stage.max_episodes}) 초과")
                     print(f"{'='*70}")
                     print(f"단계: {current_stage.name} (Skill {current_stage.skill_level:.1f})")
-                    print(f"현재 에피소드: {self.stage_episode_count}회")
+                    print(f"현재 에피소드: {self.stage_episode_count}회 (절대 한계: {absolute_limit}회, 남은 기회: {remaining}회)")
                     print(f"생존 달성률: {achievement_info['step_achievement']:.1%} (목표: {current_stage.success_threshold:.1%})")
                     print(f"킬 달성률: {achievement_info['kill_achievement']:.1%} (목표: {current_stage.success_threshold:.1%})")
-                    print(f"\n💡 목표 달성까지 계속 학습합니다...")
+                    print(f"\n💡 절대 한계선({absolute_limit}회)까지 목표 달성을 시도합니다...")
                     print(f"   만약 학습이 정체되었다면:")
                     print(f"   1. Ctrl+C로 중단 후 하이퍼파라미터 튜닝")
                     print(f"   2. 또는 목표를 낮추세요 (success_threshold를 0.70으로)")
                     print(f"{'='*70}")
                 
-                # 계속 학습 (종료하지 않음)
+                # 제한된 추가 학습 (절대 한계까지)
                 return {
                     'stage_changed': False,
-                    'training_complete': False,  # 계속!
+                    'training_complete': False,
                     'achievement': achievement_info,
                 }
             
