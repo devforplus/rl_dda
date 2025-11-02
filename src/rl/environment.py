@@ -243,7 +243,7 @@ class GameEnvironment:
             skill_level: 실력값 (0.0 ~ 1.0)
 
         Returns:
-            커리큘럼 단계별 multiplicative 보상값 + 탄환 회피 보상 (0.0 ~ 1.2+ 스케일)
+            커리큘럼 단계별 multiplicative 보상값 + exponential 보너스 + 탄환 회피 보상 (0.0 ~ 1.8+ 스케일)
         """
         if not (hasattr(game_instance, "game") and game_instance.game):
             return 0.0
@@ -321,15 +321,30 @@ class GameEnvironment:
         # 곱셈 보상: 둘 다 높아야만 높은 보상
         multiplicative_reward = survival_score * attack_score
         
-        # 추가 보너스: 둘 다 목표(1.0)에 가까우면 보너스
-        # 목표 달성도가 높을수록 exponential하게 증가
-        if survival_score >= 0.8 and attack_score >= 0.8:
-            # 둘 다 80% 이상일 때 보너스
-            bonus = (survival_score - 0.8) * (attack_score - 0.8) * 2.0
-            multiplicative_reward += bonus
+        # === 강력한 Exponential 보너스 시스템 ===
+        # 목표: 90% 이상부터 급격한 보상 증가로 목표 달성 강력히 유도
+        bonus = 0.0
         
-        # 최종 보상 (0.0 ~ 1.2+ 스케일, 목표 달성 시 >1.0 가능)
-        final_reward = multiplicative_reward
+        if survival_score >= 0.8 and attack_score >= 0.8:
+            # 80% 이상: 기본 보너스
+            avg_score = (survival_score + attack_score) / 2.0
+            min_score = min(survival_score, attack_score)
+            
+            # Exponential 보너스: (평균 점수)^3 × 최소 점수
+            # 둘 다 높을수록 기하급수적으로 증가
+            if avg_score >= 0.9:
+                # 90% 이상: 강력한 보너스
+                bonus = (avg_score ** 3) * min_score * 0.5
+            else:
+                # 80-90%: 약한 보너스
+                bonus = (avg_score ** 2) * min_score * 0.2
+            
+            # 완벽 달성 보너스: 둘 다 100% 이상
+            if survival_score >= 1.0 and attack_score >= 1.0:
+                bonus += 0.3  # 큰 보너스!
+        
+        # 최종 보상 (0.0 ~ 1.8+ 스케일)
+        final_reward = multiplicative_reward + bonus
 
         # === 탄환 회피 보상 (Bullet Dodge Reward) ===
         # 이전 프레임의 가까운 탄환들이 현재 프레임에서 더 멀어졌는지 확인
