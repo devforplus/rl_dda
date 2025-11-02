@@ -227,16 +227,23 @@ class GameEnvironment:
         - Stage 3 (skill=0.6): 목표 680스텝, 7.2킬
         - Stage 4 (skill=1.0): 목표 1000스텝, 12킬
 
-        탄환 회피 보상 시스템 (신규 추가):
-        - 가까운 탄환(40픽셀 이내)을 성공적으로 회피했을 때 즉각적인 보상
-        - 회피 보상 = 0.01 * 회피한 탄환 수
-        - 학습 초기 단계에서 회피 행동을 강화하는 역할
+        즉각적 보상 시스템 (Immediate Rewards):
+        1. 탄환 회피 보상:
+           - 가까운 탄환(40픽셀 이내)을 성공적으로 회피했을 때 즉각적인 보상
+           - 회피 보상 = 0.01 * 회피한 탄환 수 (최대 0.05)
+           - 학습 초기 단계에서 회피 행동을 강화하는 역할
+        
+        2. 킬 보상 (신규):
+           - 적을 처치했을 때 즉각적인 보상 제공
+           - 킬 보상 = (0.02 + skill_level * 0.03) * 새로운 킬 수
+           - Skill 0.1: 0.023/킬, Skill 1.0: 0.05/킬
+           - 공격 행동 강화 및 빠른 학습 신호 제공
 
         핵심 철학:
         - 보상 함수 일관성: 전 단계에서 동일한 가중치 (50:50)
         - 단계별 목표 증가: 에이전트가 점진적으로 더 높은 성능 달성
         - Catastrophic Forgetting 방지: 이전 학습 유지하면서 성장
-        - 탄환 회피를 통한 즉각적인 피드백 제공
+        - 즉각적 피드백: 회피와 킬 모두 즉시 보상으로 빠른 학습 유도
 
         Args:
             game_instance: 게임 인스턴스
@@ -395,14 +402,26 @@ class GameEnvironment:
             # 생존 초기 단계에서 특히 유용한 학습 신호
             dodge_reward = min(0.05, dodged_count * 0.01)  # 최대 0.05로 제한
 
+        # === 즉각적 킬 보상 (Kill Reward) ===
+        # 적을 처치했을 때 즉각적인 보상 제공
+        # 목표: 공격 행동 강화 및 빠른 학습 신호 제공
+        kill_reward = 0.0
+        if current_kills > self.previous_kills:
+            new_kills = current_kills - self.previous_kills
+            # 킬당 보상: 0.02 ~ 0.05 (skill_level에 따라 증가)
+            # - Skill 0.1: 0.023/킬 (초급자용 보상)
+            # - Skill 1.0: 0.05/킬 (고급자용 보상)
+            # 탄환 회피(0.01)보다 높은 보상으로 공격 행동 유도
+            kill_reward = new_kills * (0.02 + skill_level * 0.03)
+
         # 사망 시 즉시 페널티 (기존 구조 유지하되 단순화)
         death_penalty = 0.0
         if current_lives < self.previous_lives:
             death_penalty = 0.2 + (skill_level * 0.3)  # 0.2 ~ 0.5 페널티
             self.previous_lives = current_lives
 
-        # 최종 보상 (페널티 적용 + 회피 보상 추가)
-        final_reward = max(0.0, final_reward + dodge_reward - death_penalty)
+        # 최종 보상 (킬 보상 + 회피 보상 + 페널티 적용)
+        final_reward = max(0.0, final_reward + dodge_reward + kill_reward - death_penalty)
 
         # 상태 업데이트
         self.previous_kills = current_kills
