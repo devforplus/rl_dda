@@ -201,8 +201,20 @@ class ConvergenceBasedCurriculum:
                 'achievement': achievement_info,
             }
         
-        # 충분한 데이터 확인 (연속 달성 판단에 필요한 최소 데이터)
-        min_required_episodes = current_stage.consecutive_windows * current_stage.window_size
+        # 🎯 목표 과달성 시 데이터 요구사항 완화
+        step_achievement = achievement_info.get('step_achievement', 0)
+        kill_achievement = achievement_info.get('kill_achievement', 0)
+        
+        # 과달성 (120% 이상) 시 데이터 요구사항 완화
+        if step_achievement >= 1.20 and kill_achievement >= 1.20:
+            # 과달성 시 최소 데이터만 확인 (window_size * 3)
+            min_required_episodes = current_stage.window_size * 3  # 150 에피소드
+            print(f"   💡 목표 과달성 감지 (생존: {step_achievement:.1%}, 킬: {kill_achievement:.1%})")
+            print(f"   → 데이터 요구사항 완화 (500 → {min_required_episodes} 에피소드)")
+        else:
+            # 일반적인 경우 충분한 데이터 확인
+            min_required_episodes = current_stage.consecutive_windows * current_stage.window_size
+        
         if len(self.all_steps) < min_required_episodes:
             return {
                 'stage_changed': False,
