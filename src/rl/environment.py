@@ -9,7 +9,7 @@ import math
 
 from src.components.entity_types import EntityType
 from .data_types import GameLogData, EntityPosition, PlayerState, ActionType
-from .targets import get_survival_target_steps
+from .targets import get_survival_target_steps, get_kill_target
 from src.config.player.player_config import STARTING_LIVES
 
 
@@ -256,9 +256,13 @@ class GameEnvironment:
         current_kills = getattr(game_vars, "kills", 0)
         current_lives = getattr(game_vars, "lives", 3)
 
-        # 실력값 기반 적응적 목표 설정 (공유 타겟 맵 사용)
+        # 실력값 기반 적응적 목표 설정 (targets.py와 일치)
         target_survival_steps = get_survival_target_steps(skill_level)
-        target_kill_rate = skill_level * 0.8  # 0 ~ 0.8 킬/100스텝 (현실적 목표)
+        target_kills = get_kill_target(skill_level)
+        
+        # 목표 킬 레이트: targets.py 기준으로 정확히 계산
+        # 예: skill 0.3 → 3.6킬 / 440스텝 = 0.818 킬/100스텝
+        target_kill_rate = (target_kills / max(target_survival_steps, 1)) * 100.0
 
         # === 1. 생존 지표 (Survival Score) ===
         # 단순한 비율 기반, 연속적 점수 (0.0 ~ 1.0)
