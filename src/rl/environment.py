@@ -216,15 +216,15 @@ class GameEnvironment:
         """커리큘럼 러닝 기반 실력값별 플레이 스타일 보상 계산
 
         커리큘럼 러닝 시스템:
-        - 2지표 dynamic weighted sum: R = w1*survival + w2*attack (consistency는 0)
-        - skill level에 따른 4단계 커리큘럼으로 점진적 성장
-        - 생존 마스터 → 안전한 공격 → 균형 전투 → 공격적 플레이
+        - 2지표 fixed weighted sum: R = 0.5*survival + 0.5*attack (consistency는 0)
+        - 가중치는 고정, 목표값만 skill level에 따라 증가
+        - Catastrophic Forgetting 방지: 보상 함수의 일관성 유지
 
-        커리큘럼 단계:
-        - 0.0~0.3: 생존 마스터 (80%→65% 생존, 20%→35% 공격)
-        - 0.3~0.6: 안전한 공격 (65%→50% 생존, 35%→50% 공격)
-        - 0.6~0.8: 균형잡힌 전투 (50%→40% 생존, 50%→60% 공격)
-        - 0.8~1.0: 공격적 플레이 (40%→35% 생존, 60%→65% 공격)
+        커리큘럼 단계 (가중치 고정 50:50):
+        - Stage 1 (skill=0.1): 목표 280스텝, 1.2킬
+        - Stage 2 (skill=0.3): 목표 440스텝, 3.6킬
+        - Stage 3 (skill=0.6): 목표 680스텝, 7.2킬
+        - Stage 4 (skill=1.0): 목표 1000스텝, 12킬
 
         탄환 회피 보상 시스템 (신규 추가):
         - 가까운 탄환(40픽셀 이내)을 성공적으로 회피했을 때 즉각적인 보상
@@ -232,9 +232,9 @@ class GameEnvironment:
         - 학습 초기 단계에서 회피 행동을 강화하는 역할
 
         핵심 철학:
-        - 실력값 입력 → 해당 수준의 플레이 스타일로 동작
-        - 단계별 학습으로 안정적이고 자연스러운 성장 곡선
-        - 초보자는 생존 중심, 고수는 공격 중심
+        - 보상 함수 일관성: 전 단계에서 동일한 가중치 (50:50)
+        - 단계별 목표 증가: 에이전트가 점진적으로 더 높은 성능 달성
+        - Catastrophic Forgetting 방지: 이전 학습 유지하면서 성장
         - 탄환 회피를 통한 즉각적인 피드백 제공
 
         Args:
@@ -303,35 +303,22 @@ class GameEnvironment:
         # else:
         #     consistency_score = 1.0  # 초기 상태는 완벽한 일관성
 
-        # === 4단계 세분화 커리큘럼 (Catastrophic Forgetting 방지) ===
-        # 일관성 weight는 0으로 고정 (사용자 요청)
-        w_consistency = 0.0
-
-        # 커리큘럼 러닝 기반 실력값별 플레이 스타일 시뮬레이션
-        # skill level에 따라 생존 중심 → 공격 중심으로 점진적 전환
-        # 변화폭을 줄여서 안정적인 전이 학습 유도
-        if skill_level <= 0.2:
-            # 초급: 생존 마스터 (80% → 70% 생존)
-            progress = skill_level / 0.2  # 0.0 ~ 1.0
-            w_survival = 0.8 - (progress * 0.1)  # 0.8 → 0.7
-            w_attack = 0.2 + (progress * 0.1)  # 0.2 → 0.3
-        elif skill_level <= 0.4:
-            # 초중급: 생존 우선 (70% → 60% 생존)
-            progress = (skill_level - 0.2) / 0.2  # 0.0 ~ 1.0
-            w_survival = 0.7 - (progress * 0.1)  # 0.7 → 0.6
-            w_attack = 0.3 + (progress * 0.1)  # 0.3 → 0.4
-        elif skill_level <= 0.7:
-            # 중급: 균형 잡힌 플레이 (60% → 50% 생존)
-            progress = (skill_level - 0.4) / 0.3  # 0.0 ~ 1.0
-            w_survival = 0.6 - (progress * 0.1)  # 0.6 → 0.5
-            w_attack = 0.4 + (progress * 0.1)  # 0.4 → 0.5
-        else:
-            # 고급: 공격 중심 (50% → 45% 생존, 목표 완화)
-            progress = (skill_level - 0.7) / 0.3  # 0.0 ~ 1.0
-            w_survival = 0.5 - (progress * 0.05)  # 0.5 → 0.45
-            w_attack = 0.5 + (progress * 0.05)  # 0.5 → 0.55
+        # === 고정 가중치 커리큘럼 (Catastrophic Forgetting 방지) ===
+        # 핵심 설계 결정:
+        # - 보상 가중치는 전 단계에서 고정 (보상 함수 일관성 유지)
+        # - 목표값만 skill_level에 따라 증가 (target_survival_steps, target_kill_rate)
+        # - 이렇게 하면 에이전트가 학습한 "좋은 행동"의 정의가 변하지 않음
+        # - 단지 더 높은 목표를 향해 학습할 뿐
+        
+        # 가중치 고정 (균형잡힌 플레이)
+        w_survival = 0.5  # 생존 50%
+        w_attack = 0.5    # 공격 50%
+        w_consistency = 0.0  # 일관성 0% (사용 안 함)
 
         # 최종 보상 계산 (0.0 ~ 1.0 스케일)
+        # 목표값은 skill_level에 따라 이미 달라짐:
+        # - target_survival_steps: 280 → 440 → 680 → 1000
+        # - target_kill_rate: 0.08 → 0.24 → 0.48 → 0.80
         final_reward = (
             w_survival * survival_score
             + w_attack * attack_score
