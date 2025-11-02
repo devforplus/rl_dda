@@ -140,7 +140,8 @@ class ConvergenceBasedCurriculum:
         convergence_info = self._analyze_convergence()
         achievement_info.update(convergence_info)
         
-        # 🚨 절대 한계선: max_episodes의 1.5배 초과 시 무조건 전환 (학습 붕괴 방지)
+        # 🚨 절대 한계선: max_episodes의 1.5배 초과 시 훈련 중단 (학습 붕괴 방지)
+        # 목표를 달성하지 못한 상태로 다음 단계로 넘어가면 Catastrophic Forgetting 발생!
         absolute_limit = int(current_stage.max_episodes * 1.5)
         if self.stage_episode_count >= absolute_limit:
             print(f"\n{'='*70}")
@@ -150,27 +151,30 @@ class ConvergenceBasedCurriculum:
             print(f"현재 에피소드: {self.stage_episode_count}회")
             print(f"생존 달성률: {achievement_info['step_achievement']:.1%} (목표: {current_stage.success_threshold:.1%})")
             print(f"킬 달성률: {achievement_info['kill_achievement']:.1%} (목표: {current_stage.success_threshold:.1%})")
-            print(f"\n⚠️ 목표 미달성이지만 학습 붕괴 방지를 위해 강제 전환합니다.")
-            print(f"   권장 사항:")
-            print(f"   1. 목표가 너무 높을 수 있습니다 (success_threshold를 0.70으로 낮추기)")
-            print(f"   2. 하이퍼파라미터 튜닝이 필요할 수 있습니다")
-            print(f"   3. 보상 함수를 검토해보세요")
+            print(f"\n⚠️ 경고: 목표 미달성 상태에서 다음 단계로 넘어가면")
+            print(f"   Catastrophic Forgetting이 발생할 수 있습니다!")
+            print(f"\n🛑 학습을 중단합니다. 다음 조치를 취해주세요:")
+            print(f"\n   1. 목표 재조정 (targets.py)")
+            print(f"      - 현재 목표가 너무 높을 수 있습니다")
+            print(f"      - 실제 달성 가능한 수준으로 낮추기")
+            print(f"\n   2. Success Threshold 완화 (train_ppo_real_game.py)")
+            print(f"      - success_threshold: 0.80 → 0.70")
+            print(f"\n   3. 하이퍼파라미터 튜닝")
+            print(f"      - Learning Rate, Batch Size 등 조정")
+            print(f"\n   4. 보상 함수 검토 (environment.py)")
+            print(f"      - 목표와 보상 함수가 일치하는지 확인")
             print(f"{'='*70}")
             
-            # 최종 단계인 경우 훈련 종료
-            if current_stage.is_final:
-                self.training_complete = True
-                self.completion_reason = f"절대 한계선 도달 (목표 미달성: 생존 {achievement_info['step_achievement']:.1%}, 킬 {achievement_info['kill_achievement']:.1%})"
-                self._save_stage_history(achievement_info)
-                return {
-                    'stage_changed': False,
-                    'training_complete': True,
-                    'reason': self.completion_reason,
-                    'achievement': achievement_info,
-                }
-            
-            # 중간 단계는 강제 전환
-            return self._advance_stage(achievement_info, forced=True)
+            # 훈련 중단 (강제 전환 X)
+            self.training_complete = True
+            self.completion_reason = f"절대 한계선 도달 - 목표 미달성 (생존 {achievement_info['step_achievement']:.1%}, 킬 {achievement_info['kill_achievement']:.1%})"
+            self._save_stage_history(achievement_info)
+            return {
+                'stage_changed': False,
+                'training_complete': True,
+                'reason': self.completion_reason,
+                'achievement': achievement_info,
+            }
         
         # 경고: 최대 에피소드 근처 (목표 미달성 시)
         if self.stage_episode_count >= current_stage.max_episodes:
