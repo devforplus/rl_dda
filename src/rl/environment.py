@@ -216,8 +216,9 @@ class GameEnvironment:
         """커리큘럼 러닝 기반 실력값별 플레이 스타일 보상 계산
 
         커리큘럼 러닝 시스템:
-        - 2지표 fixed weighted sum: R = 0.5*survival + 0.5*attack (consistency는 0)
-        - 가중치는 고정, 목표값만 skill level에 따라 증가
+        - 2지표 multiplicative reward: R = survival × attack + bonus
+        - 곱셈 형태로 둘 다 높아야만 높은 보상 (Local Optimum 탈출)
+        - 목표값만 skill level에 따라 증가
         - Catastrophic Forgetting 방지: 보상 함수의 일관성 유지
 
         커리큘럼 단계 (가중치 고정 50:50):
@@ -242,7 +243,7 @@ class GameEnvironment:
             skill_level: 실력값 (0.0 ~ 1.0)
 
         Returns:
-            커리큘럼 단계별 weighted sum 보상값 + 탄환 회피 보상 (0.0 ~ 1.0+ 스케일)
+            커리큘럼 단계별 multiplicative 보상값 + 탄환 회피 보상 (0.0 ~ 1.2+ 스케일)
         """
         if not (hasattr(game_instance, "game") and game_instance.game):
             return 0.0
@@ -310,20 +311,25 @@ class GameEnvironment:
         # - 이렇게 하면 에이전트가 학습한 "좋은 행동"의 정의가 변하지 않음
         # - 단지 더 높은 목표를 향해 학습할 뿐
         
-        # 가중치 고정 (균형잡힌 플레이)
-        w_survival = 0.5  # 생존 50%
-        w_attack = 0.5    # 공격 50%
-        w_consistency = 0.0  # 일관성 0% (사용 안 함)
-
-        # 최종 보상 계산 (0.0 ~ 1.0 스케일)
-        # 목표값은 skill_level에 따라 이미 달라짐:
-        # - target_survival_steps: 280 → 440 → 680 → 1000
-        # - target_kill_rate: 0.08 → 0.24 → 0.48 → 0.80
-        final_reward = (
-            w_survival * survival_score
-            + w_attack * attack_score
-            + w_consistency * consistency_score
-        )
+        # === 보상 함수 개선: 곱셈 형태로 Local Optimum 탈출 ===
+        # 문제: 단순 가중 합산 방식은 한 지표가 높으면 다른 지표가 낮아도 괜찮음
+        #       예: survival=0.86, attack=0.90 → reward=0.88 (충분히 높음)
+        # 해결: 곱셈 형태로 변경 → 둘 다 높아야 높은 보상
+        #       예: survival=0.86, attack=0.90 → reward=0.774 (낮음!)
+        #           survival=0.95, attack=0.95 → reward=0.902 (높음!)
+        
+        # 곱셈 보상: 둘 다 높아야만 높은 보상
+        multiplicative_reward = survival_score * attack_score
+        
+        # 추가 보너스: 둘 다 목표(1.0)에 가까우면 보너스
+        # 목표 달성도가 높을수록 exponential하게 증가
+        if survival_score >= 0.8 and attack_score >= 0.8:
+            # 둘 다 80% 이상일 때 보너스
+            bonus = (survival_score - 0.8) * (attack_score - 0.8) * 2.0
+            multiplicative_reward += bonus
+        
+        # 최종 보상 (0.0 ~ 1.2+ 스케일, 목표 달성 시 >1.0 가능)
+        final_reward = multiplicative_reward
 
         # === 탄환 회피 보상 (Bullet Dodge Reward) ===
         # 이전 프레임의 가까운 탄환들이 현재 프레임에서 더 멀어졌는지 확인
