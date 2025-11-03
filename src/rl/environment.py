@@ -294,16 +294,20 @@ class GameEnvironment:
         target_kill_rate = (target_kills / max(target_survival_steps, 1)) * 100.0
 
         # === 1. 생존 지표 (Survival Score) ===
-        # 단순한 비율 기반, 연속적 점수 (0.0 ~ 1.0)
-        survival_score = min(1.0, current_step / target_survival_steps)
+        # 제곱근 변환 (Reward Shaping): 부분 달성에도 합리적인 보상
+        # 선형: 50% → 0.5, 제곱근: 50% → 0.707
+        # 최종 목표(100%)는 동일하게 1.0 유지
+        survival_ratio = current_step / max(target_survival_steps, 1)
+        survival_score = min(1.0, survival_ratio ** 0.5)
 
         # === 2. 공격 지표 (Attack Score) ===
-        # 현재 킬 레이트와 목표 킬 레이트 비교
+        # 제곱근 변환 (Reward Shaping): 킬 달성에도 동일 적용
         if current_step > 0 and target_kill_rate > 0:
             current_kill_rate = (
                 current_kills / max(current_step, 1)
             ) * 100.0  # 킬/100스텝
-            attack_score = min(1.0, current_kill_rate / target_kill_rate)
+            attack_ratio = current_kill_rate / target_kill_rate
+            attack_score = min(1.0, attack_ratio ** 0.5)
         else:
             attack_score = 0.0
 

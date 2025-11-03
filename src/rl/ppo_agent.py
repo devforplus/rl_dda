@@ -32,7 +32,7 @@ class PPOAgent:
         gae_lambda: float = 0.9592342803721876,
         clip_epsilon: float = 0.23713775795384281,
         value_coef: float = 0.16579175341634528,
-        entropy_coef: float = 0.001669841290831729,  # Optuna 최적값 (검증됨)
+        entropy_coef: float = 0.03,  # 탐험 강화: 0.00167 → 0.03 (로컬 최적점 탈출)
         hidden_size: int = 128,
         num_layers: int = 2,
         activation: str = "relu",
@@ -223,6 +223,10 @@ class PPOAgent:
         total_policy_loss = 0
         total_value_loss = 0
         total_entropy_loss = 0
+        total_kl_div = 0
+        total_clip_frac = 0
+        total_grad_norm = 0
+        num_batches = 0
 
         # 여러 에포크 학습
         for epoch in range(num_epochs):
@@ -270,27 +274,63 @@ class PPOAgent:
                 # 역전파
                 self.optimizer.zero_grad()
                 total_loss.backward()
-                torch.nn.utils.clip_grad_norm_(
+                
+                # Gradient norm 계산 (clipping 전)
+                grad_norm = torch.nn.utils.clip_grad_norm_(
                     self.network.parameters(), self.grad_clip_norm
                 )
+                
                 self.optimizer.step()
+
+                # 추가 지표 계산
+                with torch.no_grad():
+                    # KL divergence (approximate)
+                    kl_div = (batch_old_log_probs - new_log_probs).mean().item()
+                    
+                    # Clip fraction (PPO 제약이 활성화된 비율)
+                    clip_frac = ((ratio < 1 - self.clip_epsilon) | 
+                                (ratio > 1 + self.clip_epsilon)).float().mean().item()
 
                 # 통계 누적
                 total_policy_loss += policy_loss.item()
                 total_value_loss += value_loss.item()
                 total_entropy_loss += entropy_loss.item()
+                total_kl_div += kl_div
+                total_clip_frac += clip_frac
+                total_grad_norm += grad_norm.item()
+                num_batches += 1
 
         # 버퍼 리셋 및 카운터 증가
         self.reset_buffer()
         self.update_count += 1
 
-        num_updates = num_epochs * (dataset_size // batch_size + 1)
+        # 평균 지표 계산
+        if num_batches > 0:
+            avg_policy_loss = total_policy_loss / num_batches
+            avg_value_loss = total_value_loss / num_batches
+            avg_entropy_loss = total_entropy_loss / num_batches
+            avg_kl_div = total_kl_div / num_batches
+            avg_clip_frac = total_clip_frac / num_batches
+            avg_grad_norm = total_grad_norm / num_batches
+        else:
+            avg_policy_loss = 0.0
+            avg_value_loss = 0.0
+            avg_entropy_loss = 0.0
+            avg_kl_div = 0.0
+            avg_clip_frac = 0.0
+            avg_grad_norm = 0.0
 
         return {
-            "policy_loss": total_policy_loss / num_updates,
-            "value_loss": total_value_loss / num_updates,
-            "entropy_loss": total_entropy_loss / num_updates,
+            "policy_loss": avg_policy_loss,
+            "value_loss": avg_value_loss,
+            "entropy_loss": avg_entropy_loss,
+            "entropy": -avg_entropy_loss,  # 실제 엔트로피 (양수)
+            "kl_divergence": avg_kl_div,
+            "clip_fraction": avg_clip_frac,
+            "grad_norm": avg_grad_norm,
             "total_samples": dataset_size,
+            "num_batches": num_batches,
+            "num_epochs": num_epochs,
         }
 
     def _compute_gae(
