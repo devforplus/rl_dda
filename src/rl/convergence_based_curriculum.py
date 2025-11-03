@@ -10,7 +10,7 @@
 1. 목표 달성: 평균 성능이 목표의 80% 이상
 2. 성능 수렴: 최근 성능이 plateau에 도달
 3. 낮은 변동성: 성능의 표준편차가 낮음
-4. 연속 달성: 연속으로 N번 목표 달성
+4. 연속 달성: 연속 10 에피소드 목표 달성
 
 개선 사항 (2025-11-02):
 1. 연속 달성 계산 최적화: O(n²) → O(1) 복잡도 (캐싱)
@@ -43,11 +43,11 @@ class ConvergenceStage:
         success_threshold: 목표 달성 기준 (0.80 = 80%)
         
         # 수렴 관련 파라미터
-        window_size: 성능 평가 윈도우
+        window_size: 성능 평가 윈도우 (1 = 각 에피소드 개별 평가)
         convergence_window: 수렴 판단 윈도우 (더 큼)
         stability_threshold: 안정성 기준 (표준편차/평균, 0.15 = 15%)
-        consecutive_windows: 연속 달성 필요 윈도우 수
-        consecutive_success_rate: 연속 윈도우 중 성공 비율 (0.8 = 80%)
+        consecutive_windows: 연속 달성 필요 에피소드 수 (10)
+        consecutive_success_rate: 연속 에피소드 중 성공 비율 (1.0 = 100%)
         
         is_final: 최종 단계 여부
     """
@@ -60,11 +60,11 @@ class ConvergenceStage:
     success_threshold: float = 0.80
     
     # 수렴 관련
-    window_size: int = 50  # 기본 평가 윈도우
+    window_size: int = 1  # 각 에피소드를 개별 평가
     convergence_window: int = 100  # 수렴 판단용 (더 긴 윈도우)
     stability_threshold: float = 0.15  # CV (표준편차/평균) 15% 이하
-    consecutive_windows: int = 10  # 최근 10개 윈도우
-    consecutive_success_rate: float = 0.80  # 10개 중 8개 이상 성공
+    consecutive_windows: int = 10  # 최근 10개 에피소드
+    consecutive_success_rate: float = 1.0  # 10개 모두 성공 (연속 달성)
     
     is_final: bool = False
 

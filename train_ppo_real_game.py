@@ -54,6 +54,7 @@ try:
     )
     from rl.data_types import GameLogData, EntityPosition, PlayerState
     from rl.targets import get_survival_target_steps, get_kill_target
+    from rl.reward_analyzer import RewardAnalyzer
 except ImportError as e:
     print(f"❌ RL 모듈 임포트 실패: {e}")
     print("RL 모듈이 src/rl/ 디렉토리에 있는지 확인해주세요.")
@@ -427,6 +428,11 @@ class RealGameTrainer:
         self.episode_scores = []
         self.episode_kills = []
         self.training_start_time = None
+        
+        # 🔬 실시간 진단 도구
+        self.reward_analyzer = RewardAnalyzer()
+        self.diagnosis_interval = 50  # 50 에피소드마다 진단
+        self.last_diagnosis_episode = 0
 
         # 리플레이 수집 관리
         self.replay_save_dir = "web/agentic-game/replays"
@@ -698,6 +704,35 @@ class RealGameTrainer:
         self.episode_survival_times.append(episode_steps)
         self.episode_scores.append(episode_score)
         self.episode_kills.append(episode_kills)
+        
+        # 🔬 실시간 진단: 에피소드 결과를 reward_analyzer에 기록
+        # 참고: 실제 보상 분해는 스텝 단위로 해야 하지만, 여기서는 에피소드 요약만 기록
+        # 향후 스텝 단위 통합을 위해 에피소드 요약 저장
+        try:
+            # RewardAnalyzer의 에피소드 카운터 업데이트
+            if self.reward_analyzer.current_episode == 0:
+                self.reward_analyzer.current_episode = 1
+            else:
+                self.reward_analyzer.reset_episode()
+            
+            # 에피소드 통계 저장 (간소화 버전)
+            if not hasattr(self.reward_analyzer, 'episode_stats'):
+                self.reward_analyzer.episode_stats = {}
+            
+            self.reward_analyzer.episode_stats[self.episode_count] = {
+                'episode': self.episode_count,
+                'skill_level': self.skill_level,
+                'final_step': episode_steps,
+                'final_kills': episode_kills,
+                'total_reward': episode_reward,
+                'target_survival_steps': get_survival_target_steps(self.skill_level),
+                'target_kills': get_kill_target(self.skill_level),
+                'survival_achievement': episode_steps / get_survival_target_steps(self.skill_level),
+                'kill_achievement': episode_kills / get_kill_target(self.skill_level) if get_kill_target(self.skill_level) > 0 else 0.0,
+            }
+        except Exception as e:
+            # 진단 실패해도 학습은 계속 진행
+            pass
 
         # 에피소드 요약 출력
         print(f"\n📊 에피소드 {self.episode_count}/{self.max_episodes} 완료")
@@ -712,6 +747,14 @@ class RealGameTrainer:
             recent_avg_survival = np.mean(self.episode_survival_times[-5:])
             print(f"   - 최근 5개 평균 보상: {recent_avg_reward:.2f}")
             print(f"   - 최근 5개 평균 생존시간: {recent_avg_survival:.1f}")
+        
+        # 🔬 실시간 진단: N 에피소드마다 보상 희소성 진단
+        if self.episode_count > 0 and (self.episode_count - self.last_diagnosis_episode) >= self.diagnosis_interval:
+            try:
+                self._run_realtime_diagnosis()
+                self.last_diagnosis_episode = self.episode_count
+            except Exception as e:
+                print(f"⚠️ 실시간 진단 실패 (무시됨): {e}")
 
         # 커리큘럼 단계 관리
         if self.curriculum is not None:
@@ -1409,6 +1452,134 @@ class RealGameTrainer:
 
         except Exception as e:
             print(f"❌ 스테이지 그래프 생성 실패: {e}")
+    
+    def _run_realtime_diagnosis(self):
+        """실시간 학습 진단 실행"""
+        print(f"\n{'='*70}")
+        print(f"🔬 실시간 학습 진단 (에피소드 {self.episode_count})")
+        print(f"{'='*70}\n")
+        
+        # 최근 N개 에피소드 분석
+        analysis_window = min(self.diagnosis_interval, len(self.episode_rewards))
+        
+        if analysis_window < 10:
+            print("⚠️  충분한 데이터가 없습니다 (최소 10 에피소드 필요)")
+            return
+        
+        # 최근 에피소드 통계
+        recent_steps = self.episode_survival_times[-analysis_window:]
+        recent_kills = self.episode_kills[-analysis_window:]
+        recent_rewards = self.episode_rewards[-analysis_window:]
+        
+        # 목표값
+        target_steps = get_survival_target_steps(self.skill_level)
+        target_kills = get_kill_target(self.skill_level)
+        
+        # 달성률 계산
+        avg_steps = np.mean(recent_steps)
+        avg_kills = np.mean(recent_kills)
+        avg_reward = np.mean(recent_rewards)
+        
+        survival_achievement = avg_steps / target_steps if target_steps > 0 else 0
+        kill_achievement = avg_kills / target_kills if target_kills > 0 else 0
+        
+        # 변동성 (CV: Coefficient of Variation)
+        steps_cv = np.std(recent_steps) / avg_steps if avg_steps > 0 else 0
+        kills_cv = np.std(recent_kills) / avg_kills if avg_kills > 0 else 0
+        
+        print(f"📊 분석 범위: 최근 {analysis_window} 에피소드")
+        print(f"현재 스킬 레벨: {self.skill_level:.1f}\n")
+        
+        print(f"🎯 목표 달성률:")
+        print(f"   - 생존: {avg_steps:.1f}/{target_steps} ({survival_achievement*100:.1f}%)")
+        print(f"   - 킬: {avg_kills:.2f}/{target_kills:.1f} ({kill_achievement*100:.1f}%)")
+        print(f"   - 평균 보상: {avg_reward:.3f}\n")
+        
+        print(f"📈 성능 안정성 (변동계수 CV):")
+        print(f"   - 생존 CV: {steps_cv*100:.1f}% {'✅ 안정적' if steps_cv < 0.15 else '⚠️ 불안정'}")
+        print(f"   - 킬 CV: {kills_cv*100:.1f}% {'✅ 안정적' if kills_cv < 0.25 else '⚠️ 불안정'}\n")
+        
+        # 보상 희소성 진단
+        print(f"💰 보상 분석:")
+        
+        # Multiplicative reward 추정
+        avg_mult_reward = survival_achievement * kill_achievement
+        print(f"   - Multiplicative Reward 추정: {avg_mult_reward:.3f}")
+        
+        # Bonus 발생 가능성
+        bonus_possible = survival_achievement >= 0.8 and kill_achievement >= 0.8
+        if bonus_possible:
+            print(f"   - Bonus: ✅ 발생 가능 (둘 다 80% 이상)")
+        else:
+            print(f"   - Bonus: ❌ 발생 불가 (80% 이상 필요)")
+            if survival_achievement < 0.8:
+                print(f"     → 생존 {survival_achievement*100:.1f}% < 80%")
+            if kill_achievement < 0.8:
+                print(f"     → 킬 {kill_achievement*100:.1f}% < 80%")
+        
+        print()
+        
+        # 진단 메시지
+        print(f"🔍 진단 결과:")
+        issues = []
+        
+        # 달성률 체크
+        if survival_achievement < 0.5:
+            issues.append(f"🚨 생존 목표 달성률이 매우 낮음 ({survival_achievement*100:.1f}%)")
+        elif survival_achievement < 0.7:
+            issues.append(f"⚠️ 생존 목표 달성률이 낮음 ({survival_achievement*100:.1f}%)")
+        
+        if kill_achievement < 0.5:
+            issues.append(f"🚨 킬 목표 달성률이 매우 낮음 ({kill_achievement*100:.1f}%)")
+        elif kill_achievement < 0.7:
+            issues.append(f"⚠️ 킬 목표 달성률이 낮음 ({kill_achievement*100:.1f}%)")
+        
+        # 불균형 체크
+        achievement_diff = abs(survival_achievement - kill_achievement)
+        if achievement_diff > 0.3:
+            if survival_achievement > kill_achievement:
+                issues.append(f"⚠️ 생존 편향 (생존 {survival_achievement*100:.1f}% vs 킬 {kill_achievement*100:.1f}%)")
+            else:
+                issues.append(f"⚠️ 공격 편향 (킬 {kill_achievement*100:.1f}% vs 생존 {survival_achievement*100:.1f}%)")
+        
+        # Multiplicative reward 체크
+        if avg_mult_reward < 0.15:
+            issues.append(f"🚨 Multiplicative reward가 매우 낮음 ({avg_mult_reward:.3f}) - 학습 신호 약함")
+        elif avg_mult_reward < 0.30:
+            issues.append(f"⚠️ Multiplicative reward가 낮음 ({avg_mult_reward:.3f})")
+        
+        # Bonus 부재
+        if not bonus_possible:
+            issues.append("⚠️ Bonus가 발생하지 않음 (80% 이상 달성 필요)")
+        
+        # 불안정성 체크
+        if steps_cv > 0.20:
+            issues.append(f"⚠️ 생존 성능이 불안정함 (CV: {steps_cv*100:.1f}%)")
+        if kills_cv > 0.35:
+            issues.append(f"⚠️ 킬 성능이 불안정함 (CV: {kills_cv*100:.1f}%)")
+        
+        if issues:
+            for issue in issues:
+                print(f"   {issue}")
+        else:
+            print(f"   ✅ 학습이 정상적으로 진행 중입니다")
+        
+        print()
+        
+        # 개선 제안
+        if survival_achievement < 0.6 or kill_achievement < 0.6:
+            print(f"💡 개선 제안:")
+            if avg_mult_reward < 0.20:
+                print(f"   1. 목표가 너무 높을 수 있습니다")
+                print(f"      → targets.py에서 목표값 40% 감소 권장")
+            if not bonus_possible:
+                print(f"   2. Bonus 임계값을 낮추는 것을 고려하세요")
+                print(f"      → environment.py에서 80% → 60%로 조정")
+            if achievement_diff > 0.3:
+                print(f"   3. 불균형 해소를 위해 즉각 보상 강화 필요")
+            print()
+        
+        print(f"{'='*70}\n")
 
     def _save_model_for_stage(self, stage_name: str, skill: float):
         """단계 종료 시 모델 저장 (스테이지별 디렉토리).
@@ -1658,72 +1829,102 @@ def main():
                 print(f"   각 단계에서 80% 달성 시 자동 전환")
                 print(f"   Skill 1.0 목표(1000스텝, 12킬) 달성 시 훈련 자동 종료")
             elif args.curriculum_type == "convergence":
-                # 🎓 수렴 기반 커리큘럼 (권장) - 운이 아닌 진짜 학습 확인
+                # 🎓 수렴 기반 커리큘럼 (세분화 버전) - catastrophic forgetting 방지
                 # 목표 달성 + 성능 수렴 + 안정성 + 연속 달성 모두 확인
+                # 6단계 세분화: 0.1 → 0.3 → 0.5 → 0.7 → 0.9 → 1.0
                 stages = [
                     ConvergenceStage(
                         skill_level=0.1,
-                        name="초급 (생존 중심)",
-                        target_steps=get_survival_target_steps(0.1),  # 280
+                        name="초급 (생존 기초)",
+                        target_steps=get_survival_target_steps(0.1),  # 330
                         target_kills=get_kill_target(0.1),  # 1.2
-                        min_episodes=50,  # 조기 전환 허용
-                        max_episodes=1000,
+                        min_episodes=50,
+                        max_episodes=800,
                         success_threshold=0.80,
-                        window_size=50,
-                        convergence_window=50,  # window_size와 동일
+                        window_size=1,  # 각 에피소드 개별 평가
+                        convergence_window=50,
                         stability_threshold=0.20,  # CV 20% (완화)
-                        consecutive_windows=10,
-                        consecutive_success_rate=0.80,
+                        consecutive_windows=10,  # 10 에피소드
+                        consecutive_success_rate=1.0,  # 연속 10개 모두 달성
                     ),
                     ConvergenceStage(
                         skill_level=0.3,
-                        name="중급 (균형)",
-                        target_steps=get_survival_target_steps(0.3),  # 440
+                        name="초중급 (기본 공격)",
+                        target_steps=get_survival_target_steps(0.3),  # 590
                         target_kills=get_kill_target(0.3),  # 3.6
+                        min_episodes=80,
+                        max_episodes=1200,
+                        success_threshold=0.80,
+                        window_size=1,  # 각 에피소드 개별 평가
+                        convergence_window=80,
+                        stability_threshold=0.18,
+                        consecutive_windows=10,  # 10 에피소드
+                        consecutive_success_rate=1.0,  # 연속 10개 모두 달성
+                    ),
+                    ConvergenceStage(
+                        skill_level=0.5,
+                        name="중급 (균형)",
+                        target_steps=get_survival_target_steps(0.5),  # 850
+                        target_kills=get_kill_target(0.5),  # 6.0
                         min_episodes=100,
                         max_episodes=1500,
                         success_threshold=0.80,
-                        window_size=50,
+                        window_size=1,  # 각 에피소드 개별 평가
                         convergence_window=100,
                         stability_threshold=0.15,
-                        consecutive_windows=10,
-                        consecutive_success_rate=0.80,
+                        consecutive_windows=10,  # 10 에피소드
+                        consecutive_success_rate=1.0,  # 연속 10개 모두 달성
                     ),
                     ConvergenceStage(
-                        skill_level=0.6,
-                        name="중상급 (공격 중심)",
-                        target_steps=get_survival_target_steps(0.6),  # 680
-                        target_kills=get_kill_target(0.6),  # 7.2
+                        skill_level=0.7,
+                        name="중상급 (적극적 공격)",
+                        target_steps=get_survival_target_steps(0.7),  # 1110
+                        target_kills=get_kill_target(0.7),  # 8.4
+                        min_episodes=120,
+                        max_episodes=1800,
+                        success_threshold=0.80,
+                        window_size=1,  # 각 에피소드 개별 평가
+                        convergence_window=100,
+                        stability_threshold=0.15,
+                        consecutive_windows=10,  # 10 에피소드
+                        consecutive_success_rate=1.0,  # 연속 10개 모두 달성
+                    ),
+                    ConvergenceStage(
+                        skill_level=0.9,
+                        name="상급 (고급 전략)",
+                        target_steps=get_survival_target_steps(0.9),  # 1370
+                        target_kills=get_kill_target(0.9),  # 10.8
                         min_episodes=150,
                         max_episodes=2000,
                         success_threshold=0.80,
-                        window_size=50,
+                        window_size=1,  # 각 에피소드 개별 평가
                         convergence_window=100,
                         stability_threshold=0.15,
-                        consecutive_windows=10,
-                        consecutive_success_rate=0.80,
+                        consecutive_windows=10,  # 10 에피소드
+                        consecutive_success_rate=1.0,  # 연속 10개 모두 달성
                     ),
                     ConvergenceStage(
                         skill_level=1.0,
-                        name="고급 (마스터)",
-                        target_steps=get_survival_target_steps(1.0),  # 1000
+                        name="최상급 (마스터)",
+                        target_steps=get_survival_target_steps(1.0),  # 1500
                         target_kills=get_kill_target(1.0),  # 12
                         min_episodes=200,
-                        max_episodes=5000,
+                        max_episodes=2500,
                         success_threshold=0.80,
-                        window_size=50,
+                        window_size=1,  # 각 에피소드 개별 평가
                         convergence_window=100,
                         stability_threshold=0.15,
-                        consecutive_windows=10,
-                        consecutive_success_rate=0.80,
+                        consecutive_windows=10,  # 10 에피소드
+                        consecutive_success_rate=1.0,  # 연속 10개 모두 달성
                         is_final=True,
                     ),
                 ]
                 curriculum = ConvergenceBasedCurriculum(stages)
-                print(f"🎓 수렴 기반 커리큘럼 (권장)")
+                print(f"🎓 세분화된 수렴 기반 커리큘럼 (6단계)")
+                print(f"   0.1 → 0.3 → 0.5 → 0.7 → 0.9 → 1.0")
                 print(f"   목표 달성 + 성능 수렴 + 안정성 + 연속 달성 모두 확인")
-                print(f"   운이 아닌 진짜 학습 완료 후 전환")
-                print(f"   Skill 1.0 수렴 달성 시 훈련 자동 종료")
+                print(f"   Catastrophic Forgetting 방지를 위한 점진적 난이도 상승")
+                print(f"   Skill 1.0 (1500스텝/12킬) 수렴 달성 시 훈련 자동 종료")
 
         # 트레이너 생성 (최적화된 하이퍼파라미터는 PPOAgent에서 자동 적용)
         trainer = RealGameTrainer(skill_level=args.skill_level, curriculum=curriculum)
