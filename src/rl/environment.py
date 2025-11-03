@@ -123,9 +123,10 @@ class GameEnvironment:
                 # 임시 리스트: (entity, distance) 형태로 저장
                 entities_with_distance: List[Tuple[EntityPosition, float]] = []
 
-                # 적 정보 수집
+                # 적 정보 수집 (enemy_shots 제외 - 탄환은 별도 처리)
                 enemy_attrs = [
-                    attr for attr in dir(game_state) if attr.startswith("enemy")
+                    attr for attr in dir(game_state) 
+                    if attr.startswith("enemy") and attr != "enemy_shots"
                 ]
                 for attr in enemy_attrs:
                     enemy_group = getattr(game_state, attr, None)
@@ -171,7 +172,7 @@ class GameEnvironment:
                                             EntityPosition(
                                                 x=shot_x,
                                                 y=shot_y,
-                                                entity_type=EntityType.ENEMY_BULLET,
+                                                entity_type=EntityType.ENEMY_SHOT,
                                             ),
                                             distance,
                                         )

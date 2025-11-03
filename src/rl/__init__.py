@@ -8,7 +8,17 @@ from .data_types import GameLogData, PlayerState, ActionType
 from .environment import GameEnvironment
 from .ppo_agent import PPOAgent
 from .trainer import PPOTrainer
-from .curriculum import CurriculumStage, StepCurriculum, LinearCurriculum
+from .curriculum import (
+    CurriculumStage,
+    StepCurriculum,
+    LinearCurriculum,
+    ExponentialCurriculum,
+    SigmoidCurriculum,
+    PolynomialCurriculum,
+)
+from .adaptive_curriculum import AdaptiveCurriculum, AdaptiveStage
+from .goal_based_curriculum import GoalBasedCurriculum, GoalBasedStage
+from .convergence_based_curriculum import ConvergenceBasedCurriculum, ConvergenceStage
 
 __all__ = [
     "GameLogData",
@@ -20,4 +30,13 @@ __all__ = [
     "CurriculumStage",
     "StepCurriculum",
     "LinearCurriculum",
+    "ExponentialCurriculum",
+    "SigmoidCurriculum",
+    "PolynomialCurriculum",
+    "AdaptiveCurriculum",
+    "AdaptiveStage",
+    "GoalBasedCurriculum",
+    "GoalBasedStage",
+    "ConvergenceBasedCurriculum",
+    "ConvergenceStage",
 ]

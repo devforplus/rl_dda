@@ -1,0 +1,22 @@
+{
+  "best_params": {
+    "learning_rate": 7.672115813828463e-05,
+    "gamma": 0.9658767382045985,
+    "gae_lambda": 0.9592342803721876,
+    "clip_epsilon": 0.23713775795384281,
+    "value_coef": 0.16579175341634528,
+    "entropy_coef": 0.001669841290831729,
+    "hidden_size": 128,
+    "num_layers": 2,
+    "activation": "relu",
+    "grad_clip_norm": 1.5008088126812362,
+    "batch_size": 64,
+    "num_epochs": 4
+  },
+  "best_score": 408.18000000000006,
+  "best_performance": {
+    "score": 393.0,
+    "kills": 3.9,
+    "survival_time": 446.6
+  }
+}

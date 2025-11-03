@@ -1,0 +1,294 @@
+{
+  "best_params": {
+    "learning_rate": 0.00788671412999049,
+    "gamma": 0.9800313374635297,
+    "gae_lambda": 0.8548304784512067,
+    "clip_epsilon": 0.11953442280127678,
+    "value_coef": 0.7158097238609412,
+    "entropy_coef": 0.007591104805282696,
+    "batch_size": 256,
+    "num_epochs": 4,
+    "hidden_size": 64,
+    "num_layers": 2,
+    "grad_clip_norm": 0.9726261649881027
+  },
+  "best_params_for_training": {
+    "state_size": 153,
+    "action_size": 9,
+    "learning_rate": 0.00788671412999049,
+    "gamma": 0.9800313374635297,
+    "gae_lambda": 0.8548304784512067,
+    "clip_epsilon": 0.11953442280127678,
+    "value_coef": 0.7158097238609412,
+    "entropy_coef": 0.007591104805282696,
+    "batch_size": 256,
+    "num_epochs": 4,
+    "hidden_size": 64,
+    "num_layers": 2,
+    "grad_clip_norm": 0.9726261649881027
+  },
+  "best_value": 34.10933535552233,
+  "n_trials": 5,
+  "trial_results": [
+    {
+      "trial": 0,
+      "params": {
+        "learning_rate": 0.0001329291894316216,
+        "gamma": 0.9941207163345817,
+        "gae_lambda": 0.9317589095260529,
+        "clip_epsilon": 0.2197316968394073,
+        "value_coef": 0.24041677639819287,
+        "entropy_coef": 0.002051110418843397,
+        "batch_size": 64,
+        "num_epochs": 3,
+        "hidden_size": 64,
+        "num_layers": 2,
+        "grad_clip_norm": 0.373818018663584
+      },
+      "scores": [
+        10,
+        10
+      ],
+      "avg_score": 10.0,
+      "std_score": 0.0,
+      "timestamp": "2025-08-07T09:47:36.534042"
+    },
+    {
+      "trial": 1,
+      "params": {
+        "learning_rate": 0.00037520558551242813,
+        "gamma": 0.9427625568455694,
+        "gae_lambda": 0.8524212452356476,
+        "clip_epsilon": 0.22237057894447587,
+        "value_coef": 0.22554447458683766,
+        "entropy_coef": 0.00383962929980417,
+        "batch_size": 128,
+        "num_epochs": 5,
+        "hidden_size": 256,
+        "num_layers": 2,
+        "grad_clip_norm": 0.9539969835279999
+      },
+      "scores": [
+        17.515164992055627,
+        18.07734152283492
+      ],
+      "avg_score": 17.796253257445272,
+      "std_score": 0.2810882653896467,
+      "timestamp": "2025-08-07T09:47:36.546135"
+    },
+    {
+      "trial": 2,
+      "params": {
+        "learning_rate": 0.00788671412999049,
+        "gamma": 0.9800313374635297,
+        "gae_lambda": 0.8548304784512067,
+        "clip_epsilon": 0.11953442280127678,
+        "value_coef": 0.7158097238609412,
+        "entropy_coef": 0.007591104805282696,
+        "batch_size": 256,
+        "num_epochs": 4,
+        "hidden_size": 64,
+        "num_layers": 2,
+        "grad_clip_norm": 0.9726261649881027
+      },
+      "scores": [
+        34.76460484053059,
+        33.454065870514086
+      ],
+      "avg_score": 34.10933535552233,
+      "std_score": 0.655269485008251,
+      "timestamp": "2025-08-07T09:47:36.551422"
+    },
+    {
+      "trial": 3,
+      "params": {
+        "learning_rate": 0.002115429079726122,
+        "gamma": 0.9930103952148547,
+        "gae_lambda": 0.9610689230769768,
+        "clip_epsilon": 0.21957999576221704,
+        "value_coef": 0.9296868115208051,
+        "entropy_coef": 0.0015030900645056826,
+        "batch_size": 256,
+        "num_epochs": 4,
+        "hidden_size": 64,
+        "num_layers": 2,
+        "grad_clip_norm": 0.8219772826786357
+      },
+      "scores": [
+        10,
+        10
+      ],
+      "avg_score": 10.0,
+      "std_score": 0.0,
+      "timestamp": "2025-08-07T09:47:36.554515"
+    },
+    {
+      "trial": 4,
+      "params": {
+        "learning_rate": 1.6736010167825783e-05,
+        "gamma": 0.9977018067234512,
+        "gae_lambda": 0.9390040584733983,
+        "clip_epsilon": 0.1397431363068345,
+        "value_coef": 0.10496990541124217,
+        "entropy_coef": 0.04274869455295218,
+        "batch_size": 128,
+        "num_epochs": 4,
+        "hidden_size": 128,
+        "num_layers": 2,
+        "grad_clip_norm": 0.379884089544096
+      },
+      "scores": [
+        10,
+        10
+      ],
+      "avg_score": 10.0,
+      "std_score": 0.0,
+      "timestamp": "2025-08-07T09:47:36.558627"
+    }
+  ],
+  "summary": {
+    "top_5_trials": [
+      {
+        "trial": 2,
+        "params": {
+          "learning_rate": 0.00788671412999049,
+          "gamma": 0.9800313374635297,
+          "gae_lambda": 0.8548304784512067,
+          "clip_epsilon": 0.11953442280127678,
+          "value_coef": 0.7158097238609412,
+          "entropy_coef": 0.007591104805282696,
+          "batch_size": 256,
+          "num_epochs": 4,
+          "hidden_size": 64,
+          "num_layers": 2,
+          "grad_clip_norm": 0.9726261649881027
+        },
+        "scores": [
+          34.76460484053059,
+          33.454065870514086
+        ],
+        "avg_score": 34.10933535552233,
+        "std_score": 0.655269485008251,
+        "timestamp": "2025-08-07T09:47:36.551422"
+      },
+      {
+        "trial": 1,
+        "params": {
+          "learning_rate": 0.00037520558551242813,
+          "gamma": 0.9427625568455694,
+          "gae_lambda": 0.8524212452356476,
+          "clip_epsilon": 0.22237057894447587,
+          "value_coef": 0.22554447458683766,
+          "entropy_coef": 0.00383962929980417,
+          "batch_size": 128,
+          "num_epochs": 5,
+          "hidden_size": 256,
+          "num_layers": 2,
+          "grad_clip_norm": 0.9539969835279999
+        },
+        "scores": [
+          17.515164992055627,
+          18.07734152283492
+        ],
+        "avg_score": 17.796253257445272,
+        "std_score": 0.2810882653896467,
+        "timestamp": "2025-08-07T09:47:36.546135"
+      },
+      {
+        "trial": 0,
+        "params": {
+          "learning_rate": 0.0001329291894316216,
+          "gamma": 0.9941207163345817,
+          "gae_lambda": 0.9317589095260529,
+          "clip_epsilon": 0.2197316968394073,
+          "value_coef": 0.24041677639819287,
+          "entropy_coef": 0.002051110418843397,
+          "batch_size": 64,
+          "num_epochs": 3,
+          "hidden_size": 64,
+          "num_layers": 2,
+          "grad_clip_norm": 0.373818018663584
+        },
+        "scores": [
+          10,
+          10
+        ],
+        "avg_score": 10.0,
+        "std_score": 0.0,
+        "timestamp": "2025-08-07T09:47:36.534042"
+      },
+      {
+        "trial": 3,
+        "params": {
+          "learning_rate": 0.002115429079726122,
+          "gamma": 0.9930103952148547,
+          "gae_lambda": 0.9610689230769768,
+          "clip_epsilon": 0.21957999576221704,
+          "value_coef": 0.9296868115208051,
+          "entropy_coef": 0.0015030900645056826,
+          "batch_size": 256,
+          "num_epochs": 4,
+          "hidden_size": 64,
+          "num_layers": 2,
+          "grad_clip_norm": 0.8219772826786357
+        },
+        "scores": [
+          10,
+          10
+        ],
+        "avg_score": 10.0,
+        "std_score": 0.0,
+        "timestamp": "2025-08-07T09:47:36.554515"
+      },
+      {
+        "trial": 4,
+        "params": {
+          "learning_rate": 1.6736010167825783e-05,
+          "gamma": 0.9977018067234512,
+          "gae_lambda": 0.9390040584733983,
+          "clip_epsilon": 0.1397431363068345,
+          "value_coef": 0.10496990541124217,
+          "entropy_coef": 0.04274869455295218,
+          "batch_size": 128,
+          "num_epochs": 4,
+          "hidden_size": 128,
+          "num_layers": 2,
+          "grad_clip_norm": 0.379884089544096
+        },
+        "scores": [
+          10,
+          10
+        ],
+        "avg_score": 10.0,
+        "std_score": 0.0,
+        "timestamp": "2025-08-07T09:47:36.558627"
+      }
+    ],
+    "parameter_analysis": {
+      "learning_rate": {
+        "mean": 0.00788671412999049,
+        "std": 0.0,
+        "min": 0.00788671412999049,
+        "max": 0.00788671412999049
+      },
+      "gamma": {
+        "mean": 0.9800313374635297,
+        "std": 0.0,
+        "min": 0.9800313374635297,
+        "max": 0.9800313374635297
+      },
+      "hidden_size": {
+        "mean": 64.0,
+        "std": 0.0,
+        "min": 64,
+        "max": 64
+      },
+      "entropy_coef": {
+        "mean": 0.007591104805282696,
+        "std": 0.0,
+        "min": 0.007591104805282696,
+        "max": 0.007591104805282696
+      }
+    }
+  }
+}

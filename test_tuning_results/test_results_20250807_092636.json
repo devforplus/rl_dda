@@ -1,0 +1,289 @@
+{
+  "best_params": {
+    "learning_rate": 0.0011858773333731888,
+    "gamma": 0.9271740123549657,
+    "gae_lambda": 0.912975730146071,
+    "clip_epsilon": 0.29809249499139595,
+    "value_coef": 0.7335351727071533,
+    "entropy_coef": 0.008194256363728628,
+    "batch_size": 32,
+    "num_epochs": 6,
+    "hidden_size": 256,
+    "num_layers": 3,
+    "grad_clip_norm": 0.7715447520293188
+  },
+  "best_value": 77.4185646001279,
+  "n_trials": 15,
+  "trial_results": [
+    {
+      "trial": 0,
+      "params": {
+        "learning_rate": 0.0001329291894316216,
+        "gamma": 0.9941207163345817,
+        "gae_lambda": 0.9317589095260529,
+        "clip_epsilon": 0.2197316968394073,
+        "value_coef": 0.24041677639819287,
+        "entropy_coef": 0.002051110418843397,
+        "batch_size": 64,
+        "num_epochs": 3,
+        "hidden_size": 64,
+        "num_layers": 2,
+        "grad_clip_norm": 0.2650640588680905
+      },
+      "score": 4.279581599873685,
+      "timestamp": "2025-08-07T09:26:36.299055"
+    },
+    {
+      "trial": 1,
+      "params": {
+        "learning_rate": 8.17949947521167e-05,
+        "gamma": 0.9519508867315916,
+        "gae_lambda": 0.8777501033555809,
+        "clip_epsilon": 0.15824582803960838,
+        "value_coef": 0.6506676052501416,
+        "entropy_coef": 0.0019010245319870357,
+        "batch_size": 256,
+        "num_epochs": 3,
+        "hidden_size": 128,
+        "num_layers": 3,
+        "grad_clip_norm": 0.2534717113185624
+      },
+      "score": 23.629059097292885,
+      "timestamp": "2025-08-07T09:26:36.300791"
+    },
+    {
+      "trial": 2,
+      "params": {
+        "learning_rate": 1.5673095467235405e-05,
+        "gamma": 0.99393966818808,
+        "gae_lambda": 0.9738137659534207,
+        "clip_epsilon": 0.26167946962329225,
+        "value_coef": 0.3741523922560336,
+        "entropy_coef": 0.0015679933916723015,
+        "batch_size": 32,
+        "num_epochs": 3,
+        "hidden_size": 64,
+        "num_layers": 2,
+        "grad_clip_norm": 0.5680612190600297
+      },
+      "score": 12.342140171507078,
+      "timestamp": "2025-08-07T09:26:36.300791"
+    },
+    {
+      "trial": 3,
+      "params": {
+        "learning_rate": 0.00043664735929796326,
+        "gamma": 0.9183005910970272,
+        "gae_lambda": 0.9745252329976205,
+        "clip_epsilon": 0.2550265646722229,
+        "value_coef": 0.9455490474077702,
+        "entropy_coef": 0.06161049539380966,
+        "batch_size": 64,
+        "num_epochs": 3,
+        "hidden_size": 128,
+        "num_layers": 4,
+        "grad_clip_norm": 0.4210779940242304
+      },
+      "score": 43.2371986621161,
+      "timestamp": "2025-08-07T09:26:36.306294"
+    },
+    {
+      "trial": 4,
+      "params": {
+        "learning_rate": 6.963114377829287e-05,
+        "gamma": 0.9537269122326666,
+        "gae_lambda": 0.8253663604954573,
+        "clip_epsilon": 0.2604393961508079,
+        "value_coef": 0.16709557931179375,
+        "entropy_coef": 0.09413993046829945,
+        "batch_size": 256,
+        "num_epochs": 5,
+        "hidden_size": 128,
+        "num_layers": 3,
+        "grad_clip_norm": 0.20428215357261675
+      },
+      "score": 27.815185082826904,
+      "timestamp": "2025-08-07T09:26:36.308572"
+    },
+    {
+      "trial": 5,
+      "params": {
+        "learning_rate": 0.0038842777547031426,
+        "gamma": 0.9617065145559283,
+        "gae_lambda": 0.8595616444734768,
+        "clip_epsilon": 0.11271167005720473,
+        "value_coef": 0.379884089544096,
+        "entropy_coef": 0.004470608546778492,
+        "batch_size": 128,
+        "num_epochs": 3,
+        "hidden_size": 128,
+        "num_layers": 4,
+        "grad_clip_norm": 0.5444160367279517
+      },
+      "score": 26.9534618820406,
+      "timestamp": "2025-08-07T09:26:36.310574"
+    },
+    {
+      "trial": 6,
+      "params": {
+        "learning_rate": 0.0003699972431463808,
+        "gamma": 0.9423265608174964,
+        "gae_lambda": 0.8045754428139372,
+        "clip_epsilon": 0.12157828539866089,
+        "value_coef": 0.12828626711806082,
+        "entropy_coef": 0.0187422109855557,
+        "batch_size": 128,
+        "num_epochs": 4,
+        "hidden_size": 64,
+        "num_layers": 2,
+        "grad_clip_norm": 0.24509915852860398
+      },
+      "score": 12.792559080418464,
+      "timestamp": "2025-08-07T09:26:36.311386"
+    },
+    {
+      "trial": 7,
+      "params": {
+        "learning_rate": 0.006153085601625313,
+        "gamma": 0.9800039175768773,
+        "gae_lambda": 0.9140126761718762,
+        "clip_epsilon": 0.2742921180375435,
+        "value_coef": 0.823304869209203,
+        "entropy_coef": 0.0023612399244412607,
+        "batch_size": 256,
+        "num_epochs": 4,
+        "hidden_size": 256,
+        "num_layers": 4,
+        "grad_clip_norm": 0.8746575249307091
+      },
+      "score": 56.68019346712381,
+      "timestamp": "2025-08-07T09:26:36.313930"
+    },
+    {
+      "trial": 8,
+      "params": {
+        "learning_rate": 1.0491954332267901e-05,
+        "gamma": 0.9505639829551791,
+        "gae_lambda": 0.8751339805667803,
+        "clip_epsilon": 0.14442156209414606,
+        "value_coef": 0.20787883060031453,
+        "entropy_coef": 0.0047340227734041914,
+        "batch_size": 32,
+        "num_epochs": 4,
+        "hidden_size": 64,
+        "num_layers": 3,
+        "grad_clip_norm": 0.37079047883509275
+      },
+      "score": 14.897511254393645,
+      "timestamp": "2025-08-07T09:26:36.314937"
+    },
+    {
+      "trial": 9,
+      "params": {
+        "learning_rate": 7.153547794693153e-05,
+        "gamma": 0.9036518077880987,
+        "gae_lambda": 0.9097215801163814,
+        "clip_epsilon": 0.2005358046457723,
+        "value_coef": 0.14633087612499043,
+        "entropy_coef": 0.0036082193273637873,
+        "batch_size": 32,
+        "num_epochs": 6,
+        "hidden_size": 256,
+        "num_layers": 2,
+        "grad_clip_norm": 0.7553947137506736
+      },
+      "score": 65.67426197661013,
+      "timestamp": "2025-08-07T09:26:36.316805"
+    },
+    {
+      "trial": 10,
+      "params": {
+        "learning_rate": 0.0016277591776514494,
+        "gamma": 0.9005937211126259,
+        "gae_lambda": 0.9253012046044978,
+        "clip_epsilon": 0.2021128120351793,
+        "value_coef": 0.5522780959073166,
+        "entropy_coef": 0.01614195189041005,
+        "batch_size": 32,
+        "num_epochs": 6,
+        "hidden_size": 256,
+        "num_layers": 2,
+        "grad_clip_norm": 0.9514952415722696
+      },
+      "score": 47.220142893043636,
+      "timestamp": "2025-08-07T09:26:36.338908"
+    },
+    {
+      "trial": 11,
+      "params": {
+        "learning_rate": 0.006877477209765817,
+        "gamma": 0.9751794725080039,
+        "gae_lambda": 0.9193660575481054,
+        "clip_epsilon": 0.29876640989088593,
+        "value_coef": 0.8074672937766332,
+        "entropy_coef": 0.005154748797287634,
+        "batch_size": 256,
+        "num_epochs": 6,
+        "hidden_size": 256,
+        "num_layers": 4,
+        "grad_clip_norm": 0.8767542764185698
+      },
+      "score": 66.94774647997627,
+      "timestamp": "2025-08-07T09:26:36.363851"
+    },
+    {
+      "trial": 12,
+      "params": {
+        "learning_rate": 0.0011858773333731888,
+        "gamma": 0.9271740123549657,
+        "gae_lambda": 0.912975730146071,
+        "clip_epsilon": 0.29809249499139595,
+        "value_coef": 0.7335351727071533,
+        "entropy_coef": 0.008194256363728628,
+        "batch_size": 32,
+        "num_epochs": 6,
+        "hidden_size": 256,
+        "num_layers": 3,
+        "grad_clip_norm": 0.7715447520293188
+      },
+      "score": 77.4185646001279,
+      "timestamp": "2025-08-07T09:26:36.384760"
+    },
+    {
+      "trial": 13,
+      "params": {
+        "learning_rate": 0.001681650771130541,
+        "gamma": 0.9309112586562895,
+        "gae_lambda": 0.9403952694243259,
+        "clip_epsilon": 0.2984583320929117,
+        "value_coef": 0.780755625085823,
+        "entropy_coef": 0.008399037432330657,
+        "batch_size": 256,
+        "num_epochs": 6,
+        "hidden_size": 256,
+        "num_layers": 4,
+        "grad_clip_norm": 0.7438901124650473
+      },
+      "score": 55.01484744942102,
+      "timestamp": "2025-08-07T09:26:36.401339"
+    },
+    {
+      "trial": 14,
+      "params": {
+        "learning_rate": 0.0014865802481980957,
+        "gamma": 0.9720026579468677,
+        "gae_lambda": 0.9508780157003418,
+        "clip_epsilon": 0.29385397040974365,
+        "value_coef": 0.7129924173608311,
+        "entropy_coef": 0.009715082896721058,
+        "batch_size": 32,
+        "num_epochs": 5,
+        "hidden_size": 256,
+        "num_layers": 3,
+        "grad_clip_norm": 0.7779142637769573
+      },
+      "score": 61.959107681252604,
+      "timestamp": "2025-08-07T09:26:36.424959"
+    }
+  ]
+}

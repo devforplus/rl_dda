@@ -47,8 +47,13 @@ try:
         CurriculumStage,
         StepCurriculum,
         LinearCurriculum,
+        GoalBasedCurriculum,
+        GoalBasedStage,
+        ConvergenceBasedCurriculum,
+        ConvergenceStage,
     )
     from rl.data_types import GameLogData, EntityPosition, PlayerState
+    from rl.targets import get_survival_target_steps, get_kill_target
 except ImportError as e:
     print(f"❌ RL 모듈 임포트 실패: {e}")
     print("RL 모듈이 src/rl/ 디렉토리에 있는지 확인해주세요.")
@@ -708,68 +713,144 @@ class RealGameTrainer:
             print(f"   - 최근 5개 평균 보상: {recent_avg_reward:.2f}")
             print(f"   - 최근 5개 평균 생존시간: {recent_avg_survival:.1f}")
 
-        # 커리큘럼 단계 종료 감지 및 단계별 아티팩트 저장/그래프 생성
+        # 커리큘럼 단계 관리
         if self.curriculum is not None:
-            # 다음 에피소드 기준 스테이지 조회 (0-based index = self.episode_count)
-            next_skill, next_stage = self.curriculum.skill_for_episode(
-                self.episode_count
-            )
-
-            # 현재 스테이지 이름이 없으면 초기화 (안전장치)
-            if not hasattr(self, "current_stage_name"):
-                self.current_stage_name = next_stage
-                self.stage_start_episode = 1
-
-            stage_changed = next_stage != self.current_stage_name
-            final_episode_reached = self.episode_count >= self.max_episodes
-
-            if stage_changed or final_episode_reached:
-                # 방금 끝난 스테이지 기준으로 저장/그래프 생성
-                stage_name = self.current_stage_name
-                prev_stage_name = stage_name  # 전이 학습용 저장
-                prev_stage_skill = self.skill_level  # 전이 학습용 저장
-
-                try:
-                    self._save_model_for_stage(stage_name, self.skill_level)
-                    self._generate_stage_plots(
-                        stage_name, self.stage_start_episode, self.episode_count
-                    )
-                except Exception as e:
-                    print(f"⚠️  스테이지 아티팩트 생성 중 오류: {e}")
-
-                # 🔥 전이 학습: 다음 스테이지로 전환하면서 이전 체크포인트 로드
-                if stage_changed and self.episode_count < self.max_episodes:
-                    print(f"\n🎓 스테이지 전환: {prev_stage_name} (skill {prev_stage_skill:.1f}) → {next_stage} (skill {next_skill:.1f})")
+            # GoalBasedCurriculum 또는 ConvergenceBasedCurriculum인 경우 특별 처리
+            if isinstance(self.curriculum, (GoalBasedCurriculum, ConvergenceBasedCurriculum)):
+                # 에피소드 결과를 커리큘럼에 보고
+                result = self.curriculum.report_episode_result(episode_steps, episode_kills)
+                
+                # 진행 상황 출력
+                progress = self.curriculum.get_progress_info()
+                print(f"\n📈 커리큘럼 진행 상황:")
+                print(f"   단계: {progress['stage_name']} (Skill {progress['skill_level']:.1f})")
+                print(f"   단계 에피소드: {progress['stage_episodes']}/{progress['max_episodes']}")
+                print(f"   총 에피소드: {progress['total_episodes']}")
+                
+                if 'recent_avg_steps' in progress:
+                    print(f"   평균 생존: {progress['recent_avg_steps']:.1f}/{progress['target_steps']} ({progress['step_achievement']:.1%})")
+                    print(f"   평균 킬: {progress['recent_avg_kills']:.1f}/{progress['target_kills']:.1f} ({progress['kill_achievement']:.1%})")
+                    if progress['goal_achieved']:
+                        print(f"   ✅ 목표 달성! (다음 단계 전환 준비)")
+                
+                # 단계 전환 처리
+                if result.get('stage_changed'):
+                    prev_stage_name = self.current_stage_name if hasattr(self, 'current_stage_name') else "초기"
+                    prev_stage_skill = self.skill_level
                     
-                    # 이전 스테이지의 학습 결과를 로드하여 전이 학습
+                    # 이전 단계 아티팩트 저장
+                    try:
+                        self._save_model_for_stage(prev_stage_name, prev_stage_skill)
+                        if hasattr(self, 'stage_start_episode'):
+                            self._generate_stage_plots(
+                                prev_stage_name, self.stage_start_episode, self.episode_count
+                            )
+                    except Exception as e:
+                        print(f"⚠️  스테이지 아티팩트 생성 중 오류: {e}")
+                    
+                    # 전이 학습
                     transfer_success = self._load_previous_stage_checkpoint(
                         prev_stage_name, prev_stage_skill
                     )
-
                     if transfer_success:
                         print("   ✅ 전이 학습 성공")
                     else:
                         print("   ⚠️ 전이 학습 실패 - 랜덤 초기화")
+                    
+                    # 새 단계 설정
+                    self.current_stage_name = result['new_stage']
+                    self.skill_level = result['new_skill']
+                    self.game_agent.skill_level = result['new_skill']
+                    self.stage_start_episode = self.episode_count + 1
+                
+                # 훈련 종료 확인
+                if result.get('training_complete'):
+                    print(f"\n{'='*70}")
+                    print(f"🎉🎉🎉 훈련 완료! 🎉🎉🎉")
+                    print(f"{'='*70}")
+                    print(f"완료 사유: {result.get('reason', '목표 달성')}")
+                    
+                    # 최종 통계 출력
+                    self.curriculum.print_stage_summary()
+                    
+                    # 최종 모델 저장
+                    try:
+                        self._save_model_for_stage("최종", self.skill_level)
+                        if hasattr(self, 'stage_start_episode'):
+                            self._generate_stage_plots(
+                                "최종", self.stage_start_episode, self.episode_count
+                            )
+                    except Exception as e:
+                        print(f"⚠️  최종 아티팩트 생성 중 오류: {e}")
+                    
+                    print(f"{'='*70}")
+                    self.stop_training()
+                    return
+            
+            else:
+                # 기존 커리큘럼 (StepCurriculum 등) 처리
+                # 다음 에피소드 기준 스테이지 조회 (0-based index = self.episode_count)
+                next_skill, next_stage = self.curriculum.skill_for_episode(
+                    self.episode_count
+                )
 
-                # 다음 스테이지로 전환 준비
-                self.current_stage_name = next_stage
-                self.stage_start_episode = self.episode_count + 1
+                # 현재 스테이지 이름이 없으면 초기화 (안전장치)
+                if not hasattr(self, "current_stage_name"):
+                    self.current_stage_name = next_stage
+                    self.stage_start_episode = 1
 
-            # 다음 에피소드용 스킬 레벨 반영 (학습 계속 시)
-            if self.episode_count < self.max_episodes:
-                prev_skill = self.skill_level
-                self.skill_level = next_skill
-                self.game_agent.skill_level = next_skill
-                if not stage_changed:  # 스테이지 전환이 아닌 경우에만 출력 (중복 방지)
-                    print(
-                        f"🎓 커리큘럼 업데이트 → 다음 Ep {self.episode_count + 1}: Stage='{next_stage}', "
-                        f"skill {prev_skill:.2f} → {next_skill:.2f}"
-                    )
+                stage_changed = next_stage != self.current_stage_name
+                final_episode_reached = self.episode_count >= self.max_episodes
 
-        # 목표 달성 확인
+                if stage_changed or final_episode_reached:
+                    # 방금 끝난 스테이지 기준으로 저장/그래프 생성
+                    stage_name = self.current_stage_name
+                    prev_stage_name = stage_name  # 전이 학습용 저장
+                    prev_stage_skill = self.skill_level  # 전이 학습용 저장
+
+                    try:
+                        self._save_model_for_stage(stage_name, self.skill_level)
+                        self._generate_stage_plots(
+                            stage_name, self.stage_start_episode, self.episode_count
+                        )
+                    except Exception as e:
+                        print(f"⚠️  스테이지 아티팩트 생성 중 오류: {e}")
+
+                    # 🔥 전이 학습: 다음 스테이지로 전환하면서 이전 체크포인트 로드
+                    if stage_changed and self.episode_count < self.max_episodes:
+                        print(f"\n🎓 스테이지 전환: {prev_stage_name} (skill {prev_stage_skill:.1f}) → {next_stage} (skill {next_skill:.1f})")
+                        
+                        # 이전 스테이지의 학습 결과를 로드하여 전이 학습
+                        transfer_success = self._load_previous_stage_checkpoint(
+                            prev_stage_name, prev_stage_skill
+                        )
+
+                        if transfer_success:
+                            print("   ✅ 전이 학습 성공")
+                        else:
+                            print("   ⚠️ 전이 학습 실패 - 랜덤 초기화")
+
+                    # 다음 스테이지로 전환 준비
+                    self.current_stage_name = next_stage
+                    self.stage_start_episode = self.episode_count + 1
+
+                # 다음 에피소드용 스킬 레벨 반영 (학습 계속 시)
+                if self.episode_count < self.max_episodes:
+                    prev_skill = self.skill_level
+                    self.skill_level = next_skill
+                    self.game_agent.skill_level = next_skill
+                    if not stage_changed:  # 스테이지 전환이 아닌 경우에만 출력 (중복 방지)
+                        print(
+                            f"🎓 커리큘럼 업데이트 → 다음 Ep {self.episode_count + 1}: Stage='{next_stage}', "
+                            f"skill {prev_skill:.2f} → {next_skill:.2f}"
+                        )
+
+        # 목표 달성 확인 (max_episodes 도달)
         if self.episode_count >= self.max_episodes:
-            print(f"🎯 목표 에피소드 달성! 학습을 종료합니다.")
-            self.stop_training()
+            # GoalBasedCurriculum 또는 ConvergenceBasedCurriculum이 아닌 경우에만 종료
+            if not isinstance(self.curriculum, (GoalBasedCurriculum, ConvergenceBasedCurriculum)):
+                print(f"🎯 목표 에피소드 달성! 학습을 종료합니다.")
+                self.stop_training()
 
     def _try_save_replay(self, frames: list, survival_steps: int, skill_level: float):
         """베스트 플레이 리플레이 저장/갱신
@@ -1422,9 +1503,9 @@ def main():
     )
     parser.add_argument(
         "--curriculum-type",
-        choices=["step", "linear", "exponential", "sigmoid", "polynomial"],
-        default="step",
-        help="커리큘럼 유형 선택 (기본: step)",
+        choices=["step", "linear", "exponential", "sigmoid", "polynomial", "goal_based", "convergence"],
+        default="convergence",
+        help="커리큘럼 유형 선택 (기본: convergence, 수렴 기반 - 권장)",
     )
     parser.add_argument(
         "--linear-start",
@@ -1525,6 +1606,124 @@ def main():
                     degree=args.poly_degree,
                 )
                 print(f"📊 다항 커리큘럼: {args.linear_start:.1f} → {args.linear_end:.1f} (degree={args.poly_degree})")
+            elif args.curriculum_type == "goal_based":
+                # 🎯 목표 달성 기반 커리큘럼 (권장)
+                # 각 단계에서 목표의 80%를 달성해야만 다음 단계로
+                # Skill 1.0 목표 달성 시 자동 종료
+                stages = [
+                    GoalBasedStage(
+                        skill_level=0.1,
+                        name="초급 (생존 중심)",
+                        target_steps=get_survival_target_steps(0.1),  # 280
+                        target_kills=get_kill_target(0.1),  # 1.2
+                        min_episodes=50,
+                        max_episodes=1000,
+                        success_threshold=0.80,
+                        window_size=50,
+                    ),
+                    GoalBasedStage(
+                        skill_level=0.3,
+                        name="중급 (균형)",
+                        target_steps=get_survival_target_steps(0.3),  # 440
+                        target_kills=get_kill_target(0.3),  # 3.6
+                        min_episodes=100,
+                        max_episodes=1500,
+                        success_threshold=0.80,
+                        window_size=50,
+                    ),
+                    GoalBasedStage(
+                        skill_level=0.6,
+                        name="중상급 (공격 중심)",
+                        target_steps=get_survival_target_steps(0.6),  # 680
+                        target_kills=get_kill_target(0.6),  # 7.2
+                        min_episodes=150,
+                        max_episodes=2000,
+                        success_threshold=0.80,
+                        window_size=50,
+                    ),
+                    GoalBasedStage(
+                        skill_level=1.0,
+                        name="고급 (마스터)",
+                        target_steps=get_survival_target_steps(1.0),  # 1000
+                        target_kills=get_kill_target(1.0),  # 12
+                        min_episodes=200,
+                        max_episodes=5000,
+                        success_threshold=0.80,
+                        window_size=50,
+                        is_final=True,  # 최종 단계
+                    ),
+                ]
+                curriculum = GoalBasedCurriculum(stages)
+                print(f"🎯 목표 달성 기반 커리큘럼")
+                print(f"   각 단계에서 80% 달성 시 자동 전환")
+                print(f"   Skill 1.0 목표(1000스텝, 12킬) 달성 시 훈련 자동 종료")
+            elif args.curriculum_type == "convergence":
+                # 🎓 수렴 기반 커리큘럼 (권장) - 운이 아닌 진짜 학습 확인
+                # 목표 달성 + 성능 수렴 + 안정성 + 연속 달성 모두 확인
+                stages = [
+                    ConvergenceStage(
+                        skill_level=0.1,
+                        name="초급 (생존 중심)",
+                        target_steps=get_survival_target_steps(0.1),  # 280
+                        target_kills=get_kill_target(0.1),  # 1.2
+                        min_episodes=50,  # 조기 전환 허용
+                        max_episodes=1000,
+                        success_threshold=0.80,
+                        window_size=50,
+                        convergence_window=50,  # window_size와 동일
+                        stability_threshold=0.20,  # CV 20% (완화)
+                        consecutive_windows=10,
+                        consecutive_success_rate=0.80,
+                    ),
+                    ConvergenceStage(
+                        skill_level=0.3,
+                        name="중급 (균형)",
+                        target_steps=get_survival_target_steps(0.3),  # 440
+                        target_kills=get_kill_target(0.3),  # 3.6
+                        min_episodes=100,
+                        max_episodes=1500,
+                        success_threshold=0.80,
+                        window_size=50,
+                        convergence_window=100,
+                        stability_threshold=0.15,
+                        consecutive_windows=10,
+                        consecutive_success_rate=0.80,
+                    ),
+                    ConvergenceStage(
+                        skill_level=0.6,
+                        name="중상급 (공격 중심)",
+                        target_steps=get_survival_target_steps(0.6),  # 680
+                        target_kills=get_kill_target(0.6),  # 7.2
+                        min_episodes=150,
+                        max_episodes=2000,
+                        success_threshold=0.80,
+                        window_size=50,
+                        convergence_window=100,
+                        stability_threshold=0.15,
+                        consecutive_windows=10,
+                        consecutive_success_rate=0.80,
+                    ),
+                    ConvergenceStage(
+                        skill_level=1.0,
+                        name="고급 (마스터)",
+                        target_steps=get_survival_target_steps(1.0),  # 1000
+                        target_kills=get_kill_target(1.0),  # 12
+                        min_episodes=200,
+                        max_episodes=5000,
+                        success_threshold=0.80,
+                        window_size=50,
+                        convergence_window=100,
+                        stability_threshold=0.15,
+                        consecutive_windows=10,
+                        consecutive_success_rate=0.80,
+                        is_final=True,
+                    ),
+                ]
+                curriculum = ConvergenceBasedCurriculum(stages)
+                print(f"🎓 수렴 기반 커리큘럼 (권장)")
+                print(f"   목표 달성 + 성능 수렴 + 안정성 + 연속 달성 모두 확인")
+                print(f"   운이 아닌 진짜 학습 완료 후 전환")
+                print(f"   Skill 1.0 수렴 달성 시 훈련 자동 종료")
 
         # 트레이너 생성 (최적화된 하이퍼파라미터는 PPOAgent에서 자동 적용)
         trainer = RealGameTrainer(skill_level=args.skill_level, curriculum=curriculum)
