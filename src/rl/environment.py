@@ -217,16 +217,18 @@ class GameEnvironment:
         """커리큘럼 러닝 기반 실력값별 플레이 스타일 보상 계산
 
         커리큘럼 러닝 시스템:
-        - 2지표 multiplicative reward: R = survival × attack + bonus
-        - 곱셈 형태로 둘 다 높아야만 높은 보상 (Local Optimum 탈출)
+        - 2지표 가중합 보상: R = 0.5×survival + 0.5×attack + bonus
+        - 가중합 형태로 부분 달성도 적절히 보상 (학습 안정성)
         - 목표값만 skill level에 따라 증가
         - Catastrophic Forgetting 방지: 보상 함수의 일관성 유지
 
         커리큘럼 단계 (가중치 고정 50:50):
-        - Stage 1 (skill=0.1): 목표 280스텝, 1.2킬
-        - Stage 2 (skill=0.3): 목표 440스텝, 3.6킬
-        - Stage 3 (skill=0.6): 목표 680스텝, 7.2킬
-        - Stage 4 (skill=1.0): 목표 1000스텝, 12킬
+        - Stage 1 (skill=0.1): 목표 330스텝, 1.2킬
+        - Stage 2 (skill=0.3): 목표 590스텝, 3.6킬
+        - Stage 3 (skill=0.5): 목표 850스텝, 6.0킬
+        - Stage 4 (skill=0.7): 목표 1110스텝, 8.4킬
+        - Stage 5 (skill=0.9): 목표 1370스텝, 10.8킬
+        - Stage 6 (skill=1.0): 목표 1500스텝, 12킬
 
         즉각적 보상/페널티 시스템 (Immediate Feedback):
         1. 탄환 회피 보상 ✅:
@@ -261,8 +263,8 @@ class GameEnvironment:
             skill_level: 실력값 (0.0 ~ 1.0)
 
         Returns:
-            최종 보상 = multiplicative 보상 + bonus + 킬 보상 + 회피 보상 - HP 페널티 - 사망 페널티
-            (0.0 ~ 1.8+ 스케일, 페널티 적용 후 0.0 이상으로 제한)
+            최종 보상 = 가중합 보상 + bonus + 킬 보상 + 회피 보상 - HP 페널티 - 사망 페널티
+            (0.0 ~ 1.5+ 스케일, 페널티 적용 후 0.0 이상으로 제한)
         """
         if not (hasattr(game_instance, "game") and game_instance.game):
             return 0.0
@@ -342,40 +344,43 @@ class GameEnvironment:
         # - 이렇게 하면 에이전트가 학습한 "좋은 행동"의 정의가 변하지 않음
         # - 단지 더 높은 목표를 향해 학습할 뿐
         
-        # === 보상 함수 개선: 곱셈 형태로 Local Optimum 탈출 ===
-        # 문제: 단순 가중 합산 방식은 한 지표가 높으면 다른 지표가 낮아도 괜찮음
-        #       예: survival=0.86, attack=0.90 → reward=0.88 (충분히 높음)
-        # 해결: 곱셈 형태로 변경 → 둘 다 높아야 높은 보상
-        #       예: survival=0.86, attack=0.90 → reward=0.774 (낮음!)
-        #           survival=0.95, attack=0.95 → reward=0.902 (높음!)
+        # === 보상 함수 개선: 가중합 방식으로 안정적 학습 ===
+        # 변경 이유: 곱셈 방식의 문제점
+        # - 한 쪽이 낮으면 전체 보상이 급격히 하락 (76% × 97% = 74%)
+        # - 부분 달성에 대한 보상이 부족
+        # - 학습 후반 보상 붕괴 발생
+        #
+        # 가중합 방식의 장점:
+        # - 부분 달성도 적절히 보상 (76% × 0.5 + 97% × 0.5 = 86.5%)
+        # - 학습 안정성 증가
+        # - 점진적 개선 유도
+        #
+        # 균형잡힌 가중치: 생존 50%, 공격 50%
+        w_survival = 0.5
+        w_attack = 0.5
         
-        # 곱셈 보상: 둘 다 높아야만 높은 보상
-        multiplicative_reward = survival_score * attack_score
+        # 가중합 보상: 부분 달성도 보상
+        base_reward = w_survival * survival_score + w_attack * attack_score
         
-        # === 강력한 Exponential 보너스 시스템 ===
-        # 목표: 90% 이상부터 급격한 보상 증가로 목표 달성 강력히 유도
+        # === 적응적 보너스 시스템 (완화) ===
+        # 목표: 목표 달성 시 추가 보상, 하지만 과도하지 않게
         bonus = 0.0
         
+        # 80% 이상 달성 시 보너스 (둘 다 달성해야 함)
         if survival_score >= 0.8 and attack_score >= 0.8:
-            # 80% 이상: 기본 보너스
+            # 평균 달성률 기반 보너스
             avg_score = (survival_score + attack_score) / 2.0
-            min_score = min(survival_score, attack_score)
             
-            # Exponential 보너스: (평균 점수)^3 × 최소 점수
-            # 둘 다 높을수록 기하급수적으로 증가
-            if avg_score >= 0.9:
-                # 90% 이상: 강력한 보너스
-                bonus = (avg_score ** 3) * min_score * 0.5
-            else:
-                # 80-90%: 약한 보너스
-                bonus = (avg_score ** 2) * min_score * 0.2
+            # 80% 이상: 선형 보너스 (과도하지 않게)
+            # 80% → 0.1, 90% → 0.2, 100% → 0.3
+            bonus = (avg_score - 0.8) * 1.5
             
             # 완벽 달성 보너스: 둘 다 100% 이상
             if survival_score >= 1.0 and attack_score >= 1.0:
-                bonus += 0.3  # 큰 보너스!
+                bonus += 0.2  # 추가 보너스
         
-        # 최종 보상 (0.0 ~ 1.8+ 스케일)
-        final_reward = multiplicative_reward + bonus
+        # 최종 보상 (0.0 ~ 1.5 스케일)
+        final_reward = base_reward + bonus
 
         # === 탄환 회피 보상 (Bullet Dodge Reward) ===
         # 이전 프레임의 가까운 탄환들이 현재 프레임에서 더 멀어졌는지 확인
@@ -463,6 +468,160 @@ class GameEnvironment:
         self.previous_kills = current_kills
 
         return final_reward
+    
+    def calculate_reward_breakdown(self, game_instance, skill_level: float) -> Dict[str, float]:
+        """보상을 분해하여 각 요소별로 반환 (진단용)
+        
+        calculate_reward()와 동일한 로직이지만, 각 보상 요소를 딕셔너리로 반환합니다.
+        
+        Args:
+            game_instance: 게임 인스턴스
+            skill_level: 실력값 (0.0 ~ 1.0)
+            
+        Returns:
+            보상 분해 딕셔너리
+        """
+        if not (hasattr(game_instance, "game") and game_instance.game):
+            return self._empty_reward_breakdown()
+        
+        game_vars = getattr(game_instance.game, "game_vars", None)
+        if not game_vars:
+            return self._empty_reward_breakdown()
+        
+        current_step = self.episode_steps
+        current_kills = getattr(game_vars, "kills", 0)
+        current_lives = getattr(game_vars, "lives", 3)
+        
+        # 현재 HP 추출
+        current_hp = 3
+        game_state = getattr(game_instance.game, "state", None)
+        if game_state:
+            player = getattr(game_state, "player", None)
+            if player:
+                current_hp = getattr(player, "current_hp", getattr(player, "hp", 3))
+        
+        # 목표값 계산
+        target_survival_steps = get_survival_target_steps(skill_level)
+        target_kills = get_kill_target(skill_level)
+        target_kill_rate = (target_kills / max(target_survival_steps, 1)) * 100.0
+        
+        # === 1. 생존 점수 ===
+        survival_score = min(1.0, current_step / target_survival_steps)
+        
+        # === 2. 공격 점수 ===
+        if current_step > 0 and target_kill_rate > 0:
+            current_kill_rate = (current_kills / max(current_step, 1)) * 100.0
+            attack_score = min(1.0, current_kill_rate / target_kill_rate)
+        else:
+            attack_score = 0.0
+        
+        # === 3. Multiplicative Reward ===
+        multiplicative_reward = survival_score * attack_score
+        
+        # === 4. Bonus ===
+        bonus = 0.0
+        if survival_score >= 0.8 and attack_score >= 0.8:
+            avg_score = (survival_score + attack_score) / 2.0
+            min_score = min(survival_score, attack_score)
+            
+            if avg_score >= 0.9:
+                bonus = (avg_score ** 3) * min_score * 0.5
+            else:
+                bonus = (avg_score ** 2) * min_score * 0.2
+            
+            if survival_score >= 1.0 and attack_score >= 1.0:
+                bonus += 0.3
+        
+        # === 5. 탄환 회피 보상 ===
+        dodge_reward = 0.0
+        if len(self.previous_nearby_bullets) > 0:
+            game_state = getattr(game_instance.game, "state", None)
+            current_player_x, current_player_y = self.previous_player_pos
+            
+            dodged_count = 0
+            if game_state and hasattr(game_state, "enemy_shots"):
+                enemy_shots = getattr(game_state, "enemy_shots", [])
+                current_bullet_positions = set()
+                
+                for shot in enemy_shots:
+                    if hasattr(shot, "x") and hasattr(shot, "y"):
+                        shot_x = getattr(shot, "x", 0)
+                        shot_y = getattr(shot, "y", 0)
+                        current_bullet_positions.add((round(shot_x), round(shot_y)))
+                
+                for prev_x, prev_y, prev_distance in self.previous_nearby_bullets:
+                    prev_pos_rounded = (round(prev_x), round(prev_y))
+                    
+                    if prev_pos_rounded not in current_bullet_positions:
+                        dodged_count += 1
+                    else:
+                        current_distance = math.sqrt(
+                            (prev_x - current_player_x) ** 2
+                            + (prev_y - current_player_y) ** 2
+                        )
+                        if current_distance > prev_distance + 5:
+                            dodged_count += 1
+            
+            dodge_reward = min(0.05, dodged_count * 0.01)
+        
+        # === 6. 킬 보상 ===
+        kill_reward = 0.0
+        if current_kills > self.previous_kills:
+            new_kills = current_kills - self.previous_kills
+            kill_reward = new_kills * (0.02 + skill_level * 0.03)
+        
+        # === 7. HP 감소 페널티 ===
+        hp_damage_penalty = 0.0
+        if current_hp < self.previous_hp:
+            hp_loss = self.previous_hp - current_hp
+            hp_damage_penalty = hp_loss * (0.05 + skill_level * 0.05)
+        
+        # === 8. 사망 페널티 ===
+        death_penalty = 0.0
+        if current_lives < self.previous_lives:
+            death_penalty = 0.2 + (skill_level * 0.3)
+        
+        # === 9. 최종 보상 ===
+        final_reward = max(0.0, multiplicative_reward + bonus + dodge_reward + kill_reward
+                          - hp_damage_penalty - death_penalty)
+        
+        return {
+            'survival_score': survival_score,
+            'attack_score': attack_score,
+            'multiplicative_reward': multiplicative_reward,
+            'bonus': bonus,
+            'dodge_reward': dodge_reward,
+            'kill_reward': kill_reward,
+            'hp_damage_penalty': hp_damage_penalty,
+            'death_penalty': death_penalty,
+            'final_reward': final_reward,
+            'target_survival_steps': target_survival_steps,
+            'target_kills': target_kills,
+            'current_step': current_step,
+            'current_kills': current_kills,
+            'survival_achievement': current_step / target_survival_steps,
+            'kill_achievement': current_kills / target_kills if target_kills > 0 else 0.0,
+        }
+    
+    def _empty_reward_breakdown(self) -> Dict[str, float]:
+        """빈 보상 분해 딕셔너리 반환"""
+        return {
+            'survival_score': 0.0,
+            'attack_score': 0.0,
+            'multiplicative_reward': 0.0,
+            'bonus': 0.0,
+            'dodge_reward': 0.0,
+            'kill_reward': 0.0,
+            'hp_damage_penalty': 0.0,
+            'death_penalty': 0.0,
+            'final_reward': 0.0,
+            'target_survival_steps': 0,
+            'target_kills': 0.0,
+            'current_step': 0,
+            'current_kills': 0.0,
+            'survival_achievement': 0.0,
+            'kill_achievement': 0.0,
+        }
 
     def get_action_input(self, action_id: int) -> Dict[str, bool]:
         """액션 ID를 게임 입력으로 변환

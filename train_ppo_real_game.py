@@ -1840,7 +1840,7 @@ def main():
                         target_kills=get_kill_target(0.1),  # 1.2
                         min_episodes=50,
                         max_episodes=800,
-                        success_threshold=0.80,
+                        success_threshold=0.75,  # 75% (완화)
                         window_size=1,  # 각 에피소드 개별 평가
                         convergence_window=50,
                         stability_threshold=0.20,  # CV 20% (완화)
@@ -1854,7 +1854,7 @@ def main():
                         target_kills=get_kill_target(0.3),  # 3.6
                         min_episodes=80,
                         max_episodes=1200,
-                        success_threshold=0.80,
+                        success_threshold=0.75,  # 75% (완화)
                         window_size=1,  # 각 에피소드 개별 평가
                         convergence_window=80,
                         stability_threshold=0.18,
@@ -1868,7 +1868,7 @@ def main():
                         target_kills=get_kill_target(0.5),  # 6.0
                         min_episodes=100,
                         max_episodes=1500,
-                        success_threshold=0.80,
+                        success_threshold=0.75,  # 75% (완화)
                         window_size=1,  # 각 에피소드 개별 평가
                         convergence_window=100,
                         stability_threshold=0.15,
@@ -1882,7 +1882,7 @@ def main():
                         target_kills=get_kill_target(0.7),  # 8.4
                         min_episodes=120,
                         max_episodes=1800,
-                        success_threshold=0.80,
+                        success_threshold=0.75,  # 75% (완화)
                         window_size=1,  # 각 에피소드 개별 평가
                         convergence_window=100,
                         stability_threshold=0.15,
@@ -1896,7 +1896,7 @@ def main():
                         target_kills=get_kill_target(0.9),  # 10.8
                         min_episodes=150,
                         max_episodes=2000,
-                        success_threshold=0.80,
+                        success_threshold=0.75,  # 75% (완화)
                         window_size=1,  # 각 에피소드 개별 평가
                         convergence_window=100,
                         stability_threshold=0.15,
@@ -1910,7 +1910,7 @@ def main():
                         target_kills=get_kill_target(1.0),  # 12
                         min_episodes=200,
                         max_episodes=2500,
-                        success_threshold=0.80,
+                        success_threshold=0.75,  # 75% (완화)
                         window_size=1,  # 각 에피소드 개별 평가
                         convergence_window=100,
                         stability_threshold=0.15,
