@@ -228,17 +228,27 @@ class GameEnvironment:
         - Stage 3 (skill=0.6): 목표 680스텝, 7.2킬
         - Stage 4 (skill=1.0): 목표 1000스텝, 12킬
 
-        즉각적 보상 시스템 (Immediate Rewards):
-        1. 탄환 회피 보상:
+        즉각적 보상/페널티 시스템 (Immediate Feedback):
+        1. 탄환 회피 보상 ✅:
            - 가까운 탄환(40픽셀 이내)을 성공적으로 회피했을 때 즉각적인 보상
            - 회피 보상 = 0.01 * 회피한 탄환 수 (최대 0.05)
            - 학습 초기 단계에서 회피 행동을 강화하는 역할
         
-        2. 킬 보상 (신규):
+        2. 킬 보상 ✅:
            - 적을 처치했을 때 즉각적인 보상 제공
            - 킬 보상 = (0.02 + skill_level * 0.03) * 새로운 킬 수
            - Skill 0.1: 0.023/킬, Skill 1.0: 0.05/킬
            - 공격 행동 강화 및 빠른 학습 신호 제공
+        
+        3. HP 감소 페널티 ⚠️ (신규):
+           - 탄환에 맞아서 HP가 감소했을 때 즉각적인 페널티
+           - HP 손실 페널티 = (0.05 + skill_level * 0.05) * HP 손실량
+           - Skill 0.1: 0.055/HP, Skill 1.0: 0.10/HP
+           - 탄환 회피 행동 강화 및 신중한 플레이 유도
+        
+        4. 사망 페널티 ❌:
+           - Lives 감소 시 큰 페널티
+           - 사망 페널티 = 0.2 + skill_level * 0.3 (0.2 ~ 0.5)
 
         핵심 철학:
         - 보상 함수 일관성: 전 단계에서 동일한 가중치 (50:50)
@@ -251,7 +261,8 @@ class GameEnvironment:
             skill_level: 실력값 (0.0 ~ 1.0)
 
         Returns:
-            커리큘럼 단계별 multiplicative 보상값 + exponential 보너스 + 탄환 회피 보상 (0.0 ~ 1.8+ 스케일)
+            최종 보상 = multiplicative 보상 + bonus + 킬 보상 + 회피 보상 - HP 페널티 - 사망 페널티
+            (0.0 ~ 1.8+ 스케일, 페널티 적용 후 0.0 이상으로 제한)
         """
         if not (hasattr(game_instance, "game") and game_instance.game):
             return 0.0
@@ -263,6 +274,14 @@ class GameEnvironment:
         current_step = self.episode_steps
         current_kills = getattr(game_vars, "kills", 0)
         current_lives = getattr(game_vars, "lives", 3)
+        
+        # 현재 HP 추출 (탄환 피격 감지용)
+        current_hp = 3  # 기본값
+        game_state = getattr(game_instance.game, "state", None)
+        if game_state:
+            player = getattr(game_state, "player", None)
+            if player:
+                current_hp = getattr(player, "current_hp", getattr(player, "hp", 3))
 
         # 실력값 기반 적응적 목표 설정 (targets.py와 일치)
         target_survival_steps = get_survival_target_steps(skill_level)
@@ -415,14 +434,30 @@ class GameEnvironment:
             # 탄환 회피(0.01)보다 높은 보상으로 공격 행동 유도
             kill_reward = new_kills * (0.02 + skill_level * 0.03)
 
+        # === HP 감소 페널티 (탄환 피격) ===
+        # 탄환에 맞아서 HP가 감소했을 때 즉각적인 페널티 제공
+        # 목표: 탄환 회피 행동 강화 및 신중한 플레이 유도
+        hp_damage_penalty = 0.0
+        if current_hp < self.previous_hp:
+            hp_loss = self.previous_hp - current_hp
+            # HP 손실당 페널티: 0.05 ~ 0.1 (skill_level에 따라 증가)
+            # - Skill 0.1: HP 1당 0.055 페널티
+            # - Skill 1.0: HP 1당 0.10 페널티
+            # 사망 페널티(0.2~0.5)보다는 약하지만 명확한 학습 신호
+            hp_damage_penalty = hp_loss * (0.05 + skill_level * 0.05)
+            self.previous_hp = current_hp
+
         # 사망 시 즉시 페널티 (기존 구조 유지하되 단순화)
         death_penalty = 0.0
         if current_lives < self.previous_lives:
             death_penalty = 0.2 + (skill_level * 0.3)  # 0.2 ~ 0.5 페널티
             self.previous_lives = current_lives
+            # 사망 시 HP도 리셋
+            self.previous_hp = 3
 
         # 최종 보상 (킬 보상 + 회피 보상 + 페널티 적용)
-        final_reward = max(0.0, final_reward + dodge_reward + kill_reward - death_penalty)
+        final_reward = max(0.0, final_reward + dodge_reward + kill_reward 
+                          - hp_damage_penalty - death_penalty)
 
         # 상태 업데이트
         self.previous_kills = current_kills
