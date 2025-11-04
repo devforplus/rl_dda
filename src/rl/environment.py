@@ -357,23 +357,28 @@ class GameEnvironment:
         # 2. 중급 (균형): 생존 유지하면서 공격 추가
         # 3. 고급 (공격 중심): 생존 기술 활용한 적극적 플레이
         
-        # Skill level에 따른 동적 가중치
-        if skill_level <= 0.3:
-            # 초급: 생존 중심 (70:30)
-            # "먼저 살아남는 법부터 배워"
-            w_survival = 0.7
-            w_attack = 0.3
-        elif skill_level <= 0.6:
-            # 중급: 균형 (50:50)
-            # "이제 공격도 시작해"
-            w_survival = 0.5
-            w_attack = 0.5
-        else:
-            # 고급: 공격 중심 (30:70)
-            # "적극적으로 공격해"
-            # 생존 30% 유지로 Forgetting 방지
-            w_survival = 0.3
-            w_attack = 0.7
+        # === 선형 보간 가중치 (6단계 커리큘럼 최적화) ===
+        # Skill 0.1 → 1.0으로 갈수록 생존 70% → 30%, 공격 30% → 70%
+        # 부드러운 전환으로 각 단계에서 최적화된 학습 신호 제공
+        #
+        # 가중치 변화 예시:
+        # - Skill 0.1: 생존 66%, 공격 34% (생존 기초)
+        # - Skill 0.3: 생존 58%, 공격 42% (생존 + 기본 공격)
+        # - Skill 0.5: 생존 50%, 공격 50% (균형)
+        # - Skill 0.7: 생존 42%, 공격 58% (공격 중심 전환)
+        # - Skill 0.9: 생존 34%, 공격 66% (적극적 공격)
+        # - Skill 1.0: 생존 30%, 공격 70% (마스터)
+        #
+        # 생존 최소 30% 유지 → Catastrophic Forgetting 방지
+        
+        # 선형 보간 계산
+        # skill 0.0 → w_survival 0.7, skill 1.0 → w_survival 0.3
+        w_survival = 0.7 - (skill_level * 0.4)  # 0.7 → 0.3
+        w_attack = 0.3 + (skill_level * 0.4)    # 0.3 → 0.7
+        
+        # 안전 범위 클리핑 (혹시 모를 skill_level 범위 초과 대비)
+        w_survival = max(0.3, min(0.7, w_survival))
+        w_attack = max(0.3, min(0.7, w_attack))
         
         # 가중합 보상: 부분 달성도 보상
         base_reward = w_survival * survival_score + w_attack * attack_score
