@@ -991,9 +991,15 @@ class RealGameTrainer:
             matplotlib.use("Agg")  # GUI 없는 백엔드 사용
             import matplotlib.pyplot as plt
             from datetime import datetime
+            import warnings
 
-            # 폰트 설정
-            plt.rcParams["font.family"] = ["DejaVu Sans"]
+            # 한글 폰트 설정 (경고 억제)
+            warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
+            try:
+                # Windows에서 한글 폰트 시도
+                plt.rcParams["font.family"] = ["Malgun Gothic", "NanumGothic", "DejaVu Sans"]
+            except:
+                plt.rcParams["font.family"] = ["DejaVu Sans"]
             plt.rcParams["axes.unicode_minus"] = False
 
             # 저장 디렉토리
@@ -1147,6 +1153,15 @@ class RealGameTrainer:
             from datetime import datetime
             import numpy as np
             import os
+            import warnings
+
+            # 한글 폰트 설정 (경고 억제)
+            warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
+            try:
+                plt.rcParams["font.family"] = ["Malgun Gothic", "NanumGothic", "DejaVu Sans"]
+            except:
+                plt.rcParams["font.family"] = ["DejaVu Sans"]
+            plt.rcParams["axes.unicode_minus"] = False
 
             if not self.episode_rewards:
                 return
@@ -1325,6 +1340,15 @@ class RealGameTrainer:
             from datetime import datetime
             import numpy as np
             import os
+            import warnings
+
+            # 한글 폰트 설정 (경고 억제)
+            warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
+            try:
+                plt.rcParams["font.family"] = ["Malgun Gothic", "NanumGothic", "DejaVu Sans"]
+            except:
+                plt.rcParams["font.family"] = ["DejaVu Sans"]
+            plt.rcParams["axes.unicode_minus"] = False
 
             # 경계 보정
             n = len(self.episode_rewards)

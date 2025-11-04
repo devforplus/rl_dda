@@ -412,7 +412,7 @@ class PPOAgent:
         return save_path
 
     def load_model(self, model_path: str) -> bool:
-        """모델 로드
+        """모델 로드 (전이 학습 검증 포함)
 
         Args:
             model_path: 모델 파일 경로
@@ -421,13 +421,35 @@ class PPOAgent:
             로드 성공 여부
         """
         try:
+            # 로드 전 파라미터 체크섬 계산
+            param_sum_before = sum(p.sum().item() for p in self.network.parameters())
+            
             checkpoint = torch.load(model_path, map_location=self.device)
             self.network.load_state_dict(checkpoint["network_state_dict"])
             self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            
+            # 로드 후 파라미터 체크섬 계산
+            param_sum_after = sum(p.sum().item() for p in self.network.parameters())
+            
+            # 검증: 파라미터가 실제로 변경되었는지 확인
+            if abs(param_sum_before - param_sum_after) < 1e-6:
+                print(f"⚠️  경고: 모델 파라미터가 변경되지 않았습니다 (전이 실패 가능성)")
+            
             print(f"✅ 모델이 로드되었습니다: {model_path}")
+            print(f"   📊 파라미터 체크섬: {param_sum_before:.6f} → {param_sum_after:.6f}")
+            print(f"   🔄 파라미터 변화량: {abs(param_sum_after - param_sum_before):.6f}")
+            
+            # 추가 정보 출력 (있는 경우)
+            if "episode" in checkpoint:
+                print(f"   📅 체크포인트 에피소드: {checkpoint['episode']}")
+            if "best_reward" in checkpoint:
+                print(f"   🏆 최고 보상: {checkpoint['best_reward']:.3f}")
+            
             return True
         except Exception as e:
             print(f"❌ 모델 로드 실패: {e}")
+            import traceback
+            traceback.print_exc()
             return False
 
     def _apply_skill_based_constraints(
