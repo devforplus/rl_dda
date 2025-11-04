@@ -27,12 +27,12 @@ class PPOAgent:
         self,
         state_size: int = 161,
         action_size: int = 10,
-        learning_rate: float = 7.672115813828463e-05,  # Optuna 최적값 (검증됨)
-        gamma: float = 0.9658767382045985,
-        gae_lambda: float = 0.9592342803721876,
-        clip_epsilon: float = 0.23713775795384281,
-        value_coef: float = 0.16579175341634528,
-        entropy_coef: float = 0.03,  # 탐험 강화: 0.00167 → 0.03 (로컬 최적점 탈출)
+        learning_rate: float = 3e-4,  # 학습 속도 향상: 7.67e-05 → 3e-4
+        gamma: float = 0.99,  # 장기 보상 중시: 0.966 → 0.99
+        gae_lambda: float = 0.95,  # GAE 안정성 향상: 0.959 → 0.95
+        clip_epsilon: float = 0.2,  # 표준값으로 조정: 0.237 → 0.2
+        value_coef: float = 0.5,  # 가치 손실 가중치 증가: 0.166 → 0.5
+        entropy_coef: float = 0.01,  # 탐험 감소로 학습 안정화: 0.03 → 0.01
         hidden_size: int = 128,
         num_layers: int = 2,
         activation: str = "relu",
