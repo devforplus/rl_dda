@@ -304,8 +304,31 @@ class ConvergenceBasedCurriculum:
         }
     
     def _calculate_achievement(self) -> Dict:
-        """기본 달성률 계산"""
-        if len(self.recent_steps) == 0:
+        """기본 달성률 계산
+        
+        window_size가 1인 경우, convergence_window 범위의 데이터로 평균 계산
+        """
+        current_stage = self.get_current_stage()
+        
+        # window_size가 1인 경우 convergence_history를 사용하여 평균 계산
+        # (단일 에피소드가 아닌 실제 평균을 표시하기 위함)
+        if current_stage.window_size == 1 and len(self.convergence_history) > 0:
+            # convergence_history에서 최근 데이터 사용
+            min_samples = min(current_stage.convergence_window, 10)  # 최소 10개
+            if len(self.convergence_history) < min_samples:
+                # 데이터가 부족하면 있는 만큼만 사용
+                avg_steps = np.mean(self.convergence_history)
+                # all_kills에서 동일한 범위 추출
+                start_idx = max(0, len(self.all_kills) - len(self.convergence_history))
+                avg_kills = np.mean(self.all_kills[start_idx:]) if len(self.all_kills) > 0 else 0.0
+            else:
+                # convergence_window 범위의 평균
+                avg_steps = np.mean(self.convergence_history)
+                # all_kills에서 동일한 범위 추출
+                window_size = len(self.convergence_history)
+                start_idx = max(0, len(self.all_kills) - window_size)
+                avg_kills = np.mean(self.all_kills[start_idx:]) if len(self.all_kills) > 0 else 0.0
+        elif len(self.recent_steps) == 0:
             return {
                 'goal_achieved': False,
                 'step_achievement': 0.0,
@@ -314,10 +337,10 @@ class ConvergenceBasedCurriculum:
                 'avg_steps': 0,
                 'avg_kills': 0.0,
             }
-        
-        current_stage = self.get_current_stage()
-        avg_steps = np.mean(self.recent_steps)
-        avg_kills = np.mean(self.recent_kills)
+        else:
+            # window_size가 1이 아닌 경우, 기존 로직 유지
+            avg_steps = np.mean(self.recent_steps)
+            avg_kills = np.mean(self.recent_kills)
         
         step_achievement = avg_steps / current_stage.target_steps
         kill_achievement = avg_kills / current_stage.target_kills if current_stage.target_kills > 0 else 1.0

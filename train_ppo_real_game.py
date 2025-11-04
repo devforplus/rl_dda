@@ -771,8 +771,9 @@ class RealGameTrainer:
                 print(f"   총 에피소드: {progress['total_episodes']}")
                 
                 if 'recent_avg_steps' in progress:
-                    print(f"   평균 생존: {progress['recent_avg_steps']:.1f}/{progress['target_steps']} ({progress['step_achievement']:.1%})")
-                    print(f"   평균 킬: {progress['recent_avg_kills']:.1f}/{progress['target_kills']:.1f} ({progress['kill_achievement']:.1%})")
+                    # window_size가 1인 경우 convergence_window 범위의 평균 표시
+                    print(f"   최근 평균 생존: {progress['recent_avg_steps']:.1f}/{progress['target_steps']} ({progress['step_achievement']:.1%})")
+                    print(f"   최근 평균 킬: {progress['recent_avg_kills']:.1f}/{progress['target_kills']:.1f} ({progress['kill_achievement']:.1%})")
                     if progress['goal_achieved']:
                         print(f"   ✅ 목표 달성! (다음 단계 전환 준비)")
                 
