@@ -383,22 +383,31 @@ class GameEnvironment:
         # 가중합 보상: 부분 달성도 보상
         base_reward = w_survival * survival_score + w_attack * attack_score
         
-        # === 적응적 보너스 시스템 (완화) ===
-        # 목표: 목표 달성 시 추가 보상, 하지만 과도하지 않게
-        bonus = 0.0
+        # === 지수 보너스 시스템 (연속적 학습 신호) ===
+        # 목표: 임계값 없이 전 구간에서 연속적이고 자연스러운 학습 신호 제공
+        # 
+        # 설계 원칙:
+        # 1. 연속성: 모든 구간에서 부드러운 그래디언트
+        # 2. 가속성: 성능이 좋을수록 보상이 더 빠르게 증가
+        # 3. 균형: min_score로 두 지표 균형 유도
+        # 
+        # 수학적 특성:
+        # - e^(x-1): x=0일 때 ~0.37, x=0.5일 때 ~0.61, x=1일 때 1.0
+        # - avg_score: 전체적인 성능 수준
+        # - min_score: 생존-공격 균형 (낮은 쪽에 페널티)
+        # - 곱셈 조합: 둘 다 높아야 큰 보상
+        min_score = min(survival_score, attack_score)
+        avg_score = (survival_score + attack_score) / 2.0
         
-        # 80% 이상 달성 시 보너스 (둘 다 달성해야 함)
-        if survival_score >= 0.8 and attack_score >= 0.8:
-            # 평균 달성률 기반 보너스
-            avg_score = (survival_score + attack_score) / 2.0
-            
-            # 80% 이상: 선형 보너스 (과도하지 않게)
-            # 80% → 0.1, 90% → 0.2, 100% → 0.3
-            bonus = (avg_score - 0.8) * 1.5
-            
-            # 완벽 달성 보너스: 둘 다 100% 이상
-            if survival_score >= 1.0 and attack_score >= 1.0:
-                bonus += 0.2  # 추가 보너스
+        # 지수 함수 기반 보너스: 자연스럽게 가속되는 보상
+        # e^(avg_score - 1) 형태로 avg_score=1일 때 e^0=1
+        # 스케일링 계수 0.3: 보너스가 과도하지 않게 조절
+        bonus = math.exp(avg_score - 1.0) * min_score * 0.3
+        
+        # 완벽 달성 추가 보너스: 둘 다 100% 이상일 때만
+        # 목표 초과 달성을 명확히 보상
+        if survival_score >= 1.0 and attack_score >= 1.0:
+            bonus += 0.2
         
         # 최종 보상 (0.0 ~ 1.5 스케일)
         final_reward = base_reward + bonus
@@ -526,32 +535,35 @@ class GameEnvironment:
         target_kills = get_kill_target(skill_level)
         target_kill_rate = (target_kills / max(target_survival_steps, 1)) * 100.0
         
-        # === 1. 생존 점수 ===
-        survival_score = min(1.0, current_step / target_survival_steps)
+        # === 1. 생존 점수 (제곱근 변환) ===
+        survival_ratio = current_step / max(target_survival_steps, 1)
+        survival_score = min(1.0, survival_ratio ** 0.5)
         
-        # === 2. 공격 점수 ===
+        # === 2. 공격 점수 (제곱근 변환) ===
         if current_step > 0 and target_kill_rate > 0:
             current_kill_rate = (current_kills / max(current_step, 1)) * 100.0
-            attack_score = min(1.0, current_kill_rate / target_kill_rate)
+            attack_ratio = current_kill_rate / target_kill_rate
+            attack_score = min(1.0, attack_ratio ** 0.5)
         else:
             attack_score = 0.0
         
-        # === 3. Multiplicative Reward ===
-        multiplicative_reward = survival_score * attack_score
+        # === 3. 동적 가중치 적용 ===
+        w_survival = 0.7 - (skill_level * 0.4)  # 0.7 → 0.3
+        w_attack = 0.3 + (skill_level * 0.4)    # 0.3 → 0.7
+        w_survival = max(0.3, min(0.7, w_survival))
+        w_attack = max(0.3, min(0.7, w_attack))
         
-        # === 4. Bonus ===
-        bonus = 0.0
-        if survival_score >= 0.8 and attack_score >= 0.8:
-            avg_score = (survival_score + attack_score) / 2.0
-            min_score = min(survival_score, attack_score)
-            
-            if avg_score >= 0.9:
-                bonus = (avg_score ** 3) * min_score * 0.5
-            else:
-                bonus = (avg_score ** 2) * min_score * 0.2
-            
-            if survival_score >= 1.0 and attack_score >= 1.0:
-                bonus += 0.3
+        # 가중합 보상 (base_reward)
+        base_reward = w_survival * survival_score + w_attack * attack_score
+        
+        # === 4. 지수 보너스 (연속적 학습 신호) ===
+        min_score = min(survival_score, attack_score)
+        avg_score = (survival_score + attack_score) / 2.0
+        
+        bonus = math.exp(avg_score - 1.0) * min_score * 0.3
+        
+        if survival_score >= 1.0 and attack_score >= 1.0:
+            bonus += 0.2
         
         # === 5. 탄환 회피 보상 ===
         dodge_reward = 0.0
@@ -603,13 +615,13 @@ class GameEnvironment:
             death_penalty = 0.2 + (skill_level * 0.3)
         
         # === 9. 최종 보상 ===
-        final_reward = max(0.0, multiplicative_reward + bonus + dodge_reward + kill_reward
+        final_reward = max(0.0, base_reward + bonus + dodge_reward + kill_reward
                           - hp_damage_penalty - death_penalty)
         
         return {
             'survival_score': survival_score,
             'attack_score': attack_score,
-            'multiplicative_reward': multiplicative_reward,
+            'base_reward': base_reward,  # 가중합 보상
             'bonus': bonus,
             'dodge_reward': dodge_reward,
             'kill_reward': kill_reward,
@@ -622,6 +634,8 @@ class GameEnvironment:
             'current_kills': current_kills,
             'survival_achievement': current_step / target_survival_steps,
             'kill_achievement': current_kills / target_kills if target_kills > 0 else 0.0,
+            'w_survival': w_survival,  # 디버깅용 가중치
+            'w_attack': w_attack,
         }
     
     def _empty_reward_breakdown(self) -> Dict[str, float]:
@@ -629,7 +643,7 @@ class GameEnvironment:
         return {
             'survival_score': 0.0,
             'attack_score': 0.0,
-            'multiplicative_reward': 0.0,
+            'base_reward': 0.0,
             'bonus': 0.0,
             'dodge_reward': 0.0,
             'kill_reward': 0.0,
@@ -642,6 +656,8 @@ class GameEnvironment:
             'current_kills': 0.0,
             'survival_achievement': 0.0,
             'kill_achievement': 0.0,
+            'w_survival': 0.0,
+            'w_attack': 0.0,
         }
 
     def get_action_input(self, action_id: int) -> Dict[str, bool]:

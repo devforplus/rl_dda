@@ -144,22 +144,18 @@ class RewardAnalyzer:
             attack_score = 0.0
             kill_achievement = 0.0
         
-        # === 3. Multiplicative Reward ===
-        multiplicative_reward = survival_score * attack_score
+        # === 3. 지수 보너스 (연속적 학습 신호) ===
+        # environment.py와 동일한 로직 사용
+        min_score = min(survival_score, attack_score)
+        avg_score = (survival_score + attack_score) / 2.0
         
-        # === 4. Bonus ===
-        bonus = 0.0
-        if survival_score >= 0.8 and attack_score >= 0.8:
-            avg_score = (survival_score + attack_score) / 2.0
-            min_score = min(survival_score, attack_score)
-            
-            if avg_score >= 0.9:
-                bonus = (avg_score ** 3) * min_score * 0.5
-            else:
-                bonus = (avg_score ** 2) * min_score * 0.2
-            
-            if survival_score >= 1.0 and attack_score >= 1.0:
-                bonus += 0.3
+        bonus = math.exp(avg_score - 1.0) * min_score * 0.3
+        
+        if survival_score >= 1.0 and attack_score >= 1.0:
+            bonus += 0.2
+        
+        # === 4. Multiplicative Reward (참고용, 실제 보상에는 미사용) ===
+        multiplicative_reward = survival_score * attack_score
         
         # === 5. 탄환 회피 보상 ===
         dodge_reward = 0.0
