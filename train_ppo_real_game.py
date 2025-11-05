@@ -1854,101 +1854,153 @@ def main():
                 print(f"   각 단계에서 80% 달성 시 자동 전환")
                 print(f"   Skill 1.0 목표(1000스텝, 12킬) 달성 시 훈련 자동 종료")
             elif args.curriculum_type == "convergence":
-                # 🎓 수렴 기반 커리큘럼 (세분화 버전) - catastrophic forgetting 방지
+                # 🎓 수렴 기반 커리큘럼 (초세분화 버전) - catastrophic forgetting 방지
                 # 목표 달성 + 성능 수렴 + 안정성 + 연속 달성 모두 확인
-                # 6단계 세분화: 0.1 → 0.3 → 0.5 → 0.7 → 0.9 → 1.0
+                # 9단계 초세분화: 0.1 → 0.15 → 0.2 → 0.25 → 0.3 → 0.5 → 0.7 → 0.9 → 1.0
+                # 개선 사항:
+                # 1. 0.1-0.3 사이 단계 세분화 (격차 1/4로 감소: 65스텝, 0.6킬씩)
+                # 2. Success threshold 완화: 0.90 → 0.80 (80% 달성)
+                # 3. Min episodes 최적화: 200-250 (불필요한 과적합 방지)
+                # 4. Stability threshold 완화: 0.25-0.20 (변동성 허용)
+                # 5. Consecutive windows 완화: 8개 (기존 10개)
                 stages = [
                     ConvergenceStage(
                         skill_level=0.1,
-                        name="초급 (생존 기초)",
+                        name="초급 1단계 (생존 기초)",
                         target_steps=get_survival_target_steps(0.1),  # 330
                         target_kills=get_kill_target(0.1),  # 1.2
-                        min_episodes=300,  # 완전 마스터를 위한 충분한 학습
-                        max_episodes=800,
-                        success_threshold=0.90,  # 90% 달성 필요 (완전 마스터)
-                        window_size=1,  # 각 에피소드 개별 평가
+                        min_episodes=200,
+                        max_episodes=600,
+                        success_threshold=0.80,  # 80% 달성
+                        window_size=1,
                         convergence_window=50,
-                        stability_threshold=0.20,  # CV 20% (완화)
-                        consecutive_windows=10,  # 10 에피소드
-                        consecutive_success_rate=1.0,  # 연속 10개 모두 달성
+                        stability_threshold=0.25,  # CV 25% (완화)
+                        consecutive_windows=8,  # 8 에피소드 (완화)
+                        consecutive_success_rate=1.0,
+                    ),
+                    ConvergenceStage(
+                        skill_level=0.15,
+                        name="초급 2단계 (회피 연습)",
+                        target_steps=get_survival_target_steps(0.15),  # 395
+                        target_kills=get_kill_target(0.15),  # 1.8
+                        min_episodes=200,
+                        max_episodes=600,
+                        success_threshold=0.80,
+                        window_size=1,
+                        convergence_window=50,
+                        stability_threshold=0.25,
+                        consecutive_windows=8,
+                        consecutive_success_rate=1.0,
+                    ),
+                    ConvergenceStage(
+                        skill_level=0.2,
+                        name="초급 3단계 (공격 입문)",
+                        target_steps=get_survival_target_steps(0.2),  # 460
+                        target_kills=get_kill_target(0.2),  # 2.4
+                        min_episodes=200,
+                        max_episodes=700,
+                        success_threshold=0.80,
+                        window_size=1,
+                        convergence_window=60,
+                        stability_threshold=0.24,
+                        consecutive_windows=8,
+                        consecutive_success_rate=1.0,
+                    ),
+                    ConvergenceStage(
+                        skill_level=0.25,
+                        name="초급 4단계 (공격 강화)",
+                        target_steps=get_survival_target_steps(0.25),  # 525
+                        target_kills=get_kill_target(0.25),  # 3.0
+                        min_episodes=200,
+                        max_episodes=700,
+                        success_threshold=0.80,
+                        window_size=1,
+                        convergence_window=60,
+                        stability_threshold=0.23,
+                        consecutive_windows=8,
+                        consecutive_success_rate=1.0,
                     ),
                     ConvergenceStage(
                         skill_level=0.3,
                         name="초중급 (기본 공격)",
                         target_steps=get_survival_target_steps(0.3),  # 590
                         target_kills=get_kill_target(0.3),  # 3.6
-                        min_episodes=300,  # 완전 마스터를 위한 충분한 학습
-                        max_episodes=1200,
-                        success_threshold=0.90,  # 90% 달성 필요 (완전 마스터)
-                        window_size=1,  # 각 에피소드 개별 평가
-                        convergence_window=80,
-                        stability_threshold=0.18,
-                        consecutive_windows=10,  # 10 에피소드
-                        consecutive_success_rate=1.0,  # 연속 10개 모두 달성
+                        min_episodes=200,
+                        max_episodes=800,
+                        success_threshold=0.80,
+                        window_size=1,
+                        convergence_window=70,
+                        stability_threshold=0.22,
+                        consecutive_windows=8,
+                        consecutive_success_rate=1.0,
                     ),
                     ConvergenceStage(
                         skill_level=0.5,
                         name="중급 (균형)",
                         target_steps=get_survival_target_steps(0.5),  # 850
                         target_kills=get_kill_target(0.5),  # 6.0
-                        min_episodes=300,  # 완전 마스터를 위한 충분한 학습
-                        max_episodes=1500,
-                        success_threshold=0.90,  # 90% 달성 필요 (완전 마스터)
-                        window_size=1,  # 각 에피소드 개별 평가
-                        convergence_window=100,
-                        stability_threshold=0.15,
-                        consecutive_windows=10,  # 10 에피소드
-                        consecutive_success_rate=1.0,  # 연속 10개 모두 달성
+                        min_episodes=250,
+                        max_episodes=1000,
+                        success_threshold=0.80,
+                        window_size=1,
+                        convergence_window=80,
+                        stability_threshold=0.20,
+                        consecutive_windows=8,
+                        consecutive_success_rate=1.0,
                     ),
                     ConvergenceStage(
                         skill_level=0.7,
                         name="중상급 (적극적 공격)",
                         target_steps=get_survival_target_steps(0.7),  # 1110
                         target_kills=get_kill_target(0.7),  # 8.4
-                        min_episodes=300,  # 완전 마스터를 위한 충분한 학습
-                        max_episodes=1800,
-                        success_threshold=0.90,  # 90% 달성 필요 (완전 마스터)
-                        window_size=1,  # 각 에피소드 개별 평가
-                        convergence_window=100,
-                        stability_threshold=0.15,
-                        consecutive_windows=10,  # 10 에피소드
-                        consecutive_success_rate=1.0,  # 연속 10개 모두 달성
+                        min_episodes=250,
+                        max_episodes=1200,
+                        success_threshold=0.80,
+                        window_size=1,
+                        convergence_window=90,
+                        stability_threshold=0.18,
+                        consecutive_windows=8,
+                        consecutive_success_rate=1.0,
                     ),
                     ConvergenceStage(
                         skill_level=0.9,
                         name="상급 (고급 전략)",
                         target_steps=get_survival_target_steps(0.9),  # 1370
                         target_kills=get_kill_target(0.9),  # 10.8
-                        min_episodes=300,  # 완전 마스터를 위한 충분한 학습
-                        max_episodes=2000,
-                        success_threshold=0.90,  # 90% 달성 필요 (완전 마스터)
-                        window_size=1,  # 각 에피소드 개별 평가
+                        min_episodes=250,
+                        max_episodes=1500,
+                        success_threshold=0.80,
+                        window_size=1,
                         convergence_window=100,
-                        stability_threshold=0.15,
-                        consecutive_windows=10,  # 10 에피소드
-                        consecutive_success_rate=1.0,  # 연속 10개 모두 달성
+                        stability_threshold=0.17,
+                        consecutive_windows=8,
+                        consecutive_success_rate=1.0,
                     ),
                     ConvergenceStage(
                         skill_level=1.0,
                         name="최상급 (마스터)",
                         target_steps=get_survival_target_steps(1.0),  # 1500
                         target_kills=get_kill_target(1.0),  # 12
-                        min_episodes=300,  # 완전 마스터를 위한 충분한 학습
-                        max_episodes=2500,
-                        success_threshold=0.90,  # 90% 달성 필요 (완전 마스터)
-                        window_size=1,  # 각 에피소드 개별 평가
+                        min_episodes=250,
+                        max_episodes=2000,
+                        success_threshold=0.80,
+                        window_size=1,
                         convergence_window=100,
                         stability_threshold=0.15,
-                        consecutive_windows=10,  # 10 에피소드
-                        consecutive_success_rate=1.0,  # 연속 10개 모두 달성
+                        consecutive_windows=8,
+                        consecutive_success_rate=1.0,
                         is_final=True,
                     ),
                 ]
                 curriculum = ConvergenceBasedCurriculum(stages)
-                print(f"🎓 세분화된 수렴 기반 커리큘럼 (6단계)")
-                print(f"   0.1 → 0.3 → 0.5 → 0.7 → 0.9 → 1.0")
-                print(f"   목표 달성 + 성능 수렴 + 안정성 + 연속 달성 모두 확인")
-                print(f"   Catastrophic Forgetting 방지를 위한 점진적 난이도 상승")
+                print(f"🎓 초세분화된 수렴 기반 커리큘럼 (9단계)")
+                print(f"   0.1 → 0.15 → 0.2 → 0.25 → 0.3 → 0.5 → 0.7 → 0.9 → 1.0")
+                print(f"   개선 사항:")
+                print(f"   - 0.1-0.3 구간 세분화: 격차 1/4로 감소 (65스텝, 0.6킬씩)")
+                print(f"   - Success threshold 완화: 90% → 80%")
+                print(f"   - Min episodes 최적화: 200-250 (빠른 전환)")
+                print(f"   - Stability/Consecutive 완화: 더 부드러운 수렴 기준")
+                print(f"   목표: Catastrophic Forgetting 방지 + 효율적 학습")
                 print(f"   Skill 1.0 (1500스텝/12킬) 수렴 달성 시 훈련 자동 종료")
 
         # 트레이너 생성 (최적화된 하이퍼파라미터는 PPOAgent에서 자동 적용)
