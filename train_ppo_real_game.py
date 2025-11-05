@@ -782,7 +782,7 @@ class RealGameTrainer:
                     prev_stage_name = self.current_stage_name if hasattr(self, 'current_stage_name') else "초기"
                     prev_stage_skill = self.skill_level
                     
-                    # 이전 단계 아티팩트 저장
+                    # 이전 단계 아티팩트 저장 (체크포인트 보관)
                     try:
                         self._save_model_for_stage(prev_stage_name, prev_stage_skill)
                         if hasattr(self, 'stage_start_episode'):
@@ -792,14 +792,8 @@ class RealGameTrainer:
                     except Exception as e:
                         print(f"⚠️  스테이지 아티팩트 생성 중 오류: {e}")
                     
-                    # 전이 학습
-                    transfer_success = self._load_previous_stage_checkpoint(
-                        prev_stage_name, prev_stage_skill
-                    )
-                    if transfer_success:
-                        print("   ✅ 전이 학습 성공")
-                    else:
-                        print("   ⚠️ 전이 학습 실패 - 랜덤 초기화")
+                    # 전이 학습: 네트워크 파라미터가 메모리에 유지되므로 자동으로 전이됨
+                    print(f"   🔄 전이 학습: 이전 단계 파라미터를 계속 사용")
                     
                     # 새 단계 설정
                     self.current_stage_name = result['new_stage']
@@ -860,19 +854,10 @@ class RealGameTrainer:
                     except Exception as e:
                         print(f"⚠️  스테이지 아티팩트 생성 중 오류: {e}")
 
-                    # 🔥 전이 학습: 다음 스테이지로 전환하면서 이전 체크포인트 로드
+                    # 전이 학습: 다음 스테이지로 전환 (네트워크 파라미터 자동 유지)
                     if stage_changed and self.episode_count < self.max_episodes:
                         print(f"\n🎓 스테이지 전환: {prev_stage_name} (skill {prev_stage_skill:.1f}) → {next_stage} (skill {next_skill:.1f})")
-                        
-                        # 이전 스테이지의 학습 결과를 로드하여 전이 학습
-                        transfer_success = self._load_previous_stage_checkpoint(
-                            prev_stage_name, prev_stage_skill
-                        )
-
-                        if transfer_success:
-                            print("   ✅ 전이 학습 성공")
-                        else:
-                            print("   ⚠️ 전이 학습 실패 - 랜덤 초기화")
+                        print(f"   🔄 전이 학습: 이전 단계 파라미터를 계속 사용")
 
                     # 다음 스테이지로 전환 준비
                     self.current_stage_name = next_stage
@@ -1627,50 +1612,6 @@ class RealGameTrainer:
 
         except Exception as e:
             print(f"❌ 스테이지 모델 저장 실패: {e}")
-
-    def _load_previous_stage_checkpoint(
-        self, prev_stage_name: str, prev_skill: float
-    ) -> bool:
-        """이전 스테이지의 체크포인트를 로드하여 전이 학습 수행
-
-        커리큘럼 러닝의 핵심: 이전 단계에서 배운 지식을 다음 단계로 전달
-
-        Args:
-            prev_stage_name: 이전 스테이지 이름
-            prev_skill: 이전 스킬 레벨
-
-        Returns:
-            체크포인트 로드 성공 여부
-        """
-        try:
-            import os
-
-            slug = self._sanitize_stage_slug(prev_stage_name, prev_skill)
-            checkpoint_dir = os.path.join("src/models/ppo/stages", slug)
-
-            # best.pth 우선 시도, 없으면 latest.pth 시도
-            best_path = os.path.join(checkpoint_dir, "best.pth")
-            latest_path = os.path.join(checkpoint_dir, "latest.pth")
-
-            checkpoint_path = None
-            if os.path.exists(best_path):
-                checkpoint_path = best_path
-            elif os.path.exists(latest_path):
-                checkpoint_path = latest_path
-            else:
-                return False
-
-            # 체크포인트 로드
-            success = self.ppo_agent.load_model(checkpoint_path)
-            return success
-
-        except Exception as e:
-            print(f"❌ 전이 학습 중 오류 발생: {e}")
-            import traceback
-
-            traceback.print_exc()
-            return False
-
 
 def main():
     """메인 함수"""
