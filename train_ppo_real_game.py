@@ -367,12 +367,12 @@ class RealGamePPOAgent:
                 "enemies": [
                     {"x": e.x, "y": e.y}
                     for e in game_log.entities
-                    if e.entity_type == 1
+                    if e.entity_type == 2  # EntityType.ENEMY (수정됨: 1 -> 2)
                 ],
                 "bullets": [
                     {"x": e.x, "y": e.y}
                     for e in game_log.entities
-                    if e.entity_type == 2
+                    if e.entity_type == 3  # EntityType.ENEMY_SHOT (수정됨: 2 -> 3)
                 ],
                 "score": game_log.current_score,
                 "action": action,
