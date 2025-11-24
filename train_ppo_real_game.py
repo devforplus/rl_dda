@@ -1645,15 +1645,16 @@ class RealGameTrainer:
         if target_category in self.saved_replay_categories:
             return
         
-        # 현재 에피소드의 리플레이 데이터 가져오기
-        if not self.game_agent.replay_data:
-            print(f"⚠️  리플레이 데이터가 없어 저장을 건너뜁니다.")
+        # 현재 에피소드의 리플레이 데이터 가져오기 (현재 진행 중인 에피소드)
+        if not self.game_agent.current_episode_replay:
+            print(f"⚠️  현재 에피소드의 리플레이 데이터가 없어 저장을 건너뜁니다.")
             return
         
-        latest_replay = self.game_agent.replay_data[-1]
+        # 현재 에피소드의 프레임 데이터 사용
+        current_frames = self.game_agent.current_episode_replay
         
         # 실제 프레임 수 계산
-        actual_frame_count = len(latest_replay['frames'])
+        actual_frame_count = len(current_frames)
         
         # 리플레이 데이터 구성
         replay_json = {
@@ -1667,7 +1668,7 @@ class RealGameTrainer:
                 'timestamp': datetime.now().isoformat(),
                 'target_category': target_category
             },
-            'frames': latest_replay['frames']
+            'frames': current_frames  # 현재 에피소드의 프레임 사용
         }
         
         # JSON 파일로 저장
