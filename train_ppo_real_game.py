@@ -113,6 +113,8 @@ class RealGamePPOAgent:
         self.last_action = 4  # 마지막으로 선택한 액션 저장 (기본값: 정지)
         self.collecting_replay = True  # 리플레이 수집 활성화 플래그
         self.action_selected_this_frame = False  # 이번 프레임에 액션이 선택되었는지
+        self.frame_error_count = 0  # 프레임 수집 에러 카운터
+        self.total_frames_attempted = 0  # 시도한 총 프레임 수
 
         print(f"✅ PPO 에이전트 초기화 완료 (실력값: {skill_level})")
 
@@ -356,12 +358,29 @@ class RealGamePPOAgent:
 
         # 현재 에피소드 리플레이 데이터 저장
         if self.current_episode_replay:
+            actual_frame_count = len(self.current_episode_replay)
             self.replay_data.append({
-                'episode_steps': self.episode_steps,
+                'episode_steps': actual_frame_count,  # 실제 수집된 프레임 수 사용
+                'episode_steps_ppo': self.episode_steps,  # PPO가 보상을 받은 스텝 수 (참고용)
                 'episode_reward': self.episode_reward,
                 'frames': self.current_episode_replay
             })
+            
+            # 상세 통계 출력
+            print(f"\n📊 리플레이 수집 통계:")
+            print(f"   - 수집된 프레임: {actual_frame_count}")
+            print(f"   - PPO 스텝 수: {self.episode_steps}")
+            print(f"   - 시도한 총 프레임: {self.total_frames_attempted}")
+            print(f"   - 수집 실패: {self.frame_error_count}회")
+            if self.total_frames_attempted > 0:
+                success_rate = (actual_frame_count / self.total_frames_attempted) * 100
+                print(f"   - 수집 성공률: {success_rate:.1f}%")
+            print()
+            
             self.current_episode_replay = []
+            # 통계 리셋
+            self.total_frames_attempted = 0
+            self.frame_error_count = 0
 
         self.environment.reset_episode()
         self.episode_reward = 0.0
@@ -419,14 +438,22 @@ class RealGamePPOAgent:
     def collect_frame_from_game(self, game_app):
         """게임 루프에서 매 프레임 호출되어 리플레이 데이터 수집
         
+        에피소드 상태와 무관하게 게임이 실제로 돌아가는 모든 프레임을 수집합니다.
+        이를 통해 PPO 모델이 실제로 경험하는 모든 프레임을 정확히 기록할 수 있습니다.
+        
         Args:
             game_app: App 인스턴스 (게임 상태 접근용)
         """
-        if not self.collecting_replay or self.connected_game is None:
+        self.total_frames_attempted += 1
+        
+        if not self.collecting_replay:
+            return
+        
+        if self.connected_game is None:
             return
         
         try:
-            # 게임 상태 추출
+            # 게임 상태 추출 (에피소드 상태와 무관하게 항상 추출)
             game_log_data = self.environment.extract_game_log_data(
                 self.connected_game, self.skill_level
             )
@@ -439,8 +466,13 @@ class RealGamePPOAgent:
             self.action_selected_this_frame = False
             
         except Exception as e:
-            # 에러가 발생해도 게임은 계속 진행
-            pass
+            # 에러 출력하여 디버깅 가능하게 (하지만 게임은 계속 진행)
+            self.frame_error_count += 1
+            # 너무 많은 에러 로그를 방지하기 위해 100번마다만 출력
+            if self.frame_error_count % 100 == 0:
+                print(f"⚠️ 프레임 수집 에러 발생 (총 {self.frame_error_count}회): {e}")
+                import traceback
+                traceback.print_exc()
     
     def _collect_replay_data(self, game_log_data: GameLogData, action_id: int = None):
         """리플레이 데이터 수집 - 프레임 단위로 게임 상태 저장
