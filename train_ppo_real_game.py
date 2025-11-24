@@ -17,15 +17,7 @@ import time
 import signal
 from typing import Optional
 
-# 프로젝트 루트를 Python 경로에 추가
-current_dir = os.path.dirname(__file__)
-project_root = os.path.join(current_dir, "src")
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
-print(f"🔍 프로젝트 루트 경로: {project_root}")
-print(f"🔍 Python 경로에 추가됨: {project_root in sys.path}")
-
+# 필수 라이브러리 먼저 임포트 (경로 충돌 방지)
 try:
     import torch
     import numpy as np
@@ -34,6 +26,15 @@ try:
 except ImportError as e:
     print(f"❌ 필수 라이브러리 임포트 실패: {e}")
     sys.exit(1)
+
+# 프로젝트 루트를 Python 경로에 추가
+current_dir = os.path.dirname(__file__)
+project_root = os.path.join(current_dir, "src")
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+print(f"🔍 프로젝트 루트 경로: {project_root}")
+print(f"🔍 Python 경로에 추가됨: {project_root in sys.path}")
 
 # Pyxel 임포트 확인
 try:
@@ -106,6 +107,13 @@ class RealGamePPOAgent:
         self.reset_requested = False
         self.reset_timer = 0  # 리셋 타이머 추가
 
+        # 리플레이 데이터 수집
+        self.replay_data = []
+        self.current_episode_replay = []
+        self.last_action = 4  # 마지막으로 선택한 액션 저장 (기본값: 정지)
+        self.collecting_replay = True  # 리플레이 수집 활성화 플래그
+        self.action_selected_this_frame = False  # 이번 프레임에 액션이 선택되었는지
+
         print(f"✅ PPO 에이전트 초기화 완료 (실력값: {skill_level})")
 
     def connect_game(self, game_instance):
@@ -122,13 +130,25 @@ class RealGamePPOAgent:
             return 4  # 기본값: 정지
 
         try:
+            # 게임 상태 추출 (리플레이 수집을 위해 먼저 수행)
+            try:
+                game_log_data = self.environment.extract_game_log_data(
+                    self.connected_game, self.skill_level
+                )
+            except Exception as e:
+                # 상태 추출 실패 시 리플레이 수집 불가
+                return 4
+            
             # 리셋이 요청된 경우 처리
             if self.reset_requested:
+                self.last_action = 4  # 정지 액션 저장
                 self._handle_reset()
                 return 4
 
             # 에피소드가 종료된 경우
             if self.episode_done:
+                self.last_action = 4  # 정지 액션 저장
+                
                 # 강제 리셋 타이머 증가
                 self.reset_timer += 1
 
@@ -142,15 +162,7 @@ class RealGamePPOAgent:
 
             # 현재 목숨 수 확인 및 에피소드 종료 체크
             if self._check_episode_end():
-                return 4
-
-            # 게임 상태 추출
-            try:
-                game_log_data = self.environment.extract_game_log_data(
-                    self.connected_game, self.skill_level
-                )
-            except Exception as e:
-                print(f"❌ 게임 상태 추출 실패: {e}")
+                self.last_action = 4  # 정지 액션 저장
                 return 4
 
             # 이전 액션의 보상 계산 및 저장
@@ -173,8 +185,16 @@ class RealGamePPOAgent:
             # PPO 에이전트로 액션 선택
             try:
                 action_id = self.ppo_agent.get_action(game_log_data)
+                
+                # 마지막 액션 저장 (게임 루프에서 사용)
+                self.last_action = action_id
+                
+                # 이번 프레임에 액션이 선택되었음을 표시
+                self.action_selected_this_frame = True
+                
                 self.previous_action_taken = True
                 self.step_count += 1
+                
                 return action_id
 
             except Exception as e:
@@ -334,6 +354,15 @@ class RealGamePPOAgent:
         """새로운 에피소드를 위한 상태 리셋"""
         print("🔄 에피소드 리셋 중...")
 
+        # 현재 에피소드 리플레이 데이터 저장
+        if self.current_episode_replay:
+            self.replay_data.append({
+                'episode_steps': self.episode_steps,
+                'episode_reward': self.episode_reward,
+                'frames': self.current_episode_replay
+            })
+            self.current_episode_replay = []
+
         self.environment.reset_episode()
         self.episode_reward = 0.0
         self.episode_steps = 0
@@ -387,6 +416,93 @@ class RealGamePPOAgent:
         }
         print(f"🔍 Step {self.step_count} - 버퍼: {buffer_sizes}")
 
+    def collect_frame_from_game(self, game_app):
+        """게임 루프에서 매 프레임 호출되어 리플레이 데이터 수집
+        
+        Args:
+            game_app: App 인스턴스 (게임 상태 접근용)
+        """
+        if not self.collecting_replay or self.connected_game is None:
+            return
+        
+        try:
+            # 게임 상태 추출
+            game_log_data = self.environment.extract_game_log_data(
+                self.connected_game, self.skill_level
+            )
+            
+            # 현재 프레임 데이터 수집 (액션이 선택된 경우에만 액션 정보 포함)
+            action_to_save = self.last_action if self.action_selected_this_frame else None
+            self._collect_replay_data(game_log_data, action_to_save)
+            
+            # 플래그 초기화
+            self.action_selected_this_frame = False
+            
+        except Exception as e:
+            # 에러가 발생해도 게임은 계속 진행
+            pass
+    
+    def _collect_replay_data(self, game_log_data: GameLogData, action_id: int = None):
+        """리플레이 데이터 수집 - 프레임 단위로 게임 상태 저장
+        
+        PPO 모델의 입력 형식과 동일하게, 매 프레임마다 게임 상태(observation)를 저장하고
+        액션이 선택된 프레임에만 액션 정보를 추가합니다.
+        
+        Args:
+            game_log_data: 현재 게임 상태
+            action_id: 선택한 액션 ID (None이면 액션 정보 제외)
+        """
+        # 플레이어 데이터
+        player_data = {
+            'x': None,
+            'y': None,
+            'hp': game_log_data.player_state.hp,
+            'lives': game_log_data.player_state.lives
+        }
+        
+        # 플레이어 위치 추출 (entities에서 플레이어 찾기)
+        enemies = []
+        player_bullets = []
+        enemy_bullets = []
+        
+        for entity in game_log_data.entities:
+            if entity.entity_type == 0:  # 플레이어 (PLAYER)
+                player_data['x'] = entity.x
+                player_data['y'] = entity.y
+            elif entity.entity_type == 1:  # 플레이어 탄환 (PLAYER_SHOT)
+                player_bullets.append({
+                    'x': entity.x,
+                    'y': entity.y
+                })
+            elif entity.entity_type == 2 or entity.entity_type >= 10:  # 적 (ENEMY, ENEMY_A~P)
+                enemies.append({
+                    'x': entity.x,
+                    'y': entity.y,
+                    'type': entity.entity_type  # 적 타입도 저장
+                })
+            elif entity.entity_type == 3:  # 적 탄환 (ENEMY_SHOT)
+                enemy_bullets.append({
+                    'x': entity.x,
+                    'y': entity.y
+                })
+        
+        # 프레임 데이터 저장 (매 프레임마다 게임 상태 저장)
+        frame_data = {
+            'step': len(self.current_episode_replay),
+            'player': player_data,
+            'enemies': enemies,
+            'player_bullets': player_bullets,
+            'enemy_bullets': enemy_bullets,
+            'score': game_log_data.current_score,
+            'kills': game_log_data.current_kills
+        }
+        
+        # 액션이 선택된 프레임에만 액션 정보 추가
+        if action_id is not None:
+            frame_data['action'] = action_id
+        
+        self.current_episode_replay.append(frame_data)
+
     def _print_episode_summary(self):
         """에피소드 요약 출력"""
         print(f"\n🏁 에피소드 종료")
@@ -414,6 +530,7 @@ class RealGameTrainer:
         self.episode_survival_times = []
         self.episode_scores = []
         self.episode_kills = []
+        self.episode_skill_levels = []  # 각 에피소드의 skill_level 기록
         self.training_start_time = None
 
         try:
@@ -734,6 +851,7 @@ class RealGameTrainer:
         self.episode_survival_times.append(episode_steps)
         self.episode_scores.append(episode_score)
         self.episode_kills.append(episode_kills)
+        self.episode_skill_levels.append(self.skill_level)  # 현재 skill_level 저장
 
         # 에피소드 요약 출력
         print(f"\n📊 에피소드 {self.episode_count}/{self.max_episodes} 완료")
@@ -748,6 +866,9 @@ class RealGameTrainer:
             recent_avg_survival = np.mean(self.episode_survival_times[-5:])
             print(f"   - 최근 5개 평균 보상: {recent_avg_reward:.2f}")
             print(f"   - 최근 5개 평균 생존시간: {recent_avg_survival:.1f}")
+
+        # 특정 스텝 수의 에피소드 리플레이 저장
+        self._save_replay_if_notable(episode_steps, episode_score, episode_kills)
 
         # 커리큘럼 단계 종료 감지 및 단계별 아티팩트 저장/그래프 생성
         if self.curriculum is not None:
@@ -786,7 +907,8 @@ class RealGameTrainer:
                 self.game_agent.skill_level = next_skill
                 print(
                     f"🎓 커리큘럼 전환 → 다음 Ep {self.episode_count + 1}: Stage='{next_stage}', "
-                    f"skill {prev_skill:.2f} → {next_skill:.2f}"
+                    f"skill {prev_skill:.2f} → {next_skill:.2f}",
+                    flush=True
                 )
 
         # 목표 달성 확인
@@ -981,11 +1103,173 @@ class RealGameTrainer:
             plt.close()
 
             print(f"📊 학습 결과 그래프 저장: {graph_file}")
+            
+            # Skill level별 비교 그래프 생성
+            if self.episode_skill_levels:
+                self._generate_skill_level_comparison_plots()
 
         except Exception as e:
             print(f"❌ 그래프 생성 실패: {e}")
             import traceback
 
+            traceback.print_exc()
+
+    def _generate_skill_level_comparison_plots(self):
+        """Skill level별 성능 비교 그래프 생성 (0.1, 0.5, 1.0)"""
+        try:
+            import matplotlib
+            matplotlib.use("Agg")
+            import matplotlib.pyplot as plt
+            from datetime import datetime
+            
+            print("📊 Skill level별 비교 그래프 생성 중...")
+            
+            # Skill level별로 데이터 분류
+            skill_data = {}
+            target_skills = [0.1, 0.5, 1.0]
+            
+            for skill in target_skills:
+                skill_data[skill] = {
+                    'episodes': [],
+                    'rewards': [],
+                    'survival_times': [],
+                    'scores': [],
+                    'kills': []
+                }
+            
+            # 데이터 분류 (가장 가까운 target skill로 할당)
+            for i, (reward, survival, score, kills, skill) in enumerate(zip(
+                self.episode_rewards,
+                self.episode_survival_times,
+                self.episode_scores,
+                self.episode_kills,
+                self.episode_skill_levels
+            )):
+                # 가장 가까운 target skill 찾기
+                closest_skill = min(target_skills, key=lambda x: abs(x - skill))
+                
+                skill_data[closest_skill]['episodes'].append(i + 1)
+                skill_data[closest_skill]['rewards'].append(reward)
+                skill_data[closest_skill]['survival_times'].append(survival)
+                skill_data[closest_skill]['scores'].append(score)
+                skill_data[closest_skill]['kills'].append(kills)
+            
+            # 그래프 생성
+            fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 12))
+            
+            colors = {0.1: 'green', 0.5: 'blue', 1.0: 'red'}
+            labels = {0.1: 'Beginner (0.1)', 0.5: 'Intermediate (0.5)', 1.0: 'Expert (1.0)'}
+            
+            # 1. 보상 비교
+            for skill in target_skills:
+                data = skill_data[skill]
+                if data['episodes']:
+                    ax1.plot(data['episodes'], data['rewards'], 
+                            alpha=0.3, color=colors[skill], linewidth=1)
+                    # 이동 평균
+                    if len(data['rewards']) >= 10:
+                        window = min(10, len(data['rewards']))
+                        moving_avg = np.convolve(data['rewards'], 
+                                                np.ones(window) / window, mode='valid')
+                        ax1.plot(data['episodes'][window-1:], moving_avg,
+                                color=colors[skill], linewidth=2.5, 
+                                label=labels[skill])
+            ax1.set_title('Rewards by Skill Level', fontsize=14, fontweight='bold')
+            ax1.set_xlabel('Episode')
+            ax1.set_ylabel('Reward')
+            ax1.legend()
+            ax1.grid(True, alpha=0.3)
+            
+            # 2. 생존시간 비교
+            for skill in target_skills:
+                data = skill_data[skill]
+                if data['episodes']:
+                    ax2.plot(data['episodes'], data['survival_times'],
+                            alpha=0.3, color=colors[skill], linewidth=1)
+                    if len(data['survival_times']) >= 10:
+                        window = min(10, len(data['survival_times']))
+                        moving_avg = np.convolve(data['survival_times'],
+                                                np.ones(window) / window, mode='valid')
+                        ax2.plot(data['episodes'][window-1:], moving_avg,
+                                color=colors[skill], linewidth=2.5,
+                                label=labels[skill])
+            ax2.set_title('Survival Time by Skill Level', fontsize=14, fontweight='bold')
+            ax2.set_xlabel('Episode')
+            ax2.set_ylabel('Steps')
+            ax2.legend()
+            ax2.grid(True, alpha=0.3)
+            
+            # 3. 점수 비교
+            for skill in target_skills:
+                data = skill_data[skill]
+                if data['episodes'] and data['scores']:
+                    ax3.plot(data['episodes'], data['scores'],
+                            alpha=0.3, color=colors[skill], linewidth=1)
+                    if len(data['scores']) >= 10:
+                        window = min(10, len(data['scores']))
+                        moving_avg = np.convolve(data['scores'],
+                                                np.ones(window) / window, mode='valid')
+                        ax3.plot(data['episodes'][window-1:], moving_avg,
+                                color=colors[skill], linewidth=2.5,
+                                label=labels[skill])
+            ax3.set_title('Scores by Skill Level', fontsize=14, fontweight='bold')
+            ax3.set_xlabel('Episode')
+            ax3.set_ylabel('Score')
+            ax3.legend()
+            ax3.grid(True, alpha=0.3)
+            
+            # 4. 킬 수 비교
+            for skill in target_skills:
+                data = skill_data[skill]
+                if data['episodes'] and data['kills']:
+                    ax4.plot(data['episodes'], data['kills'],
+                            alpha=0.3, color=colors[skill], linewidth=1)
+                    if len(data['kills']) >= 10:
+                        window = min(10, len(data['kills']))
+                        moving_avg = np.convolve(data['kills'],
+                                                np.ones(window) / window, mode='valid')
+                        ax4.plot(data['episodes'][window-1:], moving_avg,
+                                color=colors[skill], linewidth=2.5,
+                                label=labels[skill])
+            ax4.set_title('Kills by Skill Level', fontsize=14, fontweight='bold')
+            ax4.set_xlabel('Episode')
+            ax4.set_ylabel('Kills')
+            ax4.legend()
+            ax4.grid(True, alpha=0.3)
+            
+            plt.suptitle(
+                'PPO Training: Skill Level Comparison (0.1 vs 0.5 vs 1.0)',
+                fontsize=18, fontweight='bold'
+            )
+            plt.tight_layout()
+            
+            # 저장
+            save_dir = "models"
+            os.makedirs(save_dir, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            graph_file = os.path.join(save_dir, f"skill_level_comparison_{timestamp}.png")
+            plt.savefig(graph_file, dpi=300, bbox_inches="tight")
+            plt.close()
+            
+            print(f"📊 Skill level 비교 그래프 저장: {graph_file}")
+            
+            # 통계 요약 출력
+            print("\n📈 Skill Level별 성능 요약:")
+            for skill in target_skills:
+                data = skill_data[skill]
+                if data['rewards']:
+                    print(f"\n  {labels[skill]}:")
+                    print(f"    - 에피소드 수: {len(data['rewards'])}")
+                    print(f"    - 평균 보상: {np.mean(data['rewards']):.2f}")
+                    print(f"    - 평균 생존시간: {np.mean(data['survival_times']):.2f}")
+                    if data['scores']:
+                        print(f"    - 평균 점수: {np.mean(data['scores']):.2f}")
+                    if data['kills']:
+                        print(f"    - 평균 킬 수: {np.mean(data['kills']):.2f}")
+                        
+        except Exception as e:
+            print(f"❌ Skill level 비교 그래프 생성 실패: {e}")
+            import traceback
             traceback.print_exc()
 
     def _generate_combined_skill_plots(self):
@@ -1289,6 +1573,92 @@ class RealGameTrainer:
         except Exception as e:
             print(f"❌ 스테이지 그래프 생성 실패: {e}")
 
+    def _save_replay_if_notable(self, episode_steps: int, episode_score: int, episode_kills: int):
+        """특정 스텝 수에 도달한 에피소드의 리플레이를 JSON으로 저장
+        
+        목표 스텝 수: 400, 1000, 1400 (±50 스텝 범위)
+        
+        Args:
+            episode_steps: 에피소드 스텝 수
+            episode_score: 에피소드 점수
+            episode_kills: 에피소드 킬 수
+        """
+        import json
+        from datetime import datetime
+        
+        # 목표 스텝 수 범위 정의
+        target_steps = [
+            (400, 50),   # 400 ± 50 (350-450)
+            (1000, 50),  # 1000 ± 50 (950-1050)
+            (1400, 50),  # 1400 ± 50 (1350-1450)
+        ]
+        
+        # 에피소드가 목표 범위에 해당하는지 확인
+        should_save = False
+        target_category = None
+        
+        for target, margin in target_steps:
+            if target - margin <= episode_steps <= target + margin:
+                should_save = True
+                target_category = f"steps_{target}"
+                break
+        
+        if not should_save:
+            return
+        
+        # 이미 저장된 카테고리인지 확인 (중복 방지)
+        if not hasattr(self, 'saved_replay_categories'):
+            self.saved_replay_categories = set()
+        
+        if target_category in self.saved_replay_categories:
+            return
+        
+        # 현재 에피소드의 리플레이 데이터 가져오기
+        if not self.game_agent.replay_data:
+            print(f"⚠️  리플레이 데이터가 없어 저장을 건너뜁니다.")
+            return
+        
+        latest_replay = self.game_agent.replay_data[-1]
+        
+        # 실제 프레임 수 계산
+        actual_frame_count = len(latest_replay['frames'])
+        
+        # 리플레이 데이터 구성
+        replay_json = {
+            'metadata': {
+                'episode_number': self.episode_count,
+                'episode_steps': actual_frame_count,  # 실제 프레임 수 사용
+                'episode_steps_reported': episode_steps,  # 원래 보고된 스텝 수 (참고용)
+                'episode_score': episode_score,
+                'episode_kills': episode_kills,
+                'skill_level': self.skill_level,
+                'timestamp': datetime.now().isoformat(),
+                'target_category': target_category
+            },
+            'frames': latest_replay['frames']
+        }
+        
+        # JSON 파일로 저장
+        try:
+            os.makedirs("src/replays", exist_ok=True)
+            timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"src/replays/replay_ep{self.episode_count}_{target_category}_{timestamp_str}.json"
+            
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(replay_json, f, indent=2, ensure_ascii=False)
+            
+            print(f"💾 리플레이 저장 완료: {filename}")
+            print(f"   - 카테고리: {target_category}")
+            print(f"   - 프레임 수: {actual_frame_count}")
+            if actual_frame_count != episode_steps:
+                print(f"   ⚠️  프레임 수({actual_frame_count})와 보고된 스텝({episode_steps})이 다릅니다.")
+            
+            # 카테고리 기록 (중복 방지용)
+            self.saved_replay_categories.add(target_category)
+            
+        except Exception as e:
+            print(f"❌ 리플레이 저장 실패: {e}")
+
     def _save_model_for_stage(self, stage_name: str, skill: float):
         """단계 종료 시 모델 저장 (스테이지별 디렉토리)."""
         try:
@@ -1299,7 +1669,7 @@ class RealGameTrainer:
             path = self.ppo_agent.save_model(save_dir=save_dir)
             print(f"💾 스테이지 모델 저장 완료: {path}")
         except Exception as e:
-            print(f"❌ 스테이지 모델 저장 실패: {e}")
+            print(f"❌스테이지 모델 저장 실패: {e}")
 
 
 def main():
