@@ -4,45 +4,50 @@ Skill-level based training targets.
 This module centralizes the mapping from skill levels to survival step targets
 so the same logic is used consistently across reward calculation and state
 vector construction.
+
+선형 커리큘럼 러닝을 위해 연속 수식을 사용합니다:
+- T_target(skill) = 300 + (skill - 0.1) * 1333.33
+- K_target_rate(skill) = skill * 3.0
 """
 
 from __future__ import annotations
 
-from typing import Dict
 
-
-# Explicit survival targets for the currently supported discrete skill levels
-# as requested: 0.1 → 300 steps, 0.5 → 1000 steps, 1.0 → 1500 steps.
-TARGET_SURVIVAL_STEPS: Dict[float, int] = {
-    0.1: 300,
-    0.5: 1000,
-    1.0: 1500,
-}
-
-
-def _default_formula(skill_level: float) -> int:
-    """Fallback target when a non-discrete skill level is used.
-
-    We keep the previous behavior for out-of-scope skill levels to avoid
-    surprising changes if a different script passes an arbitrary value.
-    Previously used ranges were 200 ~ 1400.
+def get_survival_target_steps(skill_level: float) -> float:
+    """실력값에 따른 생존 목표 스텝 계산 (연속 선형 함수)
+    
+    수식: T_target(skill) = 300 + (skill - 0.1) * (1500 - 300) / (1.0 - 0.1)
+    
+    결과:
+    - skill 0.1 → 300 스텝
+    - skill 0.5 → 833 스텝
+    - skill 1.0 → 1500 스텝
+    
+    Args:
+        skill_level: 실력값 (0.0 ~ 1.0)
+        
+    Returns:
+        목표 생존 스텝 수
     """
-    return int(200 + (skill_level * 1200))
+    # 선형 보간: 0.1(300) ~ 1.0(1500)
+    return 300.0 + (skill_level - 0.1) * (1500.0 - 300.0) / (1.0 - 0.1)
 
 
-def get_survival_target_steps(skill_level: float) -> int:
-    """Return the target survival steps for a given skill level.
-
-    - For the currently supported discrete skills (0.1, 0.5, 1.0) return the
-      exact requested targets: 300, 1000, 1500.
-    - For other values, fall back to the historical formula to keep behavior
-      stable outside the specified regime.
+def get_kill_target_rate(skill_level: float) -> float:
+    """실력값에 따른 목표 킬 효율 계산
+    
+    수식: K_target_rate(skill) = skill * 3.0
+    
+    결과:
+    - skill 0.1 → 0.3 kills/100steps
+    - skill 0.5 → 1.5 kills/100steps
+    - skill 1.0 → 3.0 kills/100steps
+    
+    Args:
+        skill_level: 실력값 (0.0 ~ 1.0)
+        
+    Returns:
+        목표 킬 효율 (kills per 100 steps)
     """
-    # Direct match with tolerance to guard against float representation noise
-    for key in TARGET_SURVIVAL_STEPS.keys():
-        if abs(skill_level - key) < 1e-9:
-            return TARGET_SURVIVAL_STEPS[key]
-
-    # Fallback for values outside the discrete set
-    return _default_formula(skill_level)
+    return skill_level * 3.0
 
