@@ -2,6 +2,11 @@
 PPO (Proximal Policy Optimization) 알고리즘 구현
 랜덤 에이전트 생성을 위한 기본 PPO 에이전트 및 게임 환경 클래스
 PyTorch 기반 구현
+
+학습 모드:
+- survival: 생존 극한 (w_survival=0.95, w_attack=0.05)
+- balanced: 균형 (w_survival=0.50, w_attack=0.50)
+- attack: 공격 극한 (w_survival=0.05, w_attack=0.95)
 """
 
 import numpy as np
@@ -13,6 +18,16 @@ from collections import deque
 from dataclasses import dataclass
 from typing import Optional, Tuple, List, Dict
 from enum import IntEnum
+
+
+# =============================================================================
+# 학습 모드별 고정 가중치 정의
+# =============================================================================
+TRAINING_MODES: Dict[str, Dict[str, float]] = {
+    "survival": {"w_survival": 0.95, "w_attack": 0.05},  # 생존 극한
+    "balanced": {"w_survival": 0.50, "w_attack": 0.50},  # 균형
+    "attack":   {"w_survival": 0.05, "w_attack": 0.95},  # 공격 극한
+}
 
 
 class EntityType(IntEnum):
@@ -35,20 +50,14 @@ class PlayerState:
 
 
 def get_survival_target_steps(skill_level: float) -> float:
-    """실력값에 따른 생존 목표 스텝 계산 (targets.py 동기화)"""
-    # 이산적인 주요 지점 정의
-    targets = {0.1: 300, 0.5: 1000, 1.0: 1500}
+    """실력값에 따른 생존 목표 스텝 계산 (연속 선형 함수)
     
-    # 정확한 매칭 확인
-    for k, v in targets.items():
-        if abs(skill_level - k) < 1e-7:
-            return float(v)
-            
-    # 선형 보간 (Fallback)
-    if skill_level <= 0.5:
-        return 300 + (max(0, skill_level - 0.1)) * (700 / 0.4) # 0.1(300) ~ 0.5(1000)
-    else:
-        return 1000 + (skill_level - 0.5) * (500 / 0.5) # 0.5(1000) ~ 1.0(1500)
+    수식: T_target(skill) = 300 + (skill - 0.1) * 1333.33
+    - skill 0.1 → 300 스텝
+    - skill 1.0 → 1500 스텝
+    """
+    # 연속 선형 보간: 0.1(300) ~ 1.0(1500)
+    return 300.0 + (skill_level - 0.1) * (1500.0 - 300.0) / (1.0 - 0.1)
 
 
 class ActorCritic(nn.Module):
@@ -284,14 +293,30 @@ class PPOAgent:
 
 
 class GameEnvironment:
-    """게임 환경 래퍼 클래스"""
+    """게임 환경 래퍼 클래스
     
-    def __init__(self):
-        """게임 환경 초기화"""
+    Args:
+        training_mode: 학습 모드 ("survival", "balanced", "attack")
+    """
+    
+    def __init__(self, training_mode: str = "balanced"):
+        """게임 환경 초기화
+        
+        Args:
+            training_mode: 학습 모드 ("survival", "balanced", "attack")
+        """
         self.state_size = 161
         self.action_size = 10
         self.previous_lives = 3
         self.previous_score = 0
+        
+        # 학습 모드 설정
+        if training_mode not in TRAINING_MODES:
+            raise ValueError(f"Unknown training_mode: {training_mode}. "
+                           f"Available modes: {list(TRAINING_MODES.keys())}")
+        self.training_mode = training_mode
+        self.w_survival = TRAINING_MODES[training_mode]["w_survival"]
+        self.w_attack = TRAINING_MODES[training_mode]["w_attack"]
 
     def get_state(self, game_state, skill_level: float, current_steps: int) -> np.ndarray:
         """
@@ -420,16 +445,26 @@ class GameEnvironment:
     
     def get_reward(self, game_state, skill_level: float, current_steps: int, prev_score: int) -> float:
         """
-        연구 기반 커리큘럼 러닝 보상 함수
+        모드별 고정 가중치 기반 보상 함수 (개선된 공격 보상)
+        
+        수식:
+        - 생존 보상: 매 스텝 0.01 (기본 생존 인센티브)
+        - 공격 보상: 적 처치 시 즉시 보상 (점수 증가량 기반)
+        - 사망 페널티: -(1.0 + skill * 2.0)
+        
+        모드별 가중치:
+        - survival: 생존 중심, 공격은 작은 보너스
+        - balanced: 생존과 공격 균형
+        - attack: 공격 중심, 생존은 기본 유지
         
         Args:
             game_state: GameStateStage 인스턴스
             skill_level: 실력값 (0.0 ~ 1.0)
             current_steps: 에피소드 진행 스텝
-            prev_score: 이전 점수 (여기서는 사용하지 않고 game_vars에서 직접 가져옴)
+            prev_score: 이전 점수 (즉각적 공격 보상 계산용)
             
         Returns:
-            final_reward: 계산된 보상 (0.0 ~ 1.0 스케일)
+            final_reward: 계산된 보상
         """
         if not game_state:
             return 0.0
@@ -440,80 +475,57 @@ class GameEnvironment:
         else:
             return 0.0
 
-        # 1. 실력값 기반 적응적 목표 설정
-        # 생존 목표: 0.1(300), 0.5(900), 1.0(1500)
-        if skill_level <= 0.5:
-            t_target = 300 + (max(0, skill_level - 0.1)) * (600 / 0.4)
-        else:
-            t_target = 900 + (skill_level - 0.5) * (600 / 0.5)
-            
-        # 공격 목표: 0.1(0.3), 0.5(1.5), 1.0(3.0) -> skill * 3.0
-        target_kill_rate = skill_level * 3.0
-
-        # 2. 지표 계산
-        # 생존 지표 (Survival Score)
-        # [개선] 목표 달성 후에도 보상이 계속 증가하도록 캡 제거 및 로직 수정
-        if current_steps <= t_target:
-            survival_score = current_steps / t_target
-        else:
-            # 목표 달성 이후에는 보너스 구간으로 진입 (지속적인 동기 부여)
-            survival_score = 1.0 + (current_steps - t_target) / 1000.0
-        
-        # 공격 지표 (Attack Score)
         current_score = gv.score
-        kills_so_far = current_score / 100.0
-        if current_steps > 0:
-            current_kill_rate = (kills_so_far / current_steps) * 100.0
-            # [개선] 공격 목표 달성 시에도 추가 보너스 부여
-            if target_kill_rate > 0:
-                attack_score = current_kill_rate / target_kill_rate
-            else:
-                attack_score = 1.0
-        else:
-            attack_score = 0.0
-
-        # 3. 커리큘럼 단계별 가중치 설정
-        if skill_level <= 0.3:
-            # 초보자: 생존 마스터 단계 (80% → 65% 생존)
-            progress = skill_level / 0.3
-            w_survival = 0.8 - (progress * 0.15)
-            w_attack = 0.2 + (progress * 0.15)
-        elif skill_level <= 0.6:
-            # 중급자: 안전한 공격 단계 (65% → 50% 생존)
-            progress = (skill_level - 0.3) / 0.3
-            w_survival = 0.65 - (progress * 0.15)
-            w_attack = 0.35 + (progress * 0.15)
-        elif skill_level <= 0.8:
-            # 중고급자: 균형잡힌 전투 단계 (50% → 40% 생존)
-            progress = (skill_level - 0.6) / 0.2
-            w_survival = 0.5 - (progress * 0.1)
-            w_attack = 0.5 + (progress * 0.1)
-        else:
-            # 고수: 공격적 플레이 단계 (40% → 35% 생존)
-            progress = (skill_level - 0.8) / 0.2
-            w_survival = 0.4 - (progress * 0.05)
-            w_attack = 0.6 + (progress * 0.05)
-
-        # 4. 최종 보상 계산 및 사망 페널티
-        # 기본 생존/공격 보상 합산
-        final_reward = (w_survival * survival_score + w_attack * attack_score)
-        
-        # [수정] 매 스텝 아주 작은 생존 보너스를 주어 목표 달성 후에도 자살하지 않도록 유도
-        final_reward += 0.01
-        
-        # 사망 페널티 (목숨 감소 시 발생)
         current_lives = gv.lives
-        death_penalty = 0.0
+        
+        # 1. 사망 페널티 (최우선 체크)
         if current_lives < self.previous_lives:
-            # [수정] 사망 페널티를 더 강력한 음수값으로 설정하고 클리핑 제거
-            death_penalty = 1.0 + (skill_level * 2.0) # Skill 0.1 -> 1.2 페널티
+            death_penalty = 1.0 + (skill_level * 2.0)
             self.previous_lives = current_lives
-            # 사망한 순간에는 확실한 마이너스 보상 반환
+            self.previous_score = current_score
             return float(-death_penalty)
         
-        # 에피소드 종료/리셋 시 목숨 값 복구
+        # 에피소드 종료/리셋 시 상태 복구
         if current_lives > self.previous_lives:
             self.previous_lives = current_lives
+            self.previous_score = current_score
+
+        # 2. 생존 보상 (매 스텝 기본 보상)
+        # 목표 스텝에 가까워질수록 보상 증가
+        t_target = get_survival_target_steps(skill_level)
+        
+        # 기본 생존 보상 (스텝당 0.01)
+        base_survival_reward = 0.01
+        
+        # 목표 진행도에 따른 추가 보상
+        progress = min(current_steps / t_target, 1.5)  # 최대 150%
+        survival_bonus = progress * 0.005  # 진행도 보너스
+        
+        survival_reward = base_survival_reward + survival_bonus
+        
+        # 3. 공격 보상 (즉각적 - 적 처치 시 바로 보상)
+        score_diff = current_score - self.previous_score
+        attack_reward = 0.0
+        
+        if score_diff > 0:
+            # 100점당 1킬로 가정, 킬당 0.5 보상
+            kills = score_diff / 100.0
+            attack_reward = kills * 0.5
+        
+        self.previous_score = current_score
+        
+        # 4. 모드별 가중치 적용
+        # survival: w_survival=0.95, w_attack=0.05 → 생존 중심
+        # balanced: w_survival=0.50, w_attack=0.50 → 균형
+        # attack:   w_survival=0.05, w_attack=0.95 → 공격 중심
+        
+        final_reward = (
+            self.w_survival * survival_reward + 
+            self.w_attack * attack_reward
+        )
+        
+        # 최소 보상 보장 (자살 방지)
+        final_reward = max(final_reward, 0.005)
 
         return float(final_reward)
 
