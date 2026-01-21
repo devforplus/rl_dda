@@ -13,7 +13,8 @@ import pyxel as px
 import matplotlib.pyplot as plt
 import matplotlib
 from datetime import datetime
-from rl import PPOAgent, GameEnvironment, TRAINING_MODES
+from rl import PPOAgent, GameEnvironment, TRAINING_MODES, get_kill_target_count, get_survival_target_steps
+from spcl_scheduler import SPCLScheduler, create_spcl_scheduler_for_mode
 import input as input_module
 
 # GUI 없는 환경에서도 그래프 저장이 가능하도록 설정
@@ -56,6 +57,7 @@ class RealGamePPOAgent:
         self.prev_score = 0
         self.prev_lives = 3
         self.current_steps = 0
+        self.episode_reward = 0.0  # 에피소드 누적 실제 보상
     
     def connect_game(self, app):
         """
@@ -126,6 +128,9 @@ class RealGamePPOAgent:
             
             self.ppo_agent.store_transition(state, action, reward, log_prob, done, value)
             
+            # 실제 누적 보상 추적
+            self.episode_reward += reward
+            
             # 점수 업데이트
             if hasattr(self.game_state, 'game') and hasattr(self.game_state.game, 'game_vars'):
                 self.prev_score = self.game_state.game.game_vars.score
@@ -155,39 +160,53 @@ class RealGamePPOAgent:
 
 
 class CurriculumTrainer:
-    """순수 이산적 커리큘럼 러닝 기반 학습 관리자
+    """커리큘럼 러닝 기반 학습 관리자
     
-    skill을 0.1 단위로 10단계(0.1, 0.2, ..., 1.0)로 나누어
-    각 단계에서 해당 skill을 고정하고 일정 에피소드 동안 학습합니다.
+    두 가지 커리큘럼 방식 지원:
     
-    학습 구조:
-    - Stage 1:  skill=0.1 고정, 목표  300 스텝
-    - Stage 2:  skill=0.2 고정, 목표  433 스텝
-    - Stage 3:  skill=0.3 고정, 목표  567 스텝
-    - ...
-    - Stage 10: skill=1.0 고정, 목표 1500 스텝
+    1. stepwise (기존): 고정 단계별 커리큘럼
+       - skill을 0.1 단위로 10단계로 나누어 순차 학습
+       - 각 단계에서 고정된 에피소드 수만큼 학습 후 다음 단계로
     
-    특징:
-    - 쉬운 목표(낮은 skill)부터 점진적으로 어려운 목표로 학습
-    - 각 단계에서 해당 skill만 집중 학습
-    - 단계별 체크포인트 저장
+    2. spcl (신규): Self-Paced Curriculum Learning
+       - 에이전트 성능에 따라 동적으로 난이도 선택
+       - Loss < Lambda 조건으로 학습 가능한 난이도 필터링
+       - 마스터한 난이도는 자연스럽게 더 어려운 난이도로 진행
     """
     
     def __init__(
         self, 
         agent: RealGamePPOAgent, 
         training_mode: str = "balanced",
+        curriculum_type: str = "stepwise",
         save_dir: str = "models", 
         total_episodes: int = 2000
     ):
+        """
+        Args:
+            agent: RealGamePPOAgent 인스턴스
+            training_mode: 학습 모드 ("survival", "balanced", "attack")
+            curriculum_type: 커리큘럼 타입 ("stepwise" 또는 "spcl")
+            save_dir: 모델 저장 디렉토리
+            total_episodes: 총 학습 에피소드 수
+        """
         self.agent = agent
         self.training_mode = training_mode
+        self.curriculum_type = curriculum_type
         self.total_episodes = total_episodes
         
-        # 모드별 저장 디렉토리 분리
-        self.save_dir = os.path.join(save_dir, training_mode)
+        # 모드별 저장 디렉토리 분리 (SPCL일 경우 별도 하위 디렉토리)
+        if curriculum_type == "spcl":
+            self.save_dir = os.path.join(save_dir, f"{training_mode}_spcl")
+        else:
+            self.save_dir = os.path.join(save_dir, training_mode)
         if not os.path.exists(self.save_dir):
             os.makedirs(self.save_dir)
+        
+        # 그래프 저장 디렉토리 분리 (pth 파일과 분리)
+        self.plots_dir = os.path.join(save_dir, "plots")
+        if not os.path.exists(self.plots_dir):
+            os.makedirs(self.plots_dir)
             
         # 성능 추적 (시각화용)
         self.episode_rewards = []
@@ -198,16 +217,23 @@ class CurriculumTrainer:
         self.best_score = 0
         self.best_kills = 0
         
-        # 이산적 커리큘럼 설정 (0.1 단위, 10단계)
+        # 이산적 커리큘럼 설정 (0.1 단위, 10단계) - stepwise용
         self.start_skill = DEFAULT_START_SKILL
         self.end_skill = DEFAULT_END_SKILL
         self.skill_step = 0.1
         self.num_stages = int((self.end_skill - self.start_skill) / self.skill_step) + 1  # 10단계
         self.episodes_per_stage = total_episodes // self.num_stages
         
-        # 현재 단계 추적
+        # 현재 단계 추적 (stepwise용)
         self.current_stage = 0  # 0-indexed (0 = skill 0.1, 9 = skill 1.0)
         self.stage_episode_count = 0
+        
+        # SPCL 스케줄러 (spcl 모드일 때만 사용)
+        self.spcl_scheduler: SPCLScheduler | None = None
+        if curriculum_type == "spcl":
+            self.spcl_scheduler = create_spcl_scheduler_for_mode(training_mode)
+            # SPCL은 0.0부터 시작 (낙관적 초기화로 모든 난이도 후보)
+            self.start_skill = 0.0
         
     def record_episode(self, reward: float, length: int, kills: int, skill: float):
         """에피소드 데이터 기록
@@ -224,29 +250,56 @@ class CurriculumTrainer:
         self.episode_skills.append(skill)
 
     def get_current_stage_skill(self) -> float:
-        """현재 단계의 skill 값 반환"""
+        """현재 단계의 skill 값 반환 (stepwise 모드용)"""
         return self.start_skill + self.current_stage * self.skill_step
     
     def get_skill_for_episode(self, episode: int) -> float:
-        """순수 이산적 커리큘럼 러닝
+        """에피소드의 skill 레벨 결정
         
-        각 단계에서 해당 skill 값만 고정으로 사용합니다.
+        커리큘럼 타입에 따라 다른 방식으로 skill을 결정합니다.
         
-        Stage 1: skill = 0.1 (고정)
-        Stage 2: skill = 0.2 (고정)
-        ...
-        Stage 10: skill = 1.0 (고정)
+        stepwise: 단계별 고정 skill (기존 방식)
+        spcl: 에이전트 성능에 따른 동적 선택
         
         Args:
-            episode: 현재 에피소드 번호 (사용하지 않음)
+            episode: 현재 에피소드 번호
             
         Returns:
-            skill_level: 현재 단계의 고정 skill 값
+            skill_level: 선택된 skill 값
         """
-        return self.get_current_stage_skill()
+        if self.curriculum_type == "spcl" and self.spcl_scheduler is not None:
+            # SPCL: 스케줄러가 성능 기반으로 난이도 선택
+            return self.spcl_scheduler.select_difficulty()
+        else:
+            # Stepwise: 현재 단계의 고정 skill 반환
+            return self.get_current_stage_skill()
 
-    def update_skill_by_episode(self, current_episode: int):
-        """이산적 커리큘럼: 단계별 skill 업데이트"""
+    def update_skill_by_episode(
+        self, 
+        current_episode: int, 
+        survival_time: int = 0, 
+        kills: int = 0
+    ):
+        """에피소드 종료 후 커리큘럼 상태 업데이트
+        
+        Args:
+            current_episode: 현재 에피소드 번호
+            survival_time: 에피소드 생존 시간 (스텝)
+            kills: 에피소드 킬 수
+        """
+        if self.curriculum_type == "spcl" and self.spcl_scheduler is not None:
+            # SPCL 모드: 성능 업데이트 및 Lambda 관리
+            self._update_spcl(current_episode, survival_time, kills)
+        else:
+            # Stepwise 모드: 기존 단계별 업데이트
+            self._update_stepwise(current_episode)
+        
+        # 다음 에피소드의 skill 결정
+        new_skill = self.get_skill_for_episode(current_episode)
+        self.agent.skill_level = new_skill
+    
+    def _update_stepwise(self, current_episode: int):
+        """Stepwise 커리큘럼: 단계별 skill 업데이트"""
         self.stage_episode_count += 1
         
         # 단계 전환 체크
@@ -263,14 +316,14 @@ class CurriculumTrainer:
                 
                 # 모드별 목표 표시
                 if self.training_mode == "attack":
-                    target_kills = int(new_max_skill * 10)  # skill * 10 킬 목표
+                    target_kills = int(get_kill_target_count(new_max_skill))
                     print(f"   목표 킬: {target_kills} 킬")
                 elif self.training_mode == "balanced":
-                    target_survival = int(300 + (new_max_skill - 0.1) * 1333.33)
-                    target_kills = int(new_max_skill * 10)
+                    target_survival = int(get_survival_target_steps(new_max_skill))
+                    target_kills = int(get_kill_target_count(new_max_skill))
                     print(f"   목표 생존: {target_survival} 스텝 | 목표 킬: {target_kills}")
                 else:  # survival
-                    target_survival = int(300 + (new_max_skill - 0.1) * 1333.33)
+                    target_survival = int(get_survival_target_steps(new_max_skill))
                     print(f"   목표 생존 시간: {target_survival} 스텝")
                 print(f"{'='*60}\n")
                 
@@ -279,10 +332,101 @@ class CurriculumTrainer:
                     os.path.join(self.save_dir, f"ppo_{self.training_mode}_stage_{self.current_stage + 1}.pth")
                 )
                 self.plot_progress()
+    
+    def _update_spcl(self, current_episode: int, survival_time: int, kills: int):
+        """SPCL 커리큘럼: 낙관적 초기화 + 적응적 Lambda
         
-        # 현재 에피소드의 skill 결정
-        new_skill = self.get_skill_for_episode(current_episode)
-        self.agent.skill_level = new_skill
+        Args:
+            current_episode: 현재 에피소드 번호
+            survival_time: 에피소드 생존 시간 (스텝)
+            kills: 에피소드 킬 수
+        """
+        if self.spcl_scheduler is None:
+            return
+        
+        # 현재 에피소드에서 사용한 난이도
+        current_skill = self.agent.skill_level
+        
+        # 성공 여부 판정 (모드별 기준)
+        success = self._evaluate_episode_success(current_skill, survival_time, kills)
+        
+        # SPCL 스케줄러에 성능 업데이트 (Loss 조정)
+        self.spcl_scheduler.update_performance(current_skill, success)
+        
+        # Lambda 조정 주기 체크
+        if self.spcl_scheduler.should_step_lambda():
+            old_lambda = self.spcl_scheduler.lambda_value
+            new_lambda, action, details = self.spcl_scheduler.step_lambda()
+            
+            # 학습 가능한 난이도 범위 표시
+            candidates = self.spcl_scheduler.get_candidate_difficulties()
+            
+            # 액션에 따른 이모지
+            action_emoji = "📈" if action in ["up", "up_slow"] else ("📉" if action == "down" else "➡️")
+            
+            print(f"\n{'='*60}")
+            print(f"{action_emoji} SPCL Lambda 조정! ({action.upper()})")
+            print(f"   Lambda: {old_lambda:.3f} → {new_lambda:.3f}")
+            print(f"   판정 근거: {details['reason']}")
+            print(f"   ├─ 전체 성공률: {details['overall_sr']*100:.1f}% (≥70% 필요)")
+            print(f"   ├─ 마스터 비율: {details['mastery_ratio']*100:.1f}% ({details['mastered_count']}/{details['evaluated_count']}개 난이도)")
+            print(f"   └─ 고전 비율: {details['struggling_ratio']*100:.1f}% ({details['struggling_count']}/{details['evaluated_count']}개 난이도)")
+            print(f"   학습 가능 난이도: {[f'{d:.1f}' for d in candidates]}")
+            print(f"   에피소드: {current_episode}/{self.total_episodes}")
+            print(f"{'='*60}\n")
+            
+            # 체크포인트 저장
+            self.agent.ppo_agent.save(
+                os.path.join(self.save_dir, f"ppo_{self.training_mode}_spcl_ep{current_episode}.pth")
+            )
+            self.plot_progress()
+        
+        # 주기적 SPCL 상태 출력 (100 에피소드마다)
+        if current_episode % 100 == 0:
+            print(f"\n{self.spcl_scheduler.get_stats_summary()}\n")
+    
+    def _evaluate_episode_success(
+        self, 
+        skill: float, 
+        survival_time: int, 
+        kills: int
+    ) -> bool:
+        """에피소드 성공 여부 판정 (v2.1: 균형 잡힌 기준)
+        
+        모드별 목표 대비 달성률을 기준으로 성공 여부를 판단합니다.
+        마스터리 기준(80%)과 연계하여 적절한 성공률 설정.
+        
+        v2.1 균형:
+        - 목표의 80% 달성을 기본 성공 기준 (마스터리 기준과 일치)
+        - 생존은 75%, 킬은 80% (생존이 더 어려우므로)
+        - 균형 모드는 가중 평균 방식 (생존 40% + 킬 60% 기준)
+        
+        Args:
+            skill: 에피소드에서 사용한 skill 레벨
+            survival_time: 생존 시간 (스텝)
+            kills: 킬 수
+            
+        Returns:
+            success: 성공 여부
+        """
+        target_survival = get_survival_target_steps(skill)
+        target_kills = get_kill_target_count(skill)
+        
+        if self.training_mode == "attack":
+            # 공격 모드: 킬 수 기준 (목표의 80% 달성)
+            success_threshold = 0.80
+            return kills >= max(1, int(target_kills * success_threshold))
+        elif self.training_mode == "survival":
+            # 생존 모드: 생존 시간 기준 (목표의 75% 달성)
+            success_threshold = 0.75
+            return survival_time >= int(target_survival * success_threshold)
+        else:  # balanced
+            # 균형 모드: 가중 점수 방식
+            # 생존 달성률 * 0.4 + 킬 달성률 * 0.6 >= 0.75
+            survival_ratio = min(1.0, survival_time / max(target_survival, 1))
+            kill_ratio = min(1.0, kills / max(target_kills, 1))
+            weighted_score = survival_ratio * 0.4 + kill_ratio * 0.6
+            return weighted_score >= 0.75
 
     def plot_progress(self):
         """학습 진행 상황 그래프 생성 (모드별 다른 지표 표시)
@@ -294,7 +438,7 @@ class CurriculumTrainer:
         if not self.episode_rewards:
             return
             
-        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(10, 10))
+        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 5))
         
         # 1. 보상 그래프 (공통)
         ax1.plot(self.episode_rewards, alpha=0.3, color='blue', label='Reward')
@@ -303,7 +447,7 @@ class CurriculumTrainer:
             ax1.plot(range(9, len(self.episode_rewards)), avg_rewards, color='blue', linewidth=2, label='MA(10)')
         ax1.set_title(f'Training Progress - Reward (Mode: {self.training_mode})')
         ax1.set_xlabel('Episode')
-        ax1.set_ylabel('Score')
+        ax1.set_ylabel('Reward')
         ax1.legend()
         ax1.grid(True, alpha=0.3)
         
@@ -358,32 +502,64 @@ class CurriculumTrainer:
             ax2.legend()
             ax2.grid(True, alpha=0.3)
         
-        # 3. 스킬 레벨 진행 그래프 (커리큘럼 단계 표시)
+        # 3. 스킬 레벨 진행 그래프
         if self.episode_skills:
             ax3.scatter(range(len(self.episode_skills)), self.episode_skills, 
                        alpha=0.3, s=2, color='red', label='Skill (per episode)')
             
-            # 단계 경계선 표시
-            for stage in range(1, self.num_stages):
-                boundary = stage * self.episodes_per_stage
-                if boundary < len(self.episode_skills):
-                    ax3.axvline(x=boundary, color='blue', linestyle='--', alpha=0.3)
+            if self.curriculum_type == "spcl" and self.spcl_scheduler is not None:
+                # SPCL 모드: Lambda 히스토리도 표시
+                if len(self.episode_skills) >= 10:
+                    avg_skills = np.convolve(self.episode_skills, np.ones(10)/10, mode='valid')
+                    ax3.plot(range(9, len(self.episode_skills)), avg_skills, 
+                            color='darkred', linewidth=2, label='Skill MA(10)')
+                
+                # Lambda 히스토리를 두 번째 Y축에 표시
+                ax3_twin = ax3.twinx()
+                lambda_history = self.spcl_scheduler.lambda_history
+                # Lambda 업데이트 주기에 맞춰 x축 조정
+                lambda_x = [i * self.spcl_scheduler.lambda_update_interval 
+                           for i in range(len(lambda_history))]
+                ax3_twin.plot(lambda_x, lambda_history, 
+                             color='purple', linewidth=2, linestyle='--', label='Lambda')
+                ax3_twin.set_ylabel('Lambda', color='purple')
+                ax3_twin.tick_params(axis='y', labelcolor='purple')
+                ax3_twin.set_ylim(0, 1.6)
+                
+                ax3.set_title(f'SPCL - Skill & Lambda Progression')
+                
+                # 범례 통합
+                lines1, labels1 = ax3.get_legend_handles_labels()
+                lines2, labels2 = ax3_twin.get_legend_handles_labels()
+                ax3.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
+            else:
+                # Stepwise 모드: 기존 방식
+                # 단계 경계선 표시
+                for stage in range(1, self.num_stages):
+                    boundary = stage * self.episodes_per_stage
+                    if boundary < len(self.episode_skills):
+                        ax3.axvline(x=boundary, color='blue', linestyle='--', alpha=0.3)
+                
+                # 각 단계의 최대 skill 표시
+                if len(self.episode_skills) >= 10:
+                    avg_skills = np.convolve(self.episode_skills, np.ones(10)/10, mode='valid')
+                    ax3.plot(range(9, len(self.episode_skills)), avg_skills, 
+                            color='darkred', linewidth=2, label='MA(10)')
+                
+                ax3.set_title(f'Stepwise CL - Skill Progression ({self.num_stages} Stages)')
+                ax3.legend()
             
-            # 각 단계의 최대 skill 표시
-            if len(self.episode_skills) >= 10:
-                avg_skills = np.convolve(self.episode_skills, np.ones(10)/10, mode='valid')
-                ax3.plot(range(9, len(self.episode_skills)), avg_skills, 
-                        color='darkred', linewidth=2, label='MA(10)')
-            
-            ax3.set_title(f'Curriculum Learning - Skill Progression ({self.num_stages} Stages)')
             ax3.set_xlabel('Episode')
             ax3.set_ylabel('Skill')
             ax3.set_ylim(0, 1.1)
-            ax3.legend()
             ax3.grid(True, alpha=0.3)
         
         plt.tight_layout()
-        plot_path = os.path.join(self.save_dir, f"training_progress_{self.training_mode}.png")
+        # 그래프는 plots 디렉토리에 저장 (pth 파일과 분리)
+        curriculum_suffix = "_spcl" if self.curriculum_type == "spcl" else ""
+        plot_path = os.path.join(self.plots_dir, f"training_progress_{self.training_mode}{curriculum_suffix}.png")
+        # 디렉토리가 존재하지 않으면 생성 (중간에 삭제되거나 없을 경우 대비)
+        os.makedirs(self.plots_dir, exist_ok=True)
         plt.savefig(plot_path)
         plt.close()
 
@@ -408,7 +584,22 @@ class CurriculumTrainer:
 
 # Pyxel 앱을 상속받아 학습용 환경 구현
 class TrainingApp:
-    def __init__(self, agent: RealGamePPOAgent, training_mode: str = "balanced", speed=9, total_episodes=2000):
+    def __init__(
+        self, 
+        agent: RealGamePPOAgent, 
+        training_mode: str = "balanced",
+        curriculum_type: str = "stepwise",
+        speed: int = 9, 
+        total_episodes: int = 2000
+    ):
+        """
+        Args:
+            agent: RealGamePPOAgent 인스턴스
+            training_mode: 학습 모드 ("survival", "balanced", "attack")
+            curriculum_type: 커리큘럼 타입 ("stepwise" 또는 "spcl")
+            speed: 학습 속도 배율
+            total_episodes: 총 학습 에피소드 수
+        """
         from const import APP_WIDTH, APP_HEIGHT, APP_NAME, APP_FPS, \
             APP_DISPLAY_SCALE, APP_CAPTURE_SCALE, APP_GFX_FILE, PALETTE, SOUNDS_RES_FILE
         from game import Game
@@ -419,9 +610,11 @@ class TrainingApp:
         self.speed = speed
         self.total_episodes = total_episodes
         self.training_mode = training_mode
+        self.curriculum_type = curriculum_type
         self.trainer = CurriculumTrainer(
             agent, 
             training_mode=training_mode,
+            curriculum_type=curriculum_type,
             total_episodes=total_episodes
         )
         
@@ -482,17 +675,19 @@ class TrainingApp:
         score = self.agent.prev_score
         kills = score // 100  # 100점당 1킬
         current_skill = self.agent.skill_level
+        episode_reward = self.agent.episode_reward
         
-        # 에피소드 데이터 기록 (킬 수 포함)
-        self.trainer.record_episode(score, survival_time, kills, current_skill)
+        # 에피소드 데이터 기록 (실제 보상 및 킬 수 포함)
+        self.trainer.record_episode(episode_reward, survival_time, kills, current_skill)
         
         # 모드별 로그 출력
         if self.training_mode == "attack":
             # Attack 모드: 킬 수 중심
-            target_kills = int(current_skill * 10)  # 목표 킬 수 (예시)
+            target_kills = int(get_kill_target_count(current_skill))
             print(f"🎬 Ep {self.episode_count}/{self.total_episodes} | "
                   f"Mode: ATTACK | "
-                  f"킬: {kills} (목표: {target_kills}) | 생존: {survival_time} | Skill: {current_skill:.2f}")
+                  f"보상: {episode_reward:.2f} | 킬: {kills} (목표: {target_kills}) | "
+                  f"생존: {survival_time} | Skill: {current_skill:.2f}")
         elif self.training_mode == "balanced":
             # Balanced 모드: 둘 다 표시
             print(f"🎬 Ep {self.episode_count}/{self.total_episodes} | "
@@ -500,14 +695,13 @@ class TrainingApp:
                   f"생존: {survival_time} | 킬: {kills} | Skill: {current_skill:.2f}")
         else:
             # Survival 모드: 생존 시간 중심
-            from rl import get_survival_target_steps
             target_survival = int(get_survival_target_steps(current_skill))
             print(f"🎬 Ep {self.episode_count}/{self.total_episodes} | "
                   f"Mode: SURVIVAL | "
                   f"생존: {survival_time} (목표: {target_survival}) | 킬: {kills} | Skill: {current_skill:.2f}")
         
-        # 선형 스킬 업데이트
-        self.trainer.update_skill_by_episode(self.episode_count)
+        # 커리큘럼 업데이트 (생존 시간과 킬 수 전달 - SPCL용)
+        self.trainer.update_skill_by_episode(self.episode_count, survival_time, kills)
         
         # 학습 종료 체크
         if self.episode_count >= self.total_episodes:
@@ -547,26 +741,43 @@ class TrainingApp:
             self.trainer.save_checkpoint(is_best)
             
         # 게임 리셋 및 에이전트 상태 리셋
+        self._reset_game_state()
+    
+    def _reset_game_state(self):
+        """게임 및 에이전트 상태 리셋"""
         self.game.go_to_new_game()
         self.agent.current_steps = 0
         self.agent.prev_score = 0
-        self.agent.env.previous_lives = 3   # 목숨 상태 초기화
-        self.agent.env.previous_score = 0   # 점수 상태 초기화 (공격 보상용)
+        self.agent.episode_reward = 0.0
+        self.agent.env.previous_lives = 3
+        self.agent.env.previous_score = 0
 
     def draw(self):
         px.cls(0)
         self.game.draw()
-        px.text(5, 5, f"MODE: {self.training_mode.upper()}", 7)
+        
+        # 커리큘럼 타입 표시
+        curriculum_label = "SPCL" if self.curriculum_type == "spcl" else "STEP"
+        px.text(5, 5, f"MODE: {self.training_mode.upper()} ({curriculum_label})", 7)
         px.text(5, 15, f"EPISODE: {self.episode_count}/{self.total_episodes}", 7)
         px.text(5, 25, f"SKILL: {self.agent.skill_level:.3f}", 7)
         
+        # SPCL 모드일 때 Lambda 및 단계 표시
+        if self.curriculum_type == "spcl" and self.trainer.spcl_scheduler is not None:
+            phase = "EXPLORE" if self.trainer.spcl_scheduler.is_exploration_phase() else "LEARN"
+            px.text(5, 35, f"PHASE: {phase}", 7)
+            px.text(5, 45, f"LAMBDA: {self.trainer.spcl_scheduler.lambda_value:.3f}", 7)
+            y_offset = 55
+        else:
+            y_offset = 35
+        
         # 모드별 BEST 표시
         if self.training_mode == "attack":
-            px.text(5, 35, f"BEST KILLS: {self.trainer.best_kills}", 7)
+            px.text(5, y_offset, f"BEST KILLS: {self.trainer.best_kills}", 7)
         elif self.training_mode == "balanced":
-            px.text(5, 35, f"BEST: {self.trainer.best_survival}steps/{self.trainer.best_kills}kills", 7)
+            px.text(5, y_offset, f"BEST: {self.trainer.best_survival}steps/{self.trainer.best_kills}kills", 7)
         else:
-            px.text(5, 35, f"BEST: {self.trainer.best_survival} steps", 7)
+            px.text(5, y_offset, f"BEST: {self.trainer.best_survival} steps", 7)
 
 
 def create_ppo_agent(
@@ -626,7 +837,7 @@ def create_random_ppo_agent(
 def main():
     import argparse
     parser = argparse.ArgumentParser(
-        description="PPO 선형 커리큘럼 트레이너 (3가지 학습 모드 지원)",
+        description="PPO 커리큘럼 트레이너 (Stepwise CL / SPCL 지원)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 학습 모드:
@@ -634,10 +845,16 @@ def main():
   balanced  균형 (w_survival=50%, w_attack=50%)      - 생존과 공격 동일 비중
   attack    공격 극한 (w_survival=5%, w_attack=95%)  - 적 처치 우선
 
+커리큘럼 타입:
+  stepwise  단계별 고정 커리큘럼 (기존 방식)
+  spcl      Self-Paced Curriculum Learning (성능 기반 동적 선택)
+
 사용 예시:
-  python train_ppo_real_game.py --mode survival --episodes 2000
-  python train_ppo_real_game.py --mode balanced --episodes 2000
-  python train_ppo_real_game.py --mode attack --episodes 2000
+  # 기존 Stepwise CL
+  python train_ppo_real_game.py --mode balanced --curriculum stepwise
+  
+  # 새로운 SPCL
+  python train_ppo_real_game.py --mode balanced --curriculum spcl
         """
     )
     parser.add_argument(
@@ -647,59 +864,91 @@ def main():
         choices=["survival", "balanced", "attack"],
         help="학습 모드: survival(생존 극한), balanced(균형), attack(공격 극한)"
     )
+    parser.add_argument(
+        "--curriculum",
+        type=str,
+        default="stepwise",
+        choices=["stepwise", "spcl"],
+        help="커리큘럼 타입: stepwise(단계별 고정), spcl(성능 기반 동적)"
+    )
     parser.add_argument("--speed", type=int, default=9, help="학습 속도 (기본: 9)")
     parser.add_argument("--episodes", type=int, default=2000, help="전체 에피소드 수 (기본: 2000)")
     args = parser.parse_args()
     
-    # 커리큘럼 정보 계산
-    num_stages = int((DEFAULT_END_SKILL - DEFAULT_START_SKILL) / 0.1) + 1  # 10단계
-    episodes_per_stage = args.episodes // num_stages
-    
     # 가중치 정보 출력
     weights = TRAINING_MODES[args.mode]
+    
     print("=" * 60)
-    print(f"🎮 PPO 순수 커리큘럼 러닝 시작 (단계별 고정 skill)")
+    if args.curriculum == "spcl":
+        print(f"🎮 PPO SPCL (Self-Paced Curriculum Learning) 시작")
+    else:
+        print(f"🎮 PPO Stepwise 커리큘럼 러닝 시작 (단계별 고정 skill)")
     print("=" * 60)
     print(f"  학습 모드: {args.mode.upper()}")
+    print(f"  커리큘럼: {args.curriculum.upper()}")
     print(f"  가중치: w_survival={weights['w_survival']:.0%}, w_attack={weights['w_attack']:.0%}")
-    print(f"  스킬 범위: {DEFAULT_START_SKILL} → {DEFAULT_END_SKILL} (0.1 단위)")
-    print(f"  총 단계: {num_stages}단계")
-    print(f"  단계당 에피소드: {episodes_per_stage}")
     print(f"  총 에피소드: {args.episodes}")
     print(f"  학습 속도: x{args.speed}")
     print("=" * 60)
-    print(f"  📚 커리큘럼 구조:")
-    for i in range(num_stages):
-        skill = DEFAULT_START_SKILL + i * 0.1
-        ep_start = i * episodes_per_stage + 1
-        ep_end = (i + 1) * episodes_per_stage
+    
+    if args.curriculum == "spcl":
+        # SPCL 모드 정보 출력 (강화학습 최적화 버전)
+        print("  📚 SPCL 설정 (강화학습 최적화 버전):")
+        print("     난이도 범위: 0.0 ~ 1.0 (11단계)")
+        print("     [탐색 단계] 각 난이도를 최소 15~20번씩 시도 → Loss 파악")
+        print("     [학습 단계] Loss < Lambda인 난이도만 선택")
+        print("     마스터리 기반 Lambda 조정:")
+        print("       - 모든 후보 난이도 마스터 (≥95%): Lambda 증가 (+0.01)")
+        print("       - 고전 중 (<40%): Lambda 감소 (-0.02)")
+        print("       - 업데이트 주기: 300~400 에피소드")
+        print("     목표 100% 달성 시 성공으로 판정 (매우 엄격)")
+        if args.mode == "balanced":
+            print("     Balanced: 생존 AND 킬 모두 100% 달성 필요")
+        print("=" * 60)
+        start_skill = 0.0  # SPCL은 0.0부터 시작
+    else:
+        # Stepwise 모드 정보 출력
+        num_stages = int((DEFAULT_END_SKILL - DEFAULT_START_SKILL) / 0.1) + 1
+        episodes_per_stage = args.episodes // num_stages
         
-        # 모드별 목표 표시
-        if args.mode == "attack":
-            target_kills = int(skill * 10)
-            print(f"     Stage {i+1}: Ep {ep_start:4d}-{ep_end:4d} | "
-                  f"skill={skill:.1f} | 목표 {target_kills:2d}킬")
-        elif args.mode == "balanced":
-            target_steps = int(300 + (skill - 0.1) * 1333.33)
-            target_kills = int(skill * 10)
-            print(f"     Stage {i+1}: Ep {ep_start:4d}-{ep_end:4d} | "
-                  f"skill={skill:.1f} | 목표 {target_steps:4d}스텝/{target_kills:2d}킬")
-        else:  # survival
-            target_steps = int(300 + (skill - 0.1) * 1333.33)
-            print(f"     Stage {i+1}: Ep {ep_start:4d}-{ep_end:4d} | "
-                  f"skill={skill:.1f} | 목표 {target_steps:4d}스텝")
-    print("=" * 60)
+        print(f"  스킬 범위: {DEFAULT_START_SKILL} → {DEFAULT_END_SKILL} (0.1 단위)")
+        print(f"  총 단계: {num_stages}단계")
+        print(f"  단계당 에피소드: {episodes_per_stage}")
+        print("=" * 60)
+        print(f"  📚 커리큘럼 구조:")
+        for i in range(num_stages):
+            skill = DEFAULT_START_SKILL + i * 0.1
+            ep_start = i * episodes_per_stage + 1
+            ep_end = (i + 1) * episodes_per_stage
+            
+            # 모드별 목표 표시
+            if args.mode == "attack":
+                target_kills = int(get_kill_target_count(skill))
+                print(f"     Stage {i+1}: Ep {ep_start:4d}-{ep_end:4d} | "
+                      f"skill={skill:.1f} | 목표 {target_kills:2d}킬")
+            elif args.mode == "balanced":
+                target_steps = int(get_survival_target_steps(skill))
+                target_kills = int(get_kill_target_count(skill))
+                print(f"     Stage {i+1}: Ep {ep_start:4d}-{ep_end:4d} | "
+                      f"skill={skill:.1f} | 목표 {target_steps:4d}스텝/{target_kills:2d}킬")
+            else:  # survival
+                target_steps = int(get_survival_target_steps(skill))
+                print(f"     Stage {i+1}: Ep {ep_start:4d}-{ep_end:4d} | "
+                      f"skill={skill:.1f} | 목표 {target_steps:4d}스텝")
+        print("=" * 60)
+        start_skill = DEFAULT_START_SKILL
     
     # 에이전트 생성 (모드별 환경 설정)
     agent = create_ppo_agent(
         training_mode=args.mode,
-        skill_level=DEFAULT_START_SKILL,
+        skill_level=start_skill,
         random_mode=False
     )
     
     TrainingApp(
         agent, 
         training_mode=args.mode,
+        curriculum_type=args.curriculum,
         speed=args.speed, 
         total_episodes=args.episodes
     )
